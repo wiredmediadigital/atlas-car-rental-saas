@@ -5,6 +5,7 @@ import { Outlet } from 'react-router-dom'
 
 import { useWorkspace } from '@/features/workspace/workspace-context'
 
+import { RestrictedBanner } from '@/features/billing/components/RestrictedBanner'
 import { NotificationBell } from '@/features/notifications/components/NotificationBell'
 
 import { OrganizationAvatar } from './OrganizationAvatar'
@@ -111,6 +112,12 @@ export function AppShell() {
 
         <main id="main" className="min-w-0 flex-1">
           <div className="mx-auto w-full max-w-[1400px] px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
+            {/*
+              Above the outlet, on every page, because the state it describes
+              applies to every page. Putting it on a dashboard would mean the
+              one person who navigates straight to Rentals never reads it.
+            */}
+            <RestrictedBanner />
             <Outlet />
           </div>
         </main>

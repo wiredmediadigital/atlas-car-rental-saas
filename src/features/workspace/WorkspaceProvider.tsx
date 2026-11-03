@@ -2,6 +2,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import { useAuth } from '@/features/auth/auth-context'
+import { fetchBillingAccessState } from '@/features/billing/api'
 import { queryKeys } from '@/lib/query/keys'
 import { toAppError } from '@/lib/supabase/errors'
 
@@ -79,6 +80,26 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     const preferred = explicitSelection ?? (userId ? readStoredSelection(userId) : null)
     return list.find((entry) => entry.organization.id === preferred) ?? list[0] ?? null
   }, [memberships, explicitSelection, userId])
+
+  /**
+   * Whether this agency's records are read-only because nobody is paying.
+   *
+   * Loaded here rather than by the pages that care, because what it gates is
+   * `usePermission`, which every module calls and which has to answer
+   * synchronously. One query for the whole shell, scoped to the active agency.
+   *
+   * A FAILURE IS NOT A RESTRICTION. If this query errors — offline, an old
+   * deployment without the function, a transient 500 — `data` is undefined and
+   * the interface withdraws nothing. Locking an agency out of its own product
+   * because one read failed would be a far worse bug than briefly offering a
+   * button the database then refuses.
+   */
+  const { data: billingAccessState } = useQuery({
+    queryKey: queryKeys.billingAccess(active?.organization.id ?? 'none'),
+    queryFn: () => fetchBillingAccessState(active!.organization.id),
+    enabled: active != null,
+    staleTime: 60_000,
+  })
 
   const switchOrganization = useCallback(
     (organizationId: string) => {
@@ -171,11 +192,21 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       organization: active?.organization ?? null,
       membership: active?.membership ?? null,
       role: active?.membership.role ?? null,
+      billingAccessState: billingAccessState ?? null,
       error: error instanceof Error ? error : error ? new Error(String(error)) : null,
       switchOrganization,
       refresh,
     }
-  }, [memberships, active, authStatus, isPending, error, switchOrganization, refresh])
+  }, [
+    memberships,
+    active,
+    authStatus,
+    isPending,
+    error,
+    billingAccessState,
+    switchOrganization,
+    refresh,
+  ])
 
   return <WorkspaceContext.Provider value={value}>{children}</WorkspaceContext.Provider>
 }

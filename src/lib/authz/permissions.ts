@@ -189,3 +189,65 @@ export function requiredRoleFor(permission: Permission): OrgRole {
 export function can(role: OrgRole | null | undefined, permission: Permission): boolean {
   return hasMinRole(role, PERMISSIONS[permission])
 }
+
+/*
+ * -----------------------------------------------------------------------------
+ * The read-only wind-down, as the interface sees it
+ * -----------------------------------------------------------------------------
+ *
+ * An agency with no live subscription keeps everything it can read and loses
+ * everything it can write. The database decides that — 54 RLS policies and four
+ * function guards, from 20261103100000 onwards. What follows is the same rule
+ * expressed in the interface's own vocabulary, so that a control the database is
+ * about to refuse is not offered in the first place.
+ *
+ * As everywhere else in this module: this grants nothing and secures nothing.
+ * Deleting it would make the product rude, not insecure.
+ */
+
+/** The actions that only ever read. Everything else writes. */
+const READ_ACTIONS: readonly string[] = ['view', 'history']
+
+/**
+ * Write actions that stay available to a restricted agency.
+ *
+ * Every one of them is a way OUT of the restriction, and a restriction nobody
+ * can undo from inside is not a restriction but a trap.
+ *
+ *   billing.manage            Where the subscription is restarted.
+ *   organization.update       The agency's own name, address and contact
+ *                             details — several of which are exactly what
+ *                             somebody corrects in order to start paying.
+ *   team.update / team.remove Shrinking the team costs nothing and may be part
+ *                             of winding down.
+ *   team.transferOwnership    For an agency whose owner has gone, the only
+ *                             route back to a paying subscription.
+ *
+ * `team.invite` is deliberately NOT here: taking on new staff is growth, and
+ * the database refuses it in public.create_team_invitation.
+ */
+const AVAILABLE_WHEN_RESTRICTED: readonly Permission[] = [
+  'billing.manage',
+  'organization.update',
+  'team.update',
+  'team.remove',
+  'team.transferOwnership',
+]
+
+/** Whether `permission` is one the interface withdraws while billing-restricted. */
+export function isWithdrawnWhenRestricted(permission: Permission): boolean {
+  if (AVAILABLE_WHEN_RESTRICTED.includes(permission)) return false
+  const action = permission.slice(permission.indexOf('.') + 1)
+  return !READ_ACTIONS.includes(action)
+}
+
+/**
+ * Every permission the interface withdraws, computed once.
+ *
+ * Exported so a test can print the whole list. A rule that classifies by naming
+ * convention is only safe while somebody can see what it classified, and the
+ * day a permission called `rentals.export` is added is the day that matters.
+ */
+export const WITHDRAWN_WHEN_RESTRICTED: readonly Permission[] = (
+  Object.keys(PERMISSIONS) as Permission[]
+).filter(isWithdrawnWhenRestricted)

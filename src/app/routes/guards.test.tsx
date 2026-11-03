@@ -34,6 +34,7 @@ function workspaceValue(
     organization: null,
     membership: null,
     role,
+    billingAccessState: null,
     error: null,
     switchOrganization: () => undefined,
     refresh: () => Promise.resolve(),
