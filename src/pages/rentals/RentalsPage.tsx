@@ -1,24 +1,30 @@
-import { FileSignature, Plus, SearchX } from 'lucide-react'
+import { Download, FileSignature, Plus, SearchX } from 'lucide-react'
 import { useCallback, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 
 import { paths } from '@/app/routes/paths'
 import { ErrorState } from '@/components/feedback/ErrorState'
 import { Button, ButtonLink, Card, EmptyState, ListPagination, PageHeader } from '@/components/ui'
+import { useToast } from '@/components/ui/toast/toast-context'
 import {
   RENTAL_SORTS,
   type RentalDeskView,
   type RentalPaymentFilter,
+  type RentalQuery,
   type RentalSort,
   deskViewFilter,
+  fetchRentalsForExport,
   isRentalDeskView,
 } from '@/features/rentals/api'
+import { exportRentals } from '@/features/rentals/export'
+import { downloadCsv } from '@/features/reports/csv'
 import { RentalCardList } from '@/features/rentals/components/RentalCardList'
 import { RentalSummary } from '@/features/rentals/components/RentalSummary'
 import { RentalTable } from '@/features/rentals/components/RentalTable'
 import { RentalToolbar, type RentalFilters } from '@/features/rentals/components/RentalToolbar'
 import { useRentalList, useRentalSummary } from '@/features/rentals/queries'
 import { useOrganization, usePermission } from '@/features/workspace/workspace-context'
+import { toAppError } from '@/lib/supabase/errors'
 import { addDaysInTimeZone, startOfDayInTimeZone } from '@/lib/datetime/timezone'
 
 const STATUS_VALUES: readonly string[] = [
@@ -30,6 +36,24 @@ const STATUS_VALUES: readonly string[] = [
   'live',
   'all',
 ]
+
+/** The words the file uses for what it is showing. */
+const STATUS_LABELS: Readonly<Record<string, string>> = {
+  live: 'Live rentals (draft, reserved, active)',
+  all: 'All rentals',
+  draft: 'Drafts',
+  reserved: 'Reservations',
+  active: 'Active rentals',
+  completed: 'Completed rentals',
+  cancelled: 'Cancelled rentals',
+}
+
+const DESK_VIEW_LABELS: Readonly<Record<RentalDeskView, string>> = {
+  collecting: 'Collecting today',
+  returning: 'Returning today',
+  overdue: 'Overdue',
+  outstanding: 'Outstanding balance',
+}
 
 function isRentalSort(value: string): value is RentalSort {
   return value in RENTAL_SORTS
@@ -45,8 +69,10 @@ function isRentalSort(value: string): value is RentalSort {
 export function RentalsPage() {
   const organization = useOrganization()
   const canCreate = usePermission('rentals.create')
+  const toast = useToast()
   const [searchParams, setSearchParams] = useSearchParams()
   const [now] = useState(() => new Date())
+  const [isExporting, setIsExporting] = useState(false)
 
   // The agency's day, not the browser's.
   const day = useMemo(() => {
@@ -152,16 +178,28 @@ export function RentalsPage() {
     [activeTile, day],
   )
 
-  const listQuery = useRentalList({
-    search: filters.search,
-    sort: filters.sort,
-    page,
-    ...(tileQuery ?? {
-      status: filters.status,
-      payment: filters.payment,
-      overdueOnly: filters.overdueOnly,
+  /*
+   * One definition of "what is on screen", used by the list and by the export.
+   *
+   * Written out here rather than inline in useRentalList so the export cannot
+   * drift from the page it was started from — a spreadsheet that quietly
+   * contains a different set of rows than the screen is the failure that makes
+   * somebody stop trusting every export they are given afterwards.
+   */
+  const currentFilter = useMemo(
+    () => ({
+      search: filters.search,
+      sort: filters.sort,
+      ...(tileQuery ?? {
+        status: filters.status,
+        payment: filters.payment,
+        overdueOnly: filters.overdueOnly,
+      }),
     }),
-  })
+    [filters.search, filters.sort, filters.status, filters.payment, filters.overdueOnly, tileQuery],
+  )
+
+  const listQuery = useRentalList({ ...currentFilter, page })
 
   const summaryQuery = useRentalSummary(day.start, day.end)
 
@@ -175,6 +213,66 @@ export function RentalsPage() {
     (filters.overdueOnly ? 1 : 0)
 
   const isFiltered = activeFilterCount > 0 || filters.search.length > 0 || activeTile !== null
+
+  /** What the file will say it is showing. The same words the toolbar uses. */
+  const filterLabel = useMemo(() => {
+    const parts: string[] = []
+    if (activeTile) parts.push(DESK_VIEW_LABELS[activeTile])
+    else parts.push(STATUS_LABELS[filters.status] ?? filters.status)
+    if (filters.payment !== 'any') parts.push(`payment: ${filters.payment}`)
+    if (filters.overdueOnly) parts.push('overdue only')
+    if (filters.search) parts.push(`search: ${filters.search}`)
+    return parts.join(' · ')
+  }, [activeTile, filters.status, filters.payment, filters.overdueOnly, filters.search])
+
+  /**
+   * Taking the rental book out of the product.
+   *
+   * Offered to anyone who may READ rentals, and deliberately not gated on the
+   * subscription: an agency whose records have gone read-only is exactly the
+   * agency most likely to need this, and a read-only state with no way to take
+   * the data out would be a worse promise than the one the wind-down makes.
+   */
+  const handleExport = useCallback(async () => {
+    setIsExporting(true)
+    try {
+      const query: RentalQuery = { ...currentFilter, organizationId: organization.id }
+      const result = await fetchRentalsForExport(query)
+
+      if (result.rows.length === 0) {
+        toast.toast({
+          title: 'Nothing to export',
+          description: 'No rentals match the current filters.',
+          tone: 'info',
+        })
+        return
+      }
+
+      const file = exportRentals(
+        {
+          agencyName: organization.name,
+          filterLabel,
+          generatedAt: new Date().toISOString(),
+          truncated: result.truncated,
+        },
+        result.rows,
+      )
+      downloadCsv(file.filename, file.contents)
+
+      if (result.truncated) {
+        toast.toast({
+          title: 'Export reached its limit',
+          description: 'The file holds the first 10,000 rentals. Narrow the filters for the rest.',
+          tone: 'caution',
+          duration: 0,
+        })
+      }
+    } catch (error) {
+      toast.error('The export could not be completed', toAppError(error).message)
+    } finally {
+      setIsExporting(false)
+    }
+  }, [currentFilter, organization.id, organization.name, filterLabel, toast])
 
   const hasAnyRentals =
     total > 0 ||
@@ -193,11 +291,22 @@ export function RentalsPage() {
         eyebrow="Operations"
         description={`Every contract ${organization.name} is running, and what each one needs next.`}
         actions={
-          canCreate ? (
-            <ButtonLink variant="primary" leadingIcon={<Plus />} to={paths.rentalNew}>
-              New rental
-            </ButtonLink>
-          ) : null
+          <>
+            <Button
+              variant="secondary"
+              leadingIcon={<Download />}
+              onClick={() => void handleExport()}
+              isLoading={isExporting}
+              disabled={isExporting || !hasAnyRentals}
+            >
+              Export
+            </Button>
+            {canCreate ? (
+              <ButtonLink variant="primary" leadingIcon={<Plus />} to={paths.rentalNew}>
+                New rental
+              </ButtonLink>
+            ) : null}
+          </>
         }
       />
 

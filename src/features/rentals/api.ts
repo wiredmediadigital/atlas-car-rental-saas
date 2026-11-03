@@ -233,6 +233,57 @@ export async function fetchRentals(query: RentalQuery): Promise<RentalPage> {
   }
 }
 
+/**
+ * The ceiling on one export.
+ *
+ * Not a performance limit so much as a promise about the browser: every row is
+ * held in memory and then turned into one string, and an agency with a decade
+ * of history asking for "all" should get a file and a note rather than a tab
+ * that stops responding. 10,000 rentals is far beyond any realistic filtered
+ * view and still a file of a few megabytes.
+ */
+export const RENTAL_EXPORT_LIMIT = 10_000
+
+export interface RentalExportResult {
+  readonly rows: RentalBoardEntry[]
+  /** True when the ceiling was reached and there were more rows behind it. */
+  readonly truncated: boolean
+}
+
+/**
+ * Every rental matching a query, not just the page on screen.
+ *
+ * SAME QUERY, NO SECOND DEFINITION. It pages through fetchRentals rather than
+ * rebuilding the filters, so an export cannot disagree with the list it was
+ * started from — which is the failure that makes somebody distrust every export
+ * they are ever given afterwards.
+ *
+ * Sequential rather than parallel on purpose. The pages have to arrive in order
+ * for the file to be in the order the screen was, and firing a hundred requests
+ * at once at a database an agency is already working in buys nothing.
+ */
+export async function fetchRentalsForExport(query: RentalQuery): Promise<RentalExportResult> {
+  const pageSize = 100
+  const rows: RentalBoardEntry[] = []
+  let page = 1
+
+  for (;;) {
+    const result = await fetchRentals({ ...query, page, pageSize })
+    rows.push(...result.rows)
+
+    if (rows.length >= RENTAL_EXPORT_LIMIT) {
+      return {
+        rows: rows.slice(0, RENTAL_EXPORT_LIMIT),
+        truncated: result.total > RENTAL_EXPORT_LIMIT,
+      }
+    }
+    if (page >= result.pageCount || result.rows.length === 0) {
+      return { rows, truncated: false }
+    }
+    page += 1
+  }
+}
+
 export interface RentalSummary {
   readonly collectingToday: number
   readonly returningToday: number
