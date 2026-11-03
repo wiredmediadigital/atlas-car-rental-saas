@@ -57,10 +57,34 @@ export function AboutSection() {
           </Row>
         </dl>
 
+        {/*
+          WHAT THIS PARAGRAPH NO LONGER SAYS, AND WHY.
+
+          It used to read "Free to use, with every module unlocked. Your
+          agency's records, documents and contracts are yours — <publisher> has
+          no access to them and does not appear on anything you issue to a
+          customer."
+
+          Both halves were true of the arrangement this software was written
+          for: it was given away, and the recipient ran their own Supabase
+          project, so the publisher genuinely could not see anything. Neither
+          survives being run as a hosted service. Agencies are now tenants in
+          one project that the publisher operates and holds the service role
+          key for, which means the publisher CAN read their records; and the
+          product is sold on a trial and a subscription, so it is not free.
+
+          A claim about who can see a customer's data is not product copy. If
+          something needs saying about it, it belongs in a privacy policy that
+          someone qualified has written and the business can stand behind — not
+          in a sentence that a rename can quietly invert.
+
+          What is left is the part that is still true and still useful: the
+          documents a renter receives carry the agency's identity, which is
+          configured in the sections above this one.
+        */}
         <p className="text-ink-subtle border-line mt-5 border-t pt-4 text-[0.75rem] leading-5">
-          Free to use, with every module unlocked. Your agency&rsquo;s records, documents and
-          contracts are yours — {PRODUCT_BRAND.creator} has no access to them and does not appear on
-          anything you issue to a customer.
+          Your agency&rsquo;s own name, logo and contract wording are what appear on the documents
+          you issue. Set them in the sections above.
         </p>
       </CardBody>
     </Card>
