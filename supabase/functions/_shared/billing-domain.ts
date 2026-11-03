@@ -288,6 +288,14 @@ export const HANDLED_EVENT_TYPES = [
   'customer.subscription.deleted',
   'customer.subscription.paused',
   'customer.subscription.resumed',
+  /*
+   * Stripe sends this three days before a trial converts to a paid
+   * subscription. It is the only warning an owner gets before a card is
+   * charged, and charging without one is the single largest source of trial
+   * disputes — so it is handled, projected like any other subscription event,
+   * and additionally recorded as a billing event so the owner is told.
+   */
+  'customer.subscription.trial_will_end',
   'invoice.paid',
   'invoice.payment_failed',
   'customer.deleted',
@@ -343,6 +351,15 @@ export interface CheckoutRequest {
   readonly customerId: string
   readonly priceId: string
   readonly planKey: string
+  /**
+   * Free days before the first charge. Absent or 0 means no trial.
+   *
+   * The CALLER decides this, having looked at whether the agency has ever held
+   * a subscription. It is not a property of the plan and not a property of the
+   * price, because "has this agency already had its free fortnight?" is a
+   * question only the server-side history can answer.
+   */
+  readonly trialPeriodDays?: number
 }
 
 /**
@@ -366,6 +383,23 @@ export function checkoutSessionParams(
   const cancelUrl = buildReturnUrl(appUrl, '/billing')
   if (successUrl === null || cancelUrl === null) return null
 
+  /*
+   * Omitted entirely when there is no trial, rather than sent as 0: Stripe
+   * accepts 1..730 and treats the field's presence as the request. A literal
+   * `trial_period_days: 0` is an error from Stripe, and an error here is a
+   * Subscribe button that does nothing.
+   *
+   * A payment method is still collected — `payment_method_collection` is left
+   * at Stripe's default of `always` — because this trial converts to a paid
+   * subscription automatically on the last day. Collecting nothing would leave
+   * Stripe with nothing to charge, which is a different product decision.
+   */
+  const trialDays = Math.trunc(request.trialPeriodDays ?? 0)
+  const subscriptionData: Record<string, unknown> = {
+    metadata: { organization_id: request.organizationId, plan_key: request.planKey },
+  }
+  if (trialDays > 0) subscriptionData.trial_period_days = trialDays
+
   return {
     mode: 'subscription',
     customer: request.customerId,
@@ -376,9 +410,7 @@ export function checkoutSessionParams(
     success_url: successUrl,
     cancel_url: cancelUrl,
     client_reference_id: request.organizationId,
-    subscription_data: {
-      metadata: { organization_id: request.organizationId, plan_key: request.planKey },
-    },
+    subscription_data: subscriptionData,
     metadata: { organization_id: request.organizationId, plan_key: request.planKey },
   }
 }

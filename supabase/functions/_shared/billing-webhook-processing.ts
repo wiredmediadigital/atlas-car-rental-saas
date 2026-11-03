@@ -103,6 +103,20 @@ export interface WebhookStore {
   /** Marks a customer gone. Never deletes the mapping: the identifier must not
    *  be reused, and support needs to know what happened. */
   markCustomerDeleted(customerId: string): Promise<void>
+
+  /**
+   * Records that a trial is about to convert, for the owner's notifications.
+   *
+   * Separate from applySubscription because it is not a projection write: the
+   * projection already holds trial_end and does not change when Stripe sends
+   * the reminder. This is the moment somebody should be TOLD, which is a
+   * different fact from what the subscription currently is.
+   */
+  noteTrialEnding(input: {
+    organizationId: string
+    subscriptionId: string
+    trialEnd: string | null
+  }): Promise<void>
 }
 
 /**
@@ -302,11 +316,30 @@ export async function processStripeEvent(
       return { outcome: 'failed', failureCategory: 'duplicate_live_subscription' }
     }
 
-    await store.finishEvent({
-      id: event.id,
-      result: outcome,
-      organizationId: await store.resolveOrganization(normalized.value.stripeCustomerId),
-    })
+    const organizationId = await store.resolveOrganization(normalized.value.stripeCustomerId)
+
+    /*
+     * The warning, once the projection is current.
+     *
+     * Deliberately after applySubscription and gated on `applied`: an owner
+     * told "your trial ends on the 16th" from a stale or rejected event has
+     * been given a date nothing else on the Billing page agrees with. A write
+     * that throws here leaves the claim open, so Stripe's retry sends it again
+     * rather than the reminder being lost.
+     */
+    if (
+      applied === 'applied' &&
+      event.type === 'customer.subscription.trial_will_end' &&
+      organizationId !== null
+    ) {
+      await store.noteTrialEnding({
+        organizationId,
+        subscriptionId: normalized.value.stripeSubscriptionId,
+        trialEnd: normalized.value.trialEnd,
+      })
+    }
+
+    await store.finishEvent({ id: event.id, result: outcome, organizationId })
     return { outcome }
   } catch (error) {
     /*

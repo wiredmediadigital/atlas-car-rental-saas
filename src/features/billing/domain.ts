@@ -60,6 +60,7 @@ export const EVENT_KIND_LABELS: Readonly<Record<BillingEventKind, string>> = {
   cancellation_scheduled: 'Cancellation scheduled',
   cancellation_reverted: 'Cancellation withdrawn',
   subscription_ended: 'Subscription ended',
+  trial_ending: 'Trial ending',
   reconciled: 'Refreshed from provider',
   anomaly_detected: 'Needs review',
 }

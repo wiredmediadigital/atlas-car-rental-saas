@@ -190,6 +190,18 @@ export function describe(row: NotificationRow): NotificationCopy {
     case 'billing_plan_changed':
       return { title: 'Your subscription plan changed', detail: planDetail(row) }
     /*
+     * The one notification that arrives BEFORE money moves. The detail is the
+     * sentence the server already wrote from a typed date, so the day here and
+     * the day on the Billing page are the same day. No urgency language and no
+     * warning about losing access: the trial converting is the subscription
+     * working as sold, and this deployment restricts nothing.
+     */
+    case 'billing_trial_ending':
+      return {
+        title: 'Your free trial is ending',
+        detail: readContext(row, 'summary') ?? 'Billing begins when the trial ends.',
+      }
+    /*
      * The current condition rather than an event: derived from live billing
      * state, and it resolves itself when the subscription is healthy again. No
      * amount and no invoice — the detail belongs on the Billing page, behind the
@@ -200,6 +212,31 @@ export function describe(row: NotificationRow): NotificationCopy {
         title: 'Your subscription needs attention',
         detail: 'Open Billing to see what is required.',
       }
+  }
+
+  /*
+   * A kind this build has never heard of.
+   *
+   * This is deliberately NOT a `default:` inside the switch. The switch stays
+   * exhaustive, so `switch-exhaustiveness-check` still fails the build the
+   * moment a kind is added to NotificationKind without a sentence here. What
+   * this guards is the other direction, which a type cannot see: the database
+   * enum gaining a value that the browser bundle predates.
+   *
+   * That gap is real and it has already shipped once — see the billing-kind
+   * test in notifications.test.tsx. A migration goes out, the site has not been
+   * rebuilt yet, and the first notification of the new kind returned undefined
+   * from here and threw on `copy.title`, taking the whole list down for that
+   * owner. A notification nobody has written words for yet is a small problem.
+   * A notification list that throws is not.
+   *
+   * `summary` is read because every server-written billing event carries one,
+   * so the fallback usually says something true rather than something generic.
+   */
+  const category: string | undefined = CATEGORY_LABELS[row.category]
+  return {
+    title: category ?? 'Notification',
+    detail: readContext(row, 'summary') ?? row.secondary_label ?? null,
   }
 }
 

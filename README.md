@@ -153,16 +153,25 @@ claims an email was sent.
 
 #### SaaS subscription billing
 
-| Secret                          | What it turns on                                                                                                                                                                                         |
-| ------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `BILLING_STRIPE_SECRET_KEY`     | Stripe itself. The prefix decides the mode — `sk_test_`/`rk_test_` for a sandbox, `sk_live_`/`rk_live_` for the real account — and a configured price from the other mode is refused before any request. |
-| `BILLING_STRIPE_WEBHOOK_SECRET` | The `billing-webhook` endpoint. Without it that endpoint refuses every request; there is no development fallback that trusts unsigned JSON.                                                              |
-| `BILLING_APP_URL`               | The trusted origin Checkout and the Customer Portal return to. Never taken from a request header or a redirect parameter.                                                                                |
-| `BILLING_PLAN_CATALOGUE`        | Which Stripe prices this deployment sells: `[{"plan_key":"standard","price_id":"price_..."}]` or `[{"plan_key":"standard","lookup_key":"standard"}]`. Amounts and intervals are read from Stripe.        |
+| Secret                          | What it turns on                                                                                                                                                                                                                                                                                                               |
+| ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `BILLING_STRIPE_SECRET_KEY`     | Stripe itself. The prefix decides the mode — `sk_test_`/`rk_test_` for a sandbox, `sk_live_`/`rk_live_` for the real account — and a configured price from the other mode is refused before any request.                                                                                                                       |
+| `BILLING_STRIPE_WEBHOOK_SECRET` | The `billing-webhook` endpoint. Without it that endpoint refuses every request; there is no development fallback that trusts unsigned JSON.                                                                                                                                                                                    |
+| `BILLING_APP_URL`               | The trusted origin Checkout and the Customer Portal return to. Never taken from a request header or a redirect parameter.                                                                                                                                                                                                      |
+| `BILLING_PLAN_CATALOGUE`        | Which Stripe prices this deployment sells: `[{"plan_key":"standard","price_id":"price_..."}]` or `[{"plan_key":"standard","lookup_key":"standard"}]`. Amounts and intervals are read from Stripe.                                                                                                                              |
+| `BILLING_TRIAL_DAYS`            | A free trial before the first charge, e.g. `14`. Unset or `0` means no trial, which is the default. The trial is offered once per agency — never again after a cancellation — a payment method is still collected at checkout, and the subscription begins billing automatically when the trial ends. Stripe's ceiling is 730. |
 
 With none of them set, `/billing` tells an owner that subscription billing is not
 configured, no subscription enforcement applies, and every other module is unaffected.
 Nothing invents a plan, a price or a trial.
+
+A trial is a deployment setting rather than a default on the Stripe price, deliberately: a
+default trial on a price applies to every checkout that names it, including the one after a
+cancellation, and Stripe does not deduplicate trials per customer. Here the server reads the
+agency's own subscription history and grants the trial only to an agency that has never held
+one — a checkout that never took a payment does not count, so a declined first card does not
+cost an owner their trial. Three days before the trial converts, Stripe sends
+`customer.subscription.trial_will_end` and the owners are notified with the date.
 
 `billing-webhook` is the one function deployed with `verify_jwt = false`: Stripe is the
 caller and has no user session, so the signature check inside the function stands in for

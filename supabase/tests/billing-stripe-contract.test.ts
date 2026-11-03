@@ -46,9 +46,11 @@ import {
 import {
   BILLING_ENV_NAMES,
   buildReturnUrl,
+  MAX_TRIAL_DAYS,
   modeOfSecretKey,
   normalizeAppUrl,
   parseCatalogue,
+  parseTrialDays,
   resolveBillingConfig,
 } from '../functions/_shared/stripe-config.ts'
 import {
@@ -247,6 +249,56 @@ describe('configuration', () => {
       parseCatalogue('[{"plan_key":"a","price_id":"price_1"},{"plan_key":"a","price_id":"price_2"}]'),
     ).toBe('invalid_catalogue')
   })
+
+  /*
+   * A deployment with no trial configured must behave exactly as it did before
+   * trials existed. That is the assertion that protects every existing install
+   * from a billing change arriving because somebody shipped a new variable.
+   */
+  it('offers no trial unless one was configured', () => {
+    expect(parseTrialDays(undefined)).toBe(0)
+    expect(parseTrialDays(null)).toBe(0)
+    expect(parseTrialDays('')).toBe(0)
+    expect(parseTrialDays('   ')).toBe(0)
+    expect(parseTrialDays('0')).toBe(0)
+
+    const result = resolveBillingConfig(complete)
+    expect(result.ok && result.config.trialDays).toBe(0)
+  })
+
+  it('reads a whole number of days, and refuses anything it would have to guess at', () => {
+    expect(parseTrialDays('14')).toBe(14)
+    expect(parseTrialDays(' 14 ')).toBe(14)
+    expect(parseTrialDays(String(MAX_TRIAL_DAYS))).toBe(MAX_TRIAL_DAYS)
+
+    // Each of these is somebody meaning something specific. Rounding, trimming
+    // or coercing would be guessing with a customer's card.
+    expect(parseTrialDays('14.5')).toBe('invalid_trial_days')
+    expect(parseTrialDays('-14')).toBe('invalid_trial_days')
+    expect(parseTrialDays('14 days')).toBe('invalid_trial_days')
+    expect(parseTrialDays('fourteen')).toBe('invalid_trial_days')
+    expect(parseTrialDays('1e3')).toBe('invalid_trial_days')
+    // Stripe's own ceiling, refused here rather than at checkout time.
+    expect(parseTrialDays(String(MAX_TRIAL_DAYS + 1))).toBe('invalid_trial_days')
+  })
+
+  it('refuses the whole configuration when the trial length is unreadable', () => {
+    const result = resolveBillingConfig({
+      ...complete,
+      [BILLING_ENV_NAMES.trialDays]: 'two weeks',
+    })
+    expect(result).toMatchObject({ ok: false, problem: 'invalid_trial_days' })
+    // And still names no environment variable to whoever asked.
+    expect(result.ok === false && result.detail).not.toMatch(/BILLING_|env/i)
+  })
+
+  it('carries a configured trial through to the resolved configuration', () => {
+    const result = resolveBillingConfig({
+      ...complete,
+      [BILLING_ENV_NAMES.trialDays]: '14',
+    })
+    expect(result.ok && result.config.trialDays).toBe(14)
+  })
 })
 
 // -----------------------------------------------------------------------------
@@ -296,6 +348,40 @@ describe('the Checkout request', () => {
     expect(params.client_reference_id).toBe(request.organizationId)
     // The customer is what resolves the tenant later; metadata only corroborates.
     expect(params.customer).toBe('cus_123')
+  })
+
+  /*
+   * The trial is a field Stripe either sees or does not. These assert the
+   * boundary in both directions, because the expensive failure is not "the
+   * trial was the wrong length" — it is "a trial was sent when nobody decided
+   * to give one", or "a trial was silently dropped and a card was charged on
+   * day one by a deployment that advertised fourteen free days".
+   */
+  it('asks Stripe for a trial only when the caller granted one', () => {
+    const params = checkoutSessionParams({ ...request, trialPeriodDays: 14 }, 'https://atlasloca.com')!
+    const subscriptionData = params.subscription_data as Record<string, unknown>
+
+    expect(subscriptionData.trial_period_days).toBe(14)
+    // The trial does not disturb what the session already carried.
+    expect(subscriptionData.metadata).toEqual({
+      organization_id: request.organizationId,
+      plan_key: 'standard',
+    })
+    // A payment method is still collected, so the trial can convert on its own.
+    expect(params.payment_method_collection).toBeUndefined()
+  })
+
+  it('sends no trial field at all when there is no trial', () => {
+    for (const trialPeriodDays of [undefined, 0]) {
+      const params = checkoutSessionParams(
+        { ...request, trialPeriodDays },
+        'https://atlasloca.com',
+      )!
+      const subscriptionData = params.subscription_data as Record<string, unknown>
+
+      // Not `0`: Stripe rejects it, and a rejected session is a dead button.
+      expect('trial_period_days' in subscriptionData).toBe(false)
+    }
   })
 
   it('produces nothing at all when the application URL is not usable', () => {
@@ -577,6 +663,8 @@ describe('events', () => {
   it('acts only on the event types this integration decided to handle', () => {
     expect(isHandledEventType('customer.subscription.updated')).toBe(true)
     expect(isHandledEventType('invoice.payment_failed')).toBe(true)
+    // The only warning before a trial converts and a card is charged.
+    expect(isHandledEventType('customer.subscription.trial_will_end')).toBe(true)
     // Stripe sends dozens more. None of them may change what this product does.
     expect(isHandledEventType('invoice.created')).toBe(false)
     expect(isHandledEventType('payment_intent.succeeded')).toBe(false)
@@ -647,6 +735,7 @@ describe('processing an event', () => {
       failed: [] as { id: string; failureCategory: string }[],
       fetched: [] as string[],
       applied: 0,
+      trialsNoted: [] as { organizationId: string; subscriptionId: string; trialEnd: string | null }[],
     }
 
     const store: WebhookStore = {
@@ -698,6 +787,10 @@ describe('processing an event', () => {
       applyInvoice: () => Promise.resolve('applied' as const),
       resolveOrganization: () => Promise.resolve('org-1'),
       markCustomerDeleted: () => Promise.resolve(),
+      noteTrialEnding: (input) => {
+        calls.trialsNoted.push(input)
+        return Promise.resolve()
+      },
       ...over,
     }
 
@@ -718,6 +811,99 @@ describe('processing an event', () => {
     expect(result.outcome).toBe('applied')
     // Stripe's own documented answer to out-of-order delivery.
     expect(calls.fetched).toEqual(['sub_1'])
+  })
+
+  /*
+   * The trial reminder. Three assertions, and the third is the one that would
+   * otherwise be found by a customer: a reminder written from an event that was
+   * rejected as stale would hand an owner a date nothing else agrees with.
+   */
+  const trialWillEnd: StripeEvent = {
+    id: 'evt_trial',
+    type: 'customer.subscription.trial_will_end',
+    created: 1_800_000_000,
+    data: { object: { id: 'sub_1', customer: 'cus_1' } },
+  }
+
+  const trialingSubscription = {
+    id: 'sub_1',
+    customer: 'cus_1',
+    status: 'trialing',
+    livemode: false,
+    trial_start: 1_798_800_000,
+    trial_end: 1_800_009_600,
+    items: {
+      data: [
+        {
+          id: 'si_1',
+          quantity: 1,
+          current_period_start: 1_798_800_000,
+          current_period_end: 1_800_009_600,
+          price: {
+            id: 'price_1',
+            currency: 'eur',
+            unit_amount: 4900,
+            recurring: { interval: 'month', interval_count: 1 },
+          },
+        },
+      ],
+    },
+  }
+
+  it('tells the agency its trial is converting, with the date from the projection', async () => {
+    const { store, calls } = makeStore({
+      fetchSubscription: () => Promise.resolve(trialingSubscription),
+    })
+
+    const result = await processStripeEvent(trialWillEnd, store)
+
+    expect(result.outcome).toBe('applied')
+    expect(calls.trialsNoted).toEqual([
+      {
+        organizationId: 'org-1',
+        subscriptionId: 'sub_1',
+        // The same instant the projection stores, not a field off the payload.
+        trialEnd: new Date(1_800_009_600 * 1000).toISOString(),
+      },
+    ])
+  })
+
+  it('says nothing about a trial on any other subscription event', async () => {
+    const { store, calls } = makeStore({
+      fetchSubscription: () => Promise.resolve(trialingSubscription),
+    })
+
+    await processStripeEvent(subscriptionEvent, store)
+
+    // A trialing subscription being updated is not a trial ending.
+    expect(calls.trialsNoted).toEqual([])
+  })
+
+  it('does not write a reminder from an event the projection rejected', async () => {
+    const { store, calls } = makeStore({
+      fetchSubscription: () => Promise.resolve(trialingSubscription),
+      applySubscription: () => Promise.resolve('stale' as const),
+    })
+
+    const result = await processStripeEvent(trialWillEnd, store)
+
+    expect(result.outcome).toBe('ignored_stale')
+    expect(calls.trialsNoted).toEqual([])
+  })
+
+  it('leaves the event open when the reminder cannot be written, so Stripe retries', async () => {
+    const { store, calls } = makeStore({
+      fetchSubscription: () => Promise.resolve(trialingSubscription),
+      noteTrialEnding: () => Promise.reject(new Error('note_failed')),
+    })
+
+    const result = await processStripeEvent(trialWillEnd, store)
+
+    expect(result.outcome).toBe('failed')
+    // Not finished: a settled event is one Stripe never sends again, and the
+    // reminder would be lost for good.
+    expect(calls.finished).toEqual([])
+    expect(calls.failed).toHaveLength(1)
   })
 
   it('does the work once however many times the same event is delivered', async () => {

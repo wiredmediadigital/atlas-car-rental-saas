@@ -202,7 +202,48 @@ describe('what the copy claims', () => {
     ] as const) {
       const copy = describeNotification(row({ category: 'billing', kind, context: {} }))
       expect(copy, kind).toBeDefined()
+      expect(copy.title, kind).toBeTruthy()
       expect(copy.title.length, kind).toBeGreaterThan(0)
+    }
+  })
+
+  it('still says something for a kind this build has never heard of', () => {
+    /*
+     * The same defect from the other direction, and the one a type cannot
+     * catch: the database enum gains a value while the browser is still running
+     * a bundle built before the migration. The deployed code has no case for
+     * it, so without the fallback describe() returns undefined and the list
+     * throws on `copy.title`.
+     *
+     * The cast is the point of the test. It is standing in for a real row that
+     * a future migration will make real.
+     */
+    const unknownKind = 'billing_some_future_kind' as unknown as NotificationRow['kind']
+    const copy = describeNotification(
+      row({ category: 'billing', kind: unknownKind, context: { summary: 'Something happened.' } }),
+    )
+
+    expect(copy).toBeDefined()
+    expect(copy.title.length).toBeGreaterThan(0)
+    // It falls back to the category, so the line is at least about the right thing.
+    expect(copy.title).toBe(CATEGORY_LABELS.billing)
+    // And it prefers the sentence the server already wrote.
+    expect(copy.detail).toBe('Something happened.')
+  })
+
+  it('does not throw for an unknown kind in any category', () => {
+    for (const category of [
+      'rentals',
+      'compliance',
+      'financing',
+      'gps',
+      'team',
+      'billing',
+    ] as const) {
+      const copy = describeNotification(
+        row({ category, kind: 'not_a_real_kind' as unknown as NotificationRow['kind'] }),
+      )
+      expect(copy.title.length, category).toBeGreaterThan(0)
     }
   })
 

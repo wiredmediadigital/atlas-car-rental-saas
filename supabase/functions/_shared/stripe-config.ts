@@ -26,6 +26,16 @@ export interface BillingConfig {
   readonly mode: StripeMode
   /** Plan keys the deployment is willing to sell, mapped to Stripe prices. */
   readonly catalogue: readonly CatalogueEntry[]
+  /**
+   * Free days before the first charge, or 0 for none.
+   *
+   * Deliberately a deployment setting rather than a property of a Stripe price.
+   * A default trial configured on the price would apply to EVERY checkout that
+   * names it, including a second one after a cancellation, and Stripe does not
+   * deduplicate trials per customer. Who is offered a trial is a commercial
+   * decision, so it is made here, in code that can see the agency's history.
+   */
+  readonly trialDays: number
 }
 
 export interface CatalogueEntry {
@@ -45,6 +55,7 @@ export type ConfigProblem =
   | 'mode_mismatch'
   | 'invalid_catalogue'
   | 'empty_catalogue'
+  | 'invalid_trial_days'
 
 export type ConfigResult =
   | { readonly ok: true; readonly config: BillingConfig }
@@ -56,7 +67,17 @@ export const BILLING_ENV_NAMES = {
   webhookSecret: 'BILLING_STRIPE_WEBHOOK_SECRET',
   appUrl: 'BILLING_APP_URL',
   catalogue: 'BILLING_PLAN_CATALOGUE',
+  trialDays: 'BILLING_TRIAL_DAYS',
 } as const
+
+/**
+ * Stripe's documented ceiling for `trial_period_days`.
+ *
+ * Named rather than inlined because it is Stripe's number, not ours: a value
+ * above it is rejected by the API at checkout time, which would turn a typo in
+ * a deployment variable into a dead Subscribe button discovered by a customer.
+ */
+export const MAX_TRIAL_DAYS = 730
 
 /**
  * The mode a Stripe secret key belongs to.
@@ -132,6 +153,30 @@ export function parseCatalogue(raw: string | null | undefined): CatalogueEntry[]
   }
 
   return entries
+}
+
+/**
+ * The trial length this deployment offers, in whole days.
+ *
+ * Unset or empty means no trial, which is what every existing deployment has
+ * and must keep having: a billing change may not arrive by accident because a
+ * variable was forgotten.
+ *
+ * Anything that is not a plain non-negative integer is a configuration error
+ * rather than a value to round. `14.5`, `-14`, `14 days` and `fourteen` are
+ * each somebody meaning something specific, and guessing which would be
+ * guessing with a customer's card.
+ */
+export function parseTrialDays(raw: string | null | undefined): number | ConfigProblem {
+  if (raw === null || raw === undefined || raw.trim() === '') return 0
+
+  const text = raw.trim()
+  if (!/^\d{1,3}$/.test(text)) return 'invalid_trial_days'
+
+  const days = Number(text)
+  if (days > MAX_TRIAL_DAYS) return 'invalid_trial_days'
+
+  return days
 }
 
 /**
@@ -272,7 +317,16 @@ export function resolveBillingConfig(
     }
   }
 
-  return { ok: true, config: { secretKey, webhookSecret, appUrl, mode, catalogue } }
+  const trialDays = parseTrialDays(env[BILLING_ENV_NAMES.trialDays])
+  if (typeof trialDays === 'string') {
+    return {
+      ok: false,
+      problem: trialDays,
+      detail: 'The configured trial length could not be read.',
+    }
+  }
+
+  return { ok: true, config: { secretKey, webhookSecret, appUrl, mode, catalogue, trialDays } }
 }
 
 /**
@@ -293,6 +347,7 @@ export function describeConfigProblem(problem: ConfigProblem): string {
     case 'invalid_webhook_secret':
     case 'invalid_app_url':
     case 'invalid_catalogue':
+    case 'invalid_trial_days':
     case 'mode_mismatch':
       return 'Subscription billing is configured incorrectly. Contact support.'
   }

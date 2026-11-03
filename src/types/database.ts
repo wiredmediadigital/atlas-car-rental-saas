@@ -1666,6 +1666,7 @@ export type BillingEventKind =
   | 'cancellation_scheduled'
   | 'cancellation_reverted'
   | 'subscription_ended'
+  | 'trial_ending'
   | 'reconciled'
   | 'anomaly_detected'
 
@@ -1761,6 +1762,7 @@ export type NotificationKind =
   | 'billing_cancellation_scheduled'
   | 'billing_subscription_ended'
   | 'billing_plan_changed'
+  | 'billing_trial_ending'
   | 'billing_attention_required'
 
 /** Which slice of the feed to ask for. */

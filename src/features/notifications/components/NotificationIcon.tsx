@@ -63,6 +63,14 @@ function Glyph({ kind }: { kind: NotificationKind }) {
       return <AlertTriangle className={className} />
     case 'billing_plan_changed':
       return <ReceiptText className={className} />
+    /*
+     * A deadline rather than a transaction: nothing has been charged yet, and
+     * the thing worth recognising at a glance is that a date is approaching.
+     * The row states the category in words, so this cannot be mistaken for a
+     * rental.
+     */
+    case 'billing_trial_ending':
+      return <CalendarClock className={className} />
     case 'billing_subscription_activated':
     case 'billing_payment_recovered':
     case 'billing_cancellation_scheduled':

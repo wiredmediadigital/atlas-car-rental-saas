@@ -37,9 +37,11 @@ import {
   checkoutIdempotencyKey,
   checkoutSessionParams,
   customerIdempotencyKey,
+  isLiveStatus,
   normalizeSubscription,
   portalSessionParams,
   type StripeSubscription,
+  type SubscriptionStatus,
 } from '../_shared/billing-domain.ts'
 import { StripeApiError, StripeClient } from '../_shared/stripe-api.ts'
 import {
@@ -58,6 +60,26 @@ const CORS_HEADERS: Record<string, string> = {
 }
 
 type Role = 'owner' | 'admin' | 'manager' | 'staff'
+
+/**
+ * The statuses that mean an agency has already been a customer, and has
+ * therefore already had whatever trial it was going to get.
+ *
+ * `incomplete` and `incomplete_expired` are absent on purpose: they are
+ * checkouts that never took a payment. An owner whose first card was declined
+ * has not had a trial, and charging them full price on the second attempt would
+ * punish them for a bank's decision.
+ *
+ * `canceled` IS present. Cancelling is not a way to renew the free fortnight.
+ */
+const TRIAL_SPENT_BY: readonly SubscriptionStatus[] = [
+  'trialing',
+  'active',
+  'past_due',
+  'unpaid',
+  'paused',
+  'canceled',
+]
 
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
@@ -104,7 +126,7 @@ async function reportPlatformState(
   mode: 'test' | 'live' | null,
   reason: string,
 ): Promise<void> {
-  await service.rpc('billing_report_platform_state', {
+  await service.schema('app').rpc('billing_report_platform_state', {
     p_configured: configured,
     p_mode: mode,
     p_reason: reason,
@@ -182,7 +204,7 @@ async function refreshCatalogue(
     })
   }
 
-  const { data } = await service.rpc('billing_replace_catalogue', { p_plans: plans })
+  const { data } = await service.schema('app').rpc('billing_replace_catalogue', { p_plans: plans })
   return typeof data === 'number' ? data : plans.length
 }
 
@@ -244,7 +266,7 @@ async function ensureCustomer(
     { idempotencyKey: customerIdempotencyKey(organizationId) },
   )
 
-  const { data: claimed } = await service.rpc('billing_claim_customer', {
+  const { data: claimed } = await service.schema('app').rpc('billing_claim_customer', {
     p_organization_id: organizationId,
     p_stripe_customer_id: created.id,
     p_mode: stripe.mode,
@@ -358,7 +380,7 @@ Deno.serve(async (request: Request): Promise<Response> => {
          * arriving in the request body is not read at all. That is the whole
          * defence against price tampering.
          */
-        const { data: resolved } = await service.rpc('billing_resolve_plan', {
+        const { data: resolved } = await service.schema('app').rpc('billing_resolve_plan', {
           p_plan_key: planKey,
           p_mode: config.mode,
         })
@@ -367,20 +389,47 @@ Deno.serve(async (request: Request): Promise<Response> => {
           return failure('plan_unavailable', 'That plan is not available.', 404)
         }
 
-        // An agency that already has a live subscription does not get a second.
-        const { data: live } = await service
+        /*
+         * This agency's subscription history, read once and asked two
+         * questions. Not two queries, and deliberately not `.maybeSingle()`:
+         * that reports "more than one row" as an error, and an error whose
+         * value is discarded reads as "no live subscription" — which is the one
+         * answer that must never be wrong here.
+         */
+        const { data: history, error: historyError } = await service
           .from('billing_subscriptions')
-          .select('stripe_subscription_id')
+          .select('status')
           .eq('organization_id', organizationId)
-          .in('status', ['trialing', 'active', 'past_due', 'unpaid', 'paused'])
-          .maybeSingle()
-        if (live) {
+
+        // Fails closed. Not knowing whether an agency is subscribed is not a
+        // reason to sell them a second subscription.
+        if (historyError) {
+          return failure('checkout_unavailable', 'Checkout could not be opened.', 503)
+        }
+
+        const rows = (history ?? []) as { status: SubscriptionStatus }[]
+        const statuses = rows.map((row) => row.status)
+
+        // An agency that already has a live subscription does not get a second.
+        if (statuses.some(isLiveStatus)) {
           return failure('already_subscribed', 'This agency already has a subscription.', 409)
         }
 
+        /*
+         * One trial per agency, ever. See TRIAL_SPENT_BY for which statuses
+         * spend it and why.
+         *
+         * The subscription belongs to the ORGANIZATION, so one person running
+         * four agencies gets four trials. That follows from the tenancy model
+         * and is a commercial decision to revisit deliberately, not a bug to
+         * patch here with a rule keyed on whoever happened to click.
+         */
+        const trialAlreadyUsed = statuses.some((status) => TRIAL_SPENT_BY.includes(status))
+        const trialPeriodDays = trialAlreadyUsed ? 0 : config.trialDays
+
         // A Checkout session this agency already has open is reused rather than
         // replaced: every extra session is another chance for two to complete.
-        const { data: openSession } = await service.rpc('billing_open_checkout', {
+        const { data: openSession } = await service.schema('app').rpc('billing_open_checkout', {
           p_organization_id: organizationId,
           p_plan_key: planKey,
         })
@@ -396,7 +445,13 @@ Deno.serve(async (request: Request): Promise<Response> => {
 
         const customerId = await ensureCustomer(service, stripe, organizationId)
         const params = checkoutSessionParams(
-          { organizationId, customerId, priceId: plan.stripe_price_id, planKey },
+          {
+            organizationId,
+            customerId,
+            priceId: plan.stripe_price_id,
+            planKey,
+            trialPeriodDays,
+          },
           config.appUrl,
         )
         if (params === null) {
@@ -411,7 +466,7 @@ Deno.serve(async (request: Request): Promise<Response> => {
           { idempotencyKey: checkoutIdempotencyKey(organizationId, planKey, attempt) },
         )
 
-        await service.rpc('billing_record_checkout', {
+        await service.schema('app').rpc('billing_record_checkout', {
           p_organization_id: organizationId,
           p_stripe_session_id: session.id,
           p_plan_key: planKey,
@@ -501,7 +556,7 @@ Deno.serve(async (request: Request): Promise<Response> => {
           if (!normalized.ok) continue
 
           const value = normalized.value
-          const { data: outcome } = await service.rpc('billing_apply_subscription', {
+          const { data: outcome } = await service.schema('app').rpc('billing_apply_subscription', {
             p_stripe_subscription_id: value.stripeSubscriptionId,
             p_stripe_customer_id: value.stripeCustomerId,
             p_mode: value.mode,
@@ -526,7 +581,7 @@ Deno.serve(async (request: Request): Promise<Response> => {
           if (outcome === 'applied') applied += 1
         }
 
-        await service.rpc('billing_note_event', {
+        await service.schema('app').rpc('billing_note_event', {
           p_organization_id: organizationId,
           p_kind: 'reconciled',
           p_summary: 'Billing was refreshed from our payment provider.',

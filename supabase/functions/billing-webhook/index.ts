@@ -61,7 +61,7 @@ function serviceClient(url: string, key: string): SupabaseClient {
 function makeStore(service: SupabaseClient, stripe: StripeClient): WebhookStore {
   return {
     async claimEvent({ id, type, createdAt, objectId }) {
-      const { data, error } = await service.rpc('billing_claim_webhook_event', {
+      const { data, error } = await service.schema('app').rpc('billing_claim_webhook_event', {
         p_stripe_event_id: id,
         p_event_type: type,
         p_event_created_at: createdAt,
@@ -73,7 +73,7 @@ function makeStore(service: SupabaseClient, stripe: StripeClient): WebhookStore 
     },
 
     async finishEvent({ id, result, organizationId }) {
-      const { error } = await service.rpc('billing_finish_webhook_event', {
+      const { error } = await service.schema('app').rpc('billing_finish_webhook_event', {
         p_stripe_event_id: id,
         p_result: result,
         p_organization_id: organizationId,
@@ -88,7 +88,7 @@ function makeStore(service: SupabaseClient, stripe: StripeClient): WebhookStore 
     },
 
     async failEvent({ id, failureCategory }) {
-      const { error } = await service.rpc('billing_fail_webhook_event', {
+      const { error } = await service.schema('app').rpc('billing_fail_webhook_event', {
         p_stripe_event_id: id,
         p_failure_category: failureCategory,
       })
@@ -113,7 +113,7 @@ function makeStore(service: SupabaseClient, stripe: StripeClient): WebhookStore 
       if (!subscription.ok) return 'unknown_customer'
       const value = subscription.value
 
-      const { data, error } = await service.rpc('billing_apply_subscription', {
+      const { data, error } = await service.schema('app').rpc('billing_apply_subscription', {
         p_stripe_subscription_id: value.stripeSubscriptionId,
         p_stripe_customer_id: value.stripeCustomerId,
         p_mode: value.mode,
@@ -141,7 +141,7 @@ function makeStore(service: SupabaseClient, stripe: StripeClient): WebhookStore 
     },
 
     async applyInvoice(input) {
-      const { data, error } = await service.rpc('billing_apply_invoice', {
+      const { data, error } = await service.schema('app').rpc('billing_apply_invoice', {
         p_stripe_customer_id: input.customerId,
         p_stripe_subscription_id: input.subscriptionId,
         p_invoice_id: input.invoiceId,
@@ -168,6 +168,28 @@ function makeStore(service: SupabaseClient, stripe: StripeClient): WebhookStore 
       return (data?.organization_id as string | undefined) ?? null
     },
 
+    async noteTrialEnding({ organizationId, subscriptionId, trialEnd }) {
+      /*
+       * Our own sentence, from a typed date — never a Stripe string. The day is
+       * taken from the ISO instant the projection already normalized, so the
+       * notification and the Billing page cannot disagree about the date.
+       */
+      const day = trialEnd === null ? null : trialEnd.slice(0, 10)
+      const summary =
+        day === null
+          ? 'The free trial is ending and the subscription will begin billing.'
+          : `The free trial ends on ${day} and the subscription will begin billing.`
+
+      const { error } = await service.schema('app').rpc('billing_note_event', {
+        p_organization_id: organizationId,
+        p_kind: 'trial_ending',
+        p_summary: summary,
+        p_actor_user_id: null,
+        p_stripe_object_id: subscriptionId,
+      })
+      if (error) throw new Error('note_failed')
+    },
+
     async markCustomerDeleted(customerId) {
       /*
        * Through a service function, like every other billing write.
@@ -179,7 +201,7 @@ function makeStore(service: SupabaseClient, stripe: StripeClient): WebhookStore 
        * customer stayed live in the projection forever, and Stripe was told the
        * event had been handled.
        */
-      const { error } = await service.rpc('billing_mark_customer_deleted', {
+      const { error } = await service.schema('app').rpc('billing_mark_customer_deleted', {
         p_stripe_customer_id: customerId,
       })
       if (error) throw new Error('apply_failed')
