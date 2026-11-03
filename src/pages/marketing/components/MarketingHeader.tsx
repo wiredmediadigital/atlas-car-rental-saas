@@ -23,7 +23,7 @@ export function MarketingHeader() {
         <Link
           to={paths.overview}
           className="rounded-md focus-visible:outline-offset-4"
-          aria-label="Atlas home"
+          aria-label="Pevvy home"
         >
           <Wordmark size="lg" />
         </Link>

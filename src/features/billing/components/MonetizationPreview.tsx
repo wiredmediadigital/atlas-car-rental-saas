@@ -2,6 +2,7 @@ import { ArrowRight, Check, Sparkles } from 'lucide-react'
 import { useId, useState } from 'react'
 
 import { Badge, Card, CardBody, CardHeader } from '@/components/ui'
+import { CreatorCredit } from '@/components/brand/CreatorCredit'
 import { PRODUCT_BRAND } from '@/lib/config/brand'
 import { getAppName } from '@/lib/config/env'
 import { getStripeGuideUrl } from '@/lib/config/help-links'
@@ -203,14 +204,9 @@ export function MonetizationPreview({ locale }: { locale: string }) {
             */}
             <p className="text-ink-subtle mt-1.5 max-w-[60ch] text-[0.75rem] leading-4">
               {getAppName()} is free software by{' '}
-              <a
-                href={PRODUCT_BRAND.creatorUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-brand-700 hover:text-brand-600 underline underline-offset-2"
-              >
+              <CreatorCredit className="text-brand-700 hover:text-brand-600 underline underline-offset-2">
                 {PRODUCT_BRAND.creator}
-              </a>
+              </CreatorCredit>
               , who also wrote the guide.
             </p>
           </div>

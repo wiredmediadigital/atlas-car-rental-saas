@@ -14,7 +14,7 @@ import { Badge, type BadgeTone } from '@/components/ui'
 import { cn } from '@/lib/utils/cn'
 
 /**
- * A composed illustration of the real Atlas interface — not a screenshot.
+ * A composed illustration of the real Pevvy interface — not a screenshot.
  *
  * Built from the same tokens and primitives (Card surface, hairline borders,
  * Badge tones, the actual navigation icon set) as the authenticated product,
@@ -112,7 +112,7 @@ const FLEET_STATUS = [
 export function OverviewMock() {
   return (
     <AppPreviewFrame
-      label="Illustration of the Atlas Overview dashboard, showing this month's revenue, active rentals, fleet utilization, fleet status and today's scheduled pickups and returns"
+      label="Illustration of the Pevvy Overview dashboard, showing this month's revenue, active rentals, fleet utilization, fleet status and today's scheduled pickups and returns"
       activeIcon={0}
     >
       <div className="flex items-center justify-between gap-3">
@@ -203,7 +203,7 @@ const LIFECYCLE_ACTIVE_INDEX = 3
 export function RentalsMock() {
   return (
     <AppPreviewFrame
-      label="Illustration of the Atlas Rentals list, showing the reservation-to-return lifecycle and contracts with their customer, vehicle and status"
+      label="Illustration of the Pevvy Rentals list, showing the reservation-to-return lifecycle and contracts with their customer, vehicle and status"
       activeIcon={1}
     >
       <div className="flex items-center justify-between gap-3">
@@ -278,7 +278,7 @@ const FLEET_ROWS = [
 export function FleetMock() {
   return (
     <AppPreviewFrame
-      label="Illustration of the Atlas Calendar, showing which vehicles are booked and which are available across the week"
+      label="Illustration of the Pevvy Calendar, showing which vehicles are booked and which are available across the week"
       activeIcon={3}
     >
       <div className="flex items-center justify-between gap-3">
@@ -328,7 +328,7 @@ const REPORT_BARS = [
 export function ReportsMock() {
   return (
     <AppPreviewFrame
-      label="Illustration of the Atlas Reports page, showing revenue, expenses, the operating result and monthly performance"
+      label="Illustration of the Pevvy Reports page, showing revenue, expenses, the operating result and monthly performance"
       activeIcon={4}
     >
       <p className="text-ink text-[0.9375rem] font-semibold">Reports</p>
@@ -394,7 +394,7 @@ const TEAM_ROWS = [
 export function OperationsMock() {
   return (
     <AppPreviewFrame
-      label="Illustration of the Atlas Team page, showing team members and their roles, customers on file, GPS tracking connection status and a compliance reminder"
+      label="Illustration of the Pevvy Team page, showing team members and their roles, customers on file, GPS tracking connection status and a compliance reminder"
       activeIcon={5}
     >
       <div className="flex items-center justify-between gap-3">

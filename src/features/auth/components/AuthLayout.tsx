@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react'
 
 import { Wordmark } from '@/components/brand/Wordmark'
+import { CreatorCredit } from '@/components/brand/CreatorCredit'
 import { PRODUCT_BRAND } from '@/lib/config/brand'
 
 export interface AuthLayoutProps {
@@ -47,14 +48,9 @@ export function AuthLayout({ title, description, children, footer }: AuthLayoutP
           */}
           <p className="text-brand-200/80 text-[0.75rem]">
             {PRODUCT_BRAND.fullName} ·{' '}
-            <a
-              href={PRODUCT_BRAND.creatorUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="hover:text-ink-inverse underline underline-offset-2 transition-colors"
-            >
+            <CreatorCredit className="hover:text-ink-inverse underline underline-offset-2 transition-colors">
               {PRODUCT_BRAND.attribution}
-            </a>
+            </CreatorCredit>
           </p>
         </div>
       </aside>
@@ -82,14 +78,9 @@ export function AuthLayout({ title, description, children, footer }: AuthLayoutP
               once here instead of not at all. */}
           <p className="text-ink-subtle mt-8 text-center text-[0.75rem] lg:hidden">
             {PRODUCT_BRAND.fullName} ·{' '}
-            <a
-              href={PRODUCT_BRAND.creatorUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="hover:text-ink underline underline-offset-2 transition-colors"
-            >
+            <CreatorCredit className="hover:text-ink underline underline-offset-2 transition-colors">
               {PRODUCT_BRAND.attribution}
-            </a>
+            </CreatorCredit>
           </p>
         </div>
       </main>

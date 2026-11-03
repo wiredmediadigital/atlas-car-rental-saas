@@ -2,6 +2,7 @@ import { Link } from 'react-router-dom'
 
 import { paths } from '@/app/routes/paths'
 import { Wordmark } from '@/components/brand/Wordmark'
+import { CreatorCredit } from '@/components/brand/CreatorCredit'
 import { PRODUCT_BRAND } from '@/lib/config/brand'
 import { getAppName } from '@/lib/config/env'
 
@@ -43,14 +44,12 @@ export function MarketingFooter() {
         <div className="border-line mt-8 border-t pt-6">
           <p className="text-ink-subtle text-[0.75rem]">
             {getAppName()} ·{' '}
-            <a
-              href={PRODUCT_BRAND.creatorUrl}
-              target="_blank"
+            <CreatorCredit
               rel="noreferrer"
               className="hover:text-ink-muted underline decoration-transparent underline-offset-2 transition-colors hover:decoration-current"
             >
               {PRODUCT_BRAND.attribution}
-            </a>
+            </CreatorCredit>
           </p>
         </div>
       </div>

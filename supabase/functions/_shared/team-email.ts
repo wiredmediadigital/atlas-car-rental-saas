@@ -19,6 +19,23 @@
  * one-time link by whatever means they already use.
  */
 
+/**
+ * The product, as an invited person reads it.
+ *
+ * Duplicated from `src/lib/config/brand.ts` rather than imported, because this
+ * module runs on Deno inside an Edge Function and the application source is a
+ * browser bundle built by Vite — reaching across that boundary to read one
+ * string would drag the frontend's module graph into a function whose only job
+ * is to send an email.
+ *
+ * The duplicate is held in step by a test, not by discipline:
+ * `supabase/tests/team-email.test.ts` asserts this equals PRODUCT_BRAND.name
+ * and fails if a rename touches one and not the other. Two copies of one fact
+ * is exactly how a rename ends up half-done, with the shell saying one name and
+ * every invitation email still saying the old one.
+ */
+export const PRODUCT_NAME = 'Pevvy'
+
 /** Mirrors public.invitation_delivery. */
 export type DeliveryState =
   | 'pending'
@@ -122,10 +139,10 @@ function renderHtml(message: InvitationMessage): string {
     <tr><td style="padding:28px 28px 8px 28px;">
       <p style="margin:0 0 16px 0;font-size:15px;line-height:22px;">
         ${inviter ? `${inviter} has invited you` : 'You have been invited'} to join
-        <strong>${agency}</strong> on Atlas as <strong>${role}</strong>.
+        <strong>${agency}</strong> on ${PRODUCT_NAME} as <strong>${role}</strong>.
       </p>
       <p style="margin:0 0 24px 0;font-size:14px;line-height:21px;color:#5c5c55;">
-        Atlas is the system ${agency} uses to run its fleet, contracts and finances.
+        ${PRODUCT_NAME} is the system ${agency} uses to run its fleet, contracts and finances.
       </p>
       <a href="${href}" style="display:inline-block;background:#12876a;color:#ffffff;text-decoration:none;font-size:15px;font-weight:600;padding:11px 20px;border-radius:8px;">Join ${agency}</a>
       <p style="margin:24px 0 0 0;font-size:13px;line-height:20px;color:#5c5c55;">
@@ -146,7 +163,7 @@ function renderText(message: InvitationMessage): string {
     ? `${message.inviterName} has invited you`
     : 'You have been invited'
   return [
-    `${opener} to join ${message.organizationName} on Atlas as ${message.roleLabel}.`,
+    `${opener} to join ${message.organizationName} on ${PRODUCT_NAME} as ${message.roleLabel}.`,
     '',
     'Open this link to accept:',
     message.acceptUrl,
@@ -211,7 +228,7 @@ export async function deliverInvitation(
       body: JSON.stringify({
         from,
         to: [message.to],
-        subject: `Join ${message.organizationName} on Atlas`,
+        subject: `Join ${message.organizationName} on ${PRODUCT_NAME}`,
         html: renderHtml(message),
         text: renderText(message),
       }),

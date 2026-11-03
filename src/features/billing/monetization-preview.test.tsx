@@ -85,7 +85,7 @@ describe('the free build is stated, not apologised for', () => {
   it('explains that the prices are the reader’s to customize', () => {
     renderPreview()
     expect(
-      screen.getByText(/example pricing you can customize if you want to sell Atlas/i),
+      screen.getByText(/example pricing you can customize if you want to sell Pevvy/i),
     ).toBeInTheDocument()
   })
 })

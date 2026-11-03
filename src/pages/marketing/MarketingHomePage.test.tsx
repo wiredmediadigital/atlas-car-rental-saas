@@ -74,10 +74,10 @@ describe('MarketingHomePage', () => {
     renderMarketingHome()
 
     const footer = screen.getByRole('contentinfo')
-    expect(within(footer).getByText(/by Profit Studio/i)).toBeInTheDocument()
+    expect(within(footer).getByText(/by Adera Labs Inc/i)).toBeInTheDocument()
 
     const main = screen.getByRole('main')
-    expect(within(main).queryByText(/Profit Studio/i)).not.toBeInTheDocument()
+    expect(within(main).queryByText(/Adera Labs Inc/i)).not.toBeInTheDocument()
   })
 
   it('gives the footer a real "Create agency account" link alongside sign in', () => {

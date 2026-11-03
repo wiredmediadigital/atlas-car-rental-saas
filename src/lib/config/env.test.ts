@@ -53,7 +53,7 @@ describe('environment resolution', () => {
       VITE_SUPABASE_URL: 'https://x.supabase.co',
       VITE_SUPABASE_ANON_KEY: ANON_KEY,
     })
-    expect(result.status === 'ok' && result.env.appName).toBe('Atlas')
+    expect(result.status === 'ok' && result.env.appName).toBe('Pevvy')
   })
 
   it('reports both variables when nothing is configured', () => {

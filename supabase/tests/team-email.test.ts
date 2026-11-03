@@ -10,10 +10,13 @@
  */
 import { describe, expect, it, vi } from 'vitest'
 
+import { PRODUCT_BRAND } from '@/lib/config/brand'
+
 import {
   buildAcceptUrl,
   deliverInvitation,
   escapeHtml,
+  PRODUCT_NAME,
   resolveAppOrigin,
   type InvitationMessage,
 } from '../functions/_shared/team-email.ts'
@@ -29,6 +32,21 @@ const message: InvitationMessage = {
 }
 
 const configured = { provider: 'resend', apiKey: 'key', from: 'Atlas <no-reply@example.test>' }
+
+describe('the product name an invited person reads', () => {
+  /*
+   * The one assertion that makes the duplicate safe.
+   *
+   * team-email.ts cannot import the application's brand constant — it runs on
+   * Deno in an Edge Function, and the brand lives in a Vite-built browser
+   * bundle. So the name is written twice, and this is what stops the two
+   * drifting: rename the product and forget the email, and this fails here
+   * rather than in somebody's inbox weeks later.
+   */
+  it('is the same product the rest of the application calls itself', () => {
+    expect(PRODUCT_NAME).toBe(PRODUCT_BRAND.name)
+  })
+})
 
 describe('untrusted text in an email', () => {
   it('escapes every character that could open a tag or close an attribute', () => {

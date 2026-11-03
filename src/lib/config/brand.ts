@@ -3,31 +3,31 @@
  *
  * THREE IDENTITIES, KEPT APART
  *
- * 1. THE PRODUCT — Atlas. The software an agency signs into. Its name appears
+ * 1. THE PRODUCT — Pevvy. The software an agency signs into. Its name appears
  *    in the shell, on the sign-in screens and in anything that describes how
- *    the software behaves ("Atlas reads positions from your tracking account").
+ *    the software behaves ("Pevvy reads positions from your tracking account").
  *
- * 2. THE CREATOR — Profit Studio. Who wrote this and gives it away. Attribution
+ * 2. THE CREATOR — Adera Labs Inc. Who wrote this and gives it away. Attribution
  *    belongs on the surfaces that are about the software itself: the sign-in
  *    screens, the page that explains how to monetize it, the document metadata,
  *    the README. It is a publisher credit, not a party to anybody's business.
  *
- * 3. THE AGENCY — whoever is using Atlas. Their name, logo, address, tax
+ * 3. THE AGENCY — whoever is using Pevvy. Their name, logo, address, tax
  *    identifier and contract wording. This is the identity that appears on
  *    everything a customer of theirs ever sees.
  *
  * THE RULE THAT MATTERS
  *
  * A rental contract is an agreement between an agency and its renter. Neither
- * Atlas nor Profit Studio is a party to it, so neither belongs in it. The same
+ * Pevvy nor Adera Labs Inc is a party to it, so neither belongs in it. The same
  * goes for receipts, customer documents and anything else the agency hands over:
  * those carry `organization.name` and the agency's own logo, never a name from
- * this file. A renter in Casablanca has no idea who Profit Studio is and no
+ * this file. A renter in Casablanca has no idea who Adera Labs Inc is and no
  * reason to find them printed on their car hire agreement.
  *
  * The one deliberate exception is PDF metadata: `creator` and `producer` name
  * the software that generated a file, which is what those fields are for, and
- * they say "Atlas" — the product — rather than the publisher.
+ * they say "Pevvy" — the product — rather than the publisher.
  *
  * WHY THIS IS A CONSTANT AND NOT A SETTING
  *
@@ -40,16 +40,26 @@
 
 export const PRODUCT_BRAND = {
   /** The product. Shown wherever the software names itself. */
-  name: 'Atlas',
+  name: 'Pevvy',
   /** What it is, in one line, for a page title or a store listing. */
-  fullName: 'Atlas — Car Rental Management SaaS',
+  fullName: 'Pevvy — Car Rental Management SaaS',
   /** Who made it and gives it away. Never a party to an agency's paperwork. */
-  creator: 'Profit Studio',
-  creatorUrl: 'https://profitstudio.app',
+  creator: 'Adera Labs Inc',
+  /**
+   * Where to read about the publisher, or `null` when there is nowhere to send
+   * anybody yet.
+   *
+   * Null rather than an empty string, and rather than a placeholder: an `href`
+   * of `''` renders a link that silently reloads the current page, and a
+   * made-up address is worse. Every surface that shows the credit checks this
+   * and prints plain text when it is null, so the attribution survives having
+   * no website.
+   */
+  creatorUrl: null as string | null,
   /** The publisher credit, ready to sit under a wordmark. */
-  attribution: 'by Profit Studio',
+  attribution: 'by Adera Labs Inc',
   /** Product and publisher together, for a title tag or an about line. */
-  fullNameWithCreator: 'Atlas — Car Rental Management SaaS by Profit Studio',
+  fullNameWithCreator: 'Pevvy — Car Rental Management SaaS by Adera Labs Inc',
   /** One sentence on what the product does, for metadata and listings. */
   tagline: 'Fleet rental management',
 } as const

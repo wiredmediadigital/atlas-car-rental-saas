@@ -328,11 +328,13 @@ describe('the contract PDF', () => {
     expect(text).toContain('Atlas Rentals SARL')
     expect(text).toContain('desk@atlasrentals.example')
 
-    // And nobody else. `Atlas Rentals` is the agency in this fixture, so the
-    // product name is searched for as a standalone word rather than a substring.
-    expect(text).not.toMatch(/Profit Studio/i)
-    expect(text).not.toMatch(/profitstudio/i)
-    expect(text).not.toMatch(/\bAtlas\b(?!\s+Rentals)/)
+    // And nobody else. The agency in this fixture is called `Atlas Rentals`,
+    // which is a rental company and not this product — the two shared a word
+    // until the product was renamed, and the exception that collision forced
+    // is no longer needed.
+    expect(text).not.toMatch(/Adera Labs/i)
+    expect(text).not.toMatch(/aderalabs/i)
+    expect(text).not.toMatch(/\bPevvy\b/i)
   }, 30_000)
 
   it('renders an agency that has written no terms at all', async () => {

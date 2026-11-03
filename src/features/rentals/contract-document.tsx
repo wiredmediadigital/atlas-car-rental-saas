@@ -1,5 +1,6 @@
 import { Document, Font, Page, StyleSheet, Text, View } from '@react-pdf/renderer'
 
+import { PRODUCT_BRAND } from '@/lib/config/brand'
 import { formatDate, formatDateTime } from '@/lib/datetime/format'
 import { formatMoney } from '@/lib/money/money'
 import type { ContractSnapshot } from '@/types/database'
@@ -201,8 +202,8 @@ export function ContractDocument({ snapshot }: ContractDocumentProps) {
       title={`Rental agreement ${snapshot.contract_number}`}
       author={agency.name}
       subject={`${vehicleName(vehicle)} — ${renter.display_name}`}
-      creator="Atlas"
-      producer="Atlas"
+      creator={PRODUCT_BRAND.name}
+      producer={PRODUCT_BRAND.name}
     >
       <Page size="A4" style={styles.page}>
         <View style={styles.masthead} fixed={false}>

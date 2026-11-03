@@ -1,6 +1,7 @@
 import { ArrowUpRight } from 'lucide-react'
 
 import { Card, CardBody, CardHeader } from '@/components/ui'
+import { CreatorCredit } from '@/components/brand/CreatorCredit'
 import { PRODUCT_BRAND } from '@/lib/config/brand'
 import { getAppName } from '@/lib/config/env'
 
@@ -47,15 +48,12 @@ export function AboutSection() {
           </Row>
 
           <Row label="Created by">
-            <a
-              href={PRODUCT_BRAND.creatorUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-brand-700 hover:text-brand-600 inline-flex items-center gap-1 font-medium underline underline-offset-2"
-            >
+            <CreatorCredit className="text-brand-700 hover:text-brand-600 inline-flex items-center gap-1 font-medium underline underline-offset-2">
               {PRODUCT_BRAND.creator}
-              <ArrowUpRight aria-hidden="true" className="size-3.5" />
-            </a>
+              {PRODUCT_BRAND.creatorUrl === null ? null : (
+                <ArrowUpRight aria-hidden="true" className="size-3.5" />
+              )}
+            </CreatorCredit>
           </Row>
         </dl>
 
