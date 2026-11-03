@@ -159,6 +159,26 @@ const CONSTRAINT_MESSAGES: ReadonlyArray<readonly [RegExp, string, AppErrorKind]
     'permission',
   ],
 
+  /*
+   * The read-only wind-down.
+   *
+   * Raised as 42501 by app.billing_require_write, so without this the generic
+   * "You do not have permission to do that" would appear — which is true but
+   * tells somebody nothing about why, or what to do, or that their own records
+   * are all still there. The database's sentence is deliberately stable; see
+   * 20261103100000_billing_restricted_access.sql.
+   *
+   * Only the FUNCTION paths reach here. A write blocked by an RLS policy
+   * instead says "new row violates row-level security policy", or silently
+   * affects no rows, which is why the interface disables these actions rather
+   * than relying on the error at all.
+   */
+  [
+    /no active subscription, so its records are read-only/i,
+    'This agency has no active subscription, so its records are read-only. Existing records can still be opened and exported. An owner can restart the subscription from Billing.',
+    'permission',
+  ],
+
   // The rental lifecycle raises 23514 with wording written for the front desk.
   // Without these, the generic check-constraint fallback would replace a clear
   // sentence with "some of the values entered are not valid".

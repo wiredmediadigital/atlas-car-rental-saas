@@ -82,9 +82,7 @@ async function seedCast(): Promise<Cast> {
  * fixture must not be a production mutation surface.
  */
 async function configurePlatform(organizationId?: string): Promise<void> {
-  await db.sql(
-    `select app.billing_report_platform_state(true, 'test', 'Stripe is configured.')`,
-  )
+  await db.sql(`select app.billing_report_platform_state(true, 'test', 'Stripe is configured.')`)
   await db.sql(`select app.billing_replace_catalogue($1::jsonb)`, [
     JSON.stringify([
       {
@@ -311,7 +309,8 @@ describe('who may see billing', () => {
           /only an owner/i,
         )
         await session.expectRejection(
-          () => session.sql(`select public.billing_set_email($1, 'x@y.test')`, [cast.organizationId]),
+          () =>
+            session.sql(`select public.billing_set_email($1, 'x@y.test')`, [cast.organizationId]),
           /only an owner/i,
         )
       })
@@ -358,8 +357,25 @@ describe('who may see billing', () => {
       select p.proname from pg_proc p join pg_namespace n on n.oid = p.pronamespace
       where n.nspname = 'app' and p.proname like 'billing%'
         and has_function_privilege('authenticated', p.oid, 'EXECUTE')
+      order by p.proname
     `)
-    expect(reachable).toEqual([])
+
+    /*
+     * ONE EXCEPTION, AND IT IS NOT A LOOPHOLE.
+     *
+     * app.billing_may_write is called from inside 54 RLS policies, which are
+     * evaluated with the privileges of the invoking role — so `authenticated`
+     * has to be able to execute it or every gated write fails with "permission
+     * denied for function" instead of being refused on its merits.
+     *
+     * What it discloses is one boolean about an organization the caller is
+     * already a member of, and public.billing_access already tells them the
+     * same thing in more detail. It reads nothing, writes nothing, and takes no
+     * Stripe identifier. Everything that actually touches the projection — the
+     * apply functions, the catalogue, the webhook ledger, the customer claim —
+     * stays service-role only, which is what the rest of this list asserts.
+     */
+    expect(reachable.map((row) => row.proname)).toEqual(['billing_may_write'])
   })
 
   it('exposes exactly five billing functions to a browser, and none of them writes Stripe state', async () => {
@@ -390,8 +406,7 @@ describe('nothing a client can reach writes the projection', () => {
     for (const actor of [cast.owner, cast.admin, cast.manager, cast.staff]) {
       await db.asUser(actor, async (session) => {
         await session.expectRejection(
-          () =>
-            session.sql(`update public.billing_subscriptions set status = 'active'`),
+          () => session.sql(`update public.billing_subscriptions set status = 'active'`),
           /permission denied/i,
         )
         await session.expectRejection(
@@ -470,9 +485,10 @@ describe('nothing a client can reach writes the projection', () => {
 
     await db.asUser(cast.owner, async (session) => {
       await session.expectRejection(
-        () => session.sql(`select public.billing_set_email($1, 'not an address')`, [
-          cast.organizationId,
-        ]),
+        () =>
+          session.sql(`select public.billing_set_email($1, 'not an address')`, [
+            cast.organizationId,
+          ]),
         /not a valid email/i,
       )
     })
@@ -536,15 +552,23 @@ describe('Stripe status becomes product access in one place', () => {
   })
 
   it('maps every one of Stripe’s eight statuses deliberately', async () => {
+    /*
+     * The line between `attention` and `restricted` is drawn where Stripe stops
+     * retrying, not where a payment first fails. See
+     * 20261103100000_billing_restricted_access.sql, and the behaviour that
+     * follows from it in billing-restricted-access.test.ts.
+     */
     const expected: Record<string, string> = {
       active: 'normal',
       trialing: 'normal',
+      // Stripe is still trying.
       past_due: 'attention',
-      unpaid: 'attention',
       incomplete: 'attention',
-      incomplete_expired: 'attention',
-      paused: 'attention',
-      canceled: 'attention',
+      // Stripe has given up, or there was never anything to try.
+      unpaid: 'restricted',
+      incomplete_expired: 'restricted',
+      paused: 'restricted',
+      canceled: 'restricted',
     }
 
     for (const [status, state] of Object.entries(expected)) {
@@ -554,16 +578,8 @@ describe('Stripe status becomes product access in one place', () => {
     }
   })
 
-  it('never restricts access, because no restriction policy has been decided', async () => {
-    for (const status of ['canceled', 'unpaid', 'incomplete_expired']) {
-      await resetSubscriptions()
-      await applySubscription(cast.organizationId, { status })
-      expect(await accessState(cast.owner)).not.toBe('restricted')
-    }
-  })
-
-  it('asks for attention when billing is configured and no plan was chosen', async () => {
-    expect(await accessState(cast.owner)).toBe('attention')
+  it('restricts an agency that was sold a subscription and has not got one', async () => {
+    expect(await accessState(cast.owner)).toBe('restricted')
   })
 
   it('leaves the rest of the product working while a payment has failed', async () => {
@@ -645,9 +661,10 @@ describe('the subscription projection', () => {
     for (let i = 0; i < 10; i += 1) {
       await applySubscription(cast.organizationId, { eventAt: at })
     }
-    const rows = await db.sql(`select 1 from public.billing_subscriptions where organization_id = $1`, [
-      cast.organizationId,
-    ])
+    const rows = await db.sql(
+      `select 1 from public.billing_subscriptions where organization_id = $1`,
+      [cast.organizationId],
+    )
     expect(rows).toHaveLength(1)
   })
 
@@ -789,9 +806,7 @@ describe('the webhook ledger', () => {
   })
 
   it('leaves a failed event open so a retry can succeed', async () => {
-    await db.sql(
-      `select app.billing_claim_webhook_event('evt_2', 'invoice.paid', now(), 'in_1')`,
-    )
+    await db.sql(`select app.billing_claim_webhook_event('evt_2', 'invoice.paid', now(), 'in_1')`)
     await db.sql(`select app.billing_fail_webhook_event('evt_2', 'stripe_unavailable')`)
 
     const [row] = await db.sql<{ processed_at: string | null; result: string }>(
@@ -933,10 +948,9 @@ describe('deleting an agency', () => {
       'billing_checkout_sessions',
       'billing_events',
     ]) {
-      const rows = await db.sql(
-        `select 1 from public.${table} where organization_id = $1`,
-        [cast.organizationId],
-      )
+      const rows = await db.sql(`select 1 from public.${table} where organization_id = $1`, [
+        cast.organizationId,
+      ])
       expect(rows, table).toHaveLength(0)
     }
   })
@@ -951,10 +965,10 @@ describe('deleting an agency', () => {
 
     const leaving = await signUp(db, { email: `erasable${seq}@billing.test`, fullName: 'Erasable' })
     await addMember(db, cast.organizationId, leaving.userId, 'admin')
-    await db.sql(
-      `select app.billing_note_event($1, 'reconciled', 'Refreshed.', $2, null)`,
-      [cast.organizationId, leaving.userId],
-    )
+    await db.sql(`select app.billing_note_event($1, 'reconciled', 'Refreshed.', $2, null)`, [
+      cast.organizationId,
+      leaving.userId,
+    ])
 
     // The referential action a guard must never refuse.
     await db.sql(`delete from auth.users where id = $1`, [leaving.userId])
@@ -1243,9 +1257,9 @@ describe('checkout intents', () => {
     const row = await overview(cast.owner)
 
     expect(row.pending_checkout).toBe(true)
-    // A started checkout is not a subscription.
+    // A started checkout is not a subscription, and does not unlock writing.
     expect(row.status).toBeNull()
-    expect(row.access_state).toBe('attention')
+    expect(row.access_state).toBe('restricted')
   })
 
   it('stores no card data anywhere', async () => {
@@ -1275,7 +1289,9 @@ describe('the catalogue', () => {
     expect(resolved!.stripe_price_id).toBe('price_test_standard')
 
     // A price id is not a plan key, and neither is a plan from the other mode.
-    const unknown = await db.sql(`select * from app.billing_resolve_plan('price_test_standard', 'test')`)
+    const unknown = await db.sql(
+      `select * from app.billing_resolve_plan('price_test_standard', 'test')`,
+    )
     const wrongMode = await db.sql(`select * from app.billing_resolve_plan('standard', 'live')`)
     expect(unknown.filter((r) => (r as { plan_key?: string }).plan_key)).toHaveLength(0)
     expect(wrongMode.filter((r) => (r as { plan_key?: string }).plan_key)).toHaveLength(0)
@@ -1311,10 +1327,12 @@ describe('the catalogue', () => {
   it('offers both intervals when both are configured, with their own prices', async () => {
     await configurePlatform(cast.organizationId)
     const plans = await db.asUser(cast.owner, (session) =>
-      session.sql<{ plan_key: string; billing_interval: string; amount_minor: string; currency: string }>(
-        `select * from public.billing_available_plans($1)`,
-        [cast.organizationId],
-      ),
+      session.sql<{
+        plan_key: string
+        billing_interval: string
+        amount_minor: string
+        currency: string
+      }>(`select * from public.billing_available_plans($1)`, [cast.organizationId]),
     )
 
     expect(plans.map((p) => [p.plan_key, p.billing_interval, Number(p.amount_minor)])).toEqual([
@@ -1405,10 +1423,9 @@ describe('defects found by attacking the module', () => {
     await db.sql(
       `select app.billing_claim_webhook_event('evt_tenant_1', 'invoice.paid', now(), 'in_1')`,
     )
-    await db.sql(
-      `select app.billing_finish_webhook_event('evt_tenant_1', 'applied', $1, null)`,
-      [cast.organizationId],
-    )
+    await db.sql(`select app.billing_finish_webhook_event('evt_tenant_1', 'applied', $1, null)`, [
+      cast.organizationId,
+    ])
     const [before] = await db.sql<{ organization_id: string | null }>(
       `select organization_id from public.billing_webhook_events where stripe_event_id = 'evt_tenant_1'`,
     )

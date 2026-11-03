@@ -58,4 +58,19 @@ describe('toAppError — Auth', () => {
     const error = toAppError({ code: '42501', message: 'permission denied for table vehicles' })
     expect(error.kind).toBe('permission')
   })
+
+  it('explains a billing restriction instead of saying "no permission"', () => {
+    // The sentence app.billing_require_write raises, verbatim.
+    const error = toAppError({
+      code: '42501',
+      message: 'This agency has no active subscription, so its records are read-only.',
+    })
+
+    expect(error.kind).toBe('permission')
+    expect(error.message).toMatch(/read-only/i)
+    // The two things somebody in this state most needs to know.
+    expect(error.message).toMatch(/exported/i)
+    expect(error.message).toMatch(/Billing/)
+    expect(error.message).not.toBe('You do not have permission to do that.')
+  })
 })
