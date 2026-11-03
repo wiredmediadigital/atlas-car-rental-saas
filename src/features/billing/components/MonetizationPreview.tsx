@@ -198,16 +198,24 @@ export function MonetizationPreview({ locale }: { locale: string }) {
             </p>
             {/*
               The one page where naming the publisher is the point rather than a
-              credit: it explains that this software was given away, and the
-              guide it links to is theirs. Said once, in a sentence, and not
-              repeated anywhere an agency's own customers can see.
+              credit. Said once, in a sentence, and not repeated anywhere an
+              agency's own customers can see.
+
+              IT NO LONGER CLAIMS THE GUIDE. This read "is free software by X,
+              who also wrote the guide", which was true of the publisher who
+              gave this software away and is not true of whoever rebrands it
+              afterwards: the guide is still hosted by the upstream authors.
+              Leaving the clause in after a rename turns a credit into a false
+              claim about somebody else's work, so the sentence stops before it.
+              The button below still goes to the guide; nothing is hidden, it is
+              simply not attributed to the wrong people.
             */}
             <p className="text-ink-subtle mt-1.5 max-w-[60ch] text-[0.75rem] leading-4">
-              {getAppName()} is free software by{' '}
+              {getAppName()} is published by{' '}
               <CreatorCredit className="text-brand-700 hover:text-brand-600 underline underline-offset-2">
                 {PRODUCT_BRAND.creator}
               </CreatorCredit>
-              , who also wrote the guide.
+              .
             </p>
           </div>
 

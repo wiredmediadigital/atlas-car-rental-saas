@@ -2,6 +2,7 @@ import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
+import { PRODUCT_BRAND } from '@/lib/config/brand'
 import type * as HelpLinksModule from '@/lib/config/help-links'
 
 import { MonetizationPreview } from './components/MonetizationPreview'
@@ -227,6 +228,26 @@ describe('the Stripe guide link', () => {
     // noopener AND noreferrer: a new tab must not get a handle back on this one.
     expect(link.getAttribute('rel')).toContain('noopener')
     expect(link.getAttribute('rel')).toContain('noreferrer')
+  })
+
+  it('credits the publisher without claiming they wrote the guide', () => {
+    renderPreview()
+    const text = document.body.textContent ?? ''
+
+    // Naming whoever publishes this build is the point of the sentence.
+    expect(text).toContain(PRODUCT_BRAND.creator)
+
+    /*
+     * The guide belongs to the upstream authors, and this page used to say the
+     * publisher "also wrote the guide". That was true of the publisher who gave
+     * the software away; it survived a rebrand and became a false claim about a
+     * third party's work, pointing at a domain the new publisher does not own.
+     *
+     * Asserted rather than left to a reviewer, because the next rename will not
+     * come with anybody re-reading this paragraph either.
+     */
+    expect(text).not.toMatch(/wrote the guide/i)
+    expect(text).not.toMatch(/free software by/i)
   })
 
   it('uses a deployment’s own guide when one is configured', () => {
