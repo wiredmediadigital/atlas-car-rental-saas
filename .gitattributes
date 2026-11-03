@@ -1,0 +1,21 @@
+# Line endings. LF everywhere, on every machine.
+#
+# WHY THIS FILE EXISTS
+#
+# Git on Windows is commonly configured with core.autocrlf=true, which stores
+# LF but checks out CRLF. Prettier is configured for LF, so on such a machine
+# `npm run format:check` fails on a fresh clone against files nobody has
+# touched — and worse, it fails *intermittently*, because only the files git
+# has rewritten are affected. A `git stash pop` is enough to do it.
+#
+# `eol=lf` overrides autocrlf for this repository, so the working copy matches
+# what is committed and what Prettier expects. It is a repository property
+# rather than a per-developer setting, which is the point: it cannot be
+# forgotten on the next clone.
+#
+# Every tracked file is already stored as LF, so this changes nothing about
+# the history. It only stops the working copy from drifting away from it.
+#
+# `text=auto` leaves binary detection to git. There are no binary files in
+# this repository today; when one is added it will be left alone.
+* text=auto eol=lf
