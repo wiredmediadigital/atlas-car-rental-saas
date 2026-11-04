@@ -19,30 +19,29 @@
  * one-time link by whatever means they already use.
  */
 
+import {
+  escapeHtml,
+  PRODUCT_NAME,
+  renderEmailHtml,
+  renderEmailText,
+  type EmailDocument,
+} from './email-layout.ts'
+
 /**
- * The product, as an invited person reads it.
+ * The product name and the HTML escaper now live in `email-layout.ts`, with the
+ * rest of the design, so that every outgoing message shares one of each.
  *
- * Duplicated from `src/lib/config/brand.ts` rather than imported, because this
- * module runs on Deno inside an Edge Function and the application source is a
- * browser bundle built by Vite — reaching across that boundary to read one
- * string would drag the frontend's module graph into a function whose only job
- * is to send an email.
- *
- * The duplicate is held in step by a test, not by discipline:
- * `supabase/tests/team-email.test.ts` asserts this equals PRODUCT_BRAND.name
- * and fails if a rename touches one and not the other. Two copies of one fact
- * is exactly how a rename ends up half-done, with the shell saying one name and
- * every invitation email still saying the old one.
+ * They are re-exported here unchanged because this module's surface is what the
+ * Edge Function and `supabase/tests/team-email.test.ts` already import, and
+ * moving a constant between files is not a reason to churn either of them. The
+ * test that holds `PRODUCT_NAME` in step with `src/lib/config/brand.ts` still
+ * reaches it through this path and still passes.
  */
-export const PRODUCT_NAME = 'Pevvy'
+export { escapeHtml, PRODUCT_NAME }
 
 /** Mirrors public.invitation_delivery. */
 export type DeliveryState =
-  | 'pending'
-  | 'accepted_by_provider'
-  | 'failed'
-  | 'manual_link'
-  | 'not_configured'
+  'pending' | 'accepted_by_provider' | 'failed' | 'manual_link' | 'not_configured'
 
 export interface DeliveryOutcome {
   readonly state: DeliveryState
@@ -58,23 +57,6 @@ export interface InvitationMessage {
   readonly acceptUrl: string
   readonly expiresAt: string
   readonly locale: string
-}
-
-/**
- * HTML escaping.
- *
- * An agency name, a person's name and an email local part are all text somebody
- * typed. Interpolating them into an HTML email unescaped means an agency called
- * `<img onerror=...>` writes markup into a message this product signs its name
- * to, and into whatever webmail client renders it.
- */
-export function escapeHtml(value: string): string {
-  return value
-    .replaceAll('&', '&amp;')
-    .replaceAll('<', '&lt;')
-    .replaceAll('>', '&gt;')
-    .replaceAll('"', '&quot;')
-    .replaceAll("'", '&#39;')
 }
 
 /**
@@ -120,57 +102,59 @@ export function buildAcceptUrl(origin: URL, token: string): string {
   return url.toString()
 }
 
-function renderHtml(message: InvitationMessage): string {
-  const agency = escapeHtml(message.organizationName)
-  const inviter = escapeHtml(message.inviterName)
-  const role = escapeHtml(message.roleLabel)
-  const expires = escapeHtml(message.expiresAt)
-  const href = escapeHtml(message.acceptUrl)
-
-  /*
-   * Deliberately plain. No customer names, no figures, no internal identifiers,
-   * no mention of any other agency — an invitation email is read before anybody
-   * has agreed to anything, and often by a webmail client that will forward it.
-   */
-  return `<!doctype html>
-<html lang="en"><head><meta charset="utf-8"><meta name="color-scheme" content="light"></head>
-<body style="margin:0;padding:24px;background:#f6f6f4;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#1c1c19;">
-  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:520px;margin:0 auto;background:#ffffff;border:1px solid #e6e6e2;border-radius:12px;">
-    <tr><td style="padding:28px 28px 8px 28px;">
-      <p style="margin:0 0 16px 0;font-size:15px;line-height:22px;">
-        ${inviter ? `${inviter} has invited you` : 'You have been invited'} to join
-        <strong>${agency}</strong> on ${PRODUCT_NAME} as <strong>${role}</strong>.
-      </p>
-      <p style="margin:0 0 24px 0;font-size:14px;line-height:21px;color:#5c5c55;">
-        ${PRODUCT_NAME} is the system ${agency} uses to run its fleet, contracts and finances.
-      </p>
-      <a href="${href}" style="display:inline-block;background:#12876a;color:#ffffff;text-decoration:none;font-size:15px;font-weight:600;padding:11px 20px;border-radius:8px;">Join ${agency}</a>
-      <p style="margin:24px 0 0 0;font-size:13px;line-height:20px;color:#5c5c55;">
-        This invitation expires on ${expires}. If you were not expecting it, you can ignore this message — nothing happens until you accept.
-      </p>
-    </td></tr>
-    <tr><td style="padding:16px 28px 24px 28px;border-top:1px solid #f0f0ec;">
-      <p style="margin:0;font-size:12px;line-height:18px;color:#8a8a80;word-break:break-all;">
-        If the button does not work, open this link:<br>${href}
-      </p>
-    </td></tr>
-  </table>
-</body></html>`
-}
-
-function renderText(message: InvitationMessage): string {
+/**
+ * The invitation, as a document.
+ *
+ * The markup moved to `email-layout.ts`; what stays here is the only part that
+ * is about invitations — the words, and which of them are the agency's own text
+ * rather than ours. Every segment is escaped by the renderer, so an agency
+ * called `<img onerror=...>` is still text in a message this product signs its
+ * name to.
+ *
+ * Deliberately plain, and unchanged in that respect: no customer names, no
+ * figures, no internal identifiers, no mention of any other agency. An
+ * invitation is read before anybody has agreed to anything, and often in a
+ * webmail client that will forward it.
+ */
+function invitationDocument(message: InvitationMessage): EmailDocument {
   const opener = message.inviterName
     ? `${message.inviterName} has invited you`
     : 'You have been invited'
-  return [
-    `${opener} to join ${message.organizationName} on ${PRODUCT_NAME} as ${message.roleLabel}.`,
-    '',
-    'Open this link to accept:',
-    message.acceptUrl,
-    '',
-    `This invitation expires on ${message.expiresAt}.`,
-    'If you were not expecting it you can ignore this message — nothing happens until you accept.',
-  ].join('\n')
+
+  return {
+    preheader: `Join ${message.organizationName} on ${PRODUCT_NAME}.`,
+    paragraphs: [
+      [
+        `${opener} to join `,
+        { strong: message.organizationName },
+        ` on ${PRODUCT_NAME} as `,
+        { strong: message.roleLabel },
+        '.',
+      ],
+      [
+        `${PRODUCT_NAME} is the system ${message.organizationName} uses to run its fleet, `,
+        'contracts and finances.',
+      ],
+    ],
+    action: {
+      label: `Join ${message.organizationName}`,
+      url: message.acceptUrl,
+    },
+    footnotes: [
+      [
+        `This invitation expires on ${message.expiresAt}. If you were not expecting it, you `,
+        'can ignore this message — nothing happens until you accept.',
+      ],
+    ],
+  }
+}
+
+function renderHtml(message: InvitationMessage): string {
+  return renderEmailHtml(invitationDocument(message))
+}
+
+function renderText(message: InvitationMessage): string {
+  return renderEmailText(invitationDocument(message))
 }
 
 export interface EmailTransportConfig {

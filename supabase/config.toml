@@ -255,26 +255,82 @@ otp_length = 6
 # Number of seconds before the email OTP expires (defaults to 1 hour).
 otp_expiry = 3600
 
-# Use a production-ready SMTP server
+# ---------------------------------------------------------------------------
+# SMTP — deliberately left off here.
+#
+# Locally, `supabase start` captures every outgoing message in Mailpit instead
+# of sending it, which is what you want on a laptop: you can read the signup
+# confirmation without owning the address it went to.
+#
+# On the HOSTED project this is not optional. Supabase's built-in SMTP is a
+# development convenience — a few messages an hour, from Supabase's own sender
+# address — and it will throttle on the first real signup day. Configure Resend
+# under Dashboard -> Project Settings -> Authentication -> SMTP Settings:
+#
+#     Host        smtp.resend.com
+#     Port        587
+#     Username    resend
+#     Password    your Resend API key
+#     Sender      no-reply@<your verified domain>
+#     Sender name Pevvy
+#
+# See supabase/templates/README.md for the rest, including which templates to
+# paste where.
+# ---------------------------------------------------------------------------
 # [auth.email.smtp]
 # enabled = true
-# host = "smtp.sendgrid.net"
+# host = "smtp.resend.com"
 # port = 587
-# user = "apikey"
-# pass = "env(SENDGRID_API_KEY)"
-# admin_email = "admin@email.com"
-# sender_name = "Admin"
+# user = "resend"
+# pass = "env(RESEND_API_KEY)"
+# admin_email = "no-reply@example.com"
+# sender_name = "Pevvy"
 
-# Uncomment to customize email template
-# [auth.email.template.invite]
-# subject = "You have been invited"
-# content_path = "./supabase/templates/invite.html"
+# ---------------------------------------------------------------------------
+# Email templates.
+#
+# These files are GENERATED from supabase/functions/_shared/auth-emails.ts, so
+# that the auth messages and the ones our own Edge Functions send share a single
+# design. Do not edit the HTML: change the document in auth-emails.ts and
+# regenerate with
+#
+#     UPDATE_EMAIL_TEMPLATES=1 npx vitest run supabase/tests/email-templates.test.ts
+#
+# `npm run verify` fails if a committed file no longer matches its source.
+#
+# These paths configure LOCAL development only, per the note at the top of
+# [auth]. The hosted project reads its templates from Dashboard ->
+# Authentication -> Emails, which means pasting them in once; the subjects below
+# are the ones to use there too.
+# ---------------------------------------------------------------------------
+[auth.email.template.confirmation]
+subject = "Confirm your email address"
+content_path = "./supabase/templates/confirmation.html"
 
-# Uncomment to customize notification email template
-# [auth.email.notification.password_changed]
-# enabled = true
-# subject = "Your password has been changed"
-# content_path = "./templates/password_changed_notification.html"
+[auth.email.template.recovery]
+subject = "Reset your Pevvy password"
+content_path = "./supabase/templates/recovery.html"
+
+[auth.email.template.magic_link]
+subject = "Your Pevvy sign-in link"
+content_path = "./supabase/templates/magic_link.html"
+
+[auth.email.template.invite]
+subject = "You have been invited to Pevvy"
+content_path = "./supabase/templates/invite.html"
+
+[auth.email.template.email_change]
+subject = "Confirm the change of email address"
+content_path = "./supabase/templates/email_change.html"
+
+[auth.email.template.reauthentication]
+subject = "Your Pevvy confirmation code"
+content_path = "./supabase/templates/reauthentication.html"
+
+[auth.email.notification.password_changed]
+enabled = true
+subject = "Your Pevvy password was changed"
+content_path = "./supabase/templates/password_changed_notification.html"
 
 [auth.sms]
 # Allow/disallow new user signups via SMS to your project.
