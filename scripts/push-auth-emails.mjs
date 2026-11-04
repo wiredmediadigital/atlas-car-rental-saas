@@ -191,9 +191,32 @@ async function main() {
   })
 
   if (!response.ok) {
-    // The body can echo the request, which contains nothing secret here, but
-    // the status is what identifies the problem.
-    fail(`The API refused the change (HTTP ${response.status}).`)
+    /*
+     * The message is printed, unlike in the invitation sender where a provider's
+     * error body can echo a request carrying the invitation link. Nothing in
+     * this request is secret — seven email templates and their subjects — and
+     * the status alone does not distinguish "your token cannot write" from
+     * "this field is not available on your plan", which are the two things a
+     * 403 here usually means.
+     */
+    let detail = ''
+    try {
+      detail = (await response.text()).slice(0, 500)
+    } catch {
+      // Keep the status; there is nothing else to report.
+    }
+
+    const hint =
+      response.status === 403
+        ? '\n  A 403 after a successful read is almost always the token: a read-only or\n' +
+          '  scoped personal access token can GET this config and not PATCH it. Check the\n' +
+          '  token at https://supabase.com/dashboard/account/tokens, and that your role in\n' +
+          '  the organization permits changing project settings.'
+        : ''
+
+    fail(
+      `The API refused the change (HTTP ${response.status}).${detail ? `\n  ${detail}` : ''}${hint}`,
+    )
   }
 
   console.log(`  Applied ${changed.length} field(s).\n`)
