@@ -68,6 +68,7 @@ import {
 } from '@/features/rentals/queries'
 import { useDistanceUnit } from '@/features/workspace/useOrganizationSettings'
 import { useOrganization, usePermission } from '@/features/workspace/workspace-context'
+import { collectionPlace, returnPlace } from '@/features/rentals/places'
 import { formatDateTime } from '@/lib/datetime/format'
 import { toErrorMessage } from '@/lib/supabase/errors'
 
@@ -321,8 +322,8 @@ export function RentalDetailPage() {
                     </span>
                   ) : null}
                 </Detail>
-                <Detail label="Collected from">{rental.pickup_location ?? '—'}</Detail>
-                <Detail label="Returned to">{rental.return_location ?? '—'}</Detail>
+                <Detail label="Collected from">{collectionPlace(rental, organization)}</Detail>
+                <Detail label="Returned to">{returnPlace(rental, organization)}</Detail>
                 <Detail label="Days charged">{rental.billable_days ?? '—'}</Detail>
                 <Detail label="Vehicle">
                   {board ? (

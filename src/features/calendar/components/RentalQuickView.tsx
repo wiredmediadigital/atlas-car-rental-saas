@@ -8,6 +8,8 @@ import {
   RentalStatusBadge,
 } from '@/features/rentals/components/RentalBadges'
 import { ACTION_LABELS, actionState, primaryAction } from '@/features/rentals/lifecycle'
+import { collectionPlace, returnPlace } from '@/features/rentals/places'
+import { useOrganization } from '@/features/workspace/workspace-context'
 import { formatDateTime } from '@/lib/datetime/format'
 import { formatMoney } from '@/lib/money/money'
 import type { RentalScheduleEntry } from '@/types/database'
@@ -44,6 +46,8 @@ export function RentalQuickView({
   canReschedule,
   onReschedule,
 }: RentalQuickViewProps) {
+  // Needed to say where "the usual desk" is when a rental leaves the field blank.
+  const organization = useOrganization()
   const when = (iso: string) => formatDateTime(new Date(iso), { locale, timeZone })
 
   // The lifecycle module decides what is possible; the Calendar only names it.
@@ -142,8 +146,8 @@ export function RentalQuickView({
                 </span>
               ) : null}
             </Detail>
-            <Detail label="From">{rental.pickup_location ?? '—'}</Detail>
-            <Detail label="To">{rental.return_location ?? rental.pickup_location ?? '—'}</Detail>
+            <Detail label="From">{collectionPlace(rental, organization)}</Detail>
+            <Detail label="To">{returnPlace(rental, organization)}</Detail>
             <Detail label="Still owed">
               {formatMoney(Math.max(rental.balance_due_minor, 0), rental.currency, { locale })}
             </Detail>

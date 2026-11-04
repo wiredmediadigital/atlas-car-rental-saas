@@ -1,6 +1,7 @@
 import { Document, Font, Page, StyleSheet, Text, View } from '@react-pdf/renderer'
 
 import { PRODUCT_BRAND } from '@/lib/config/brand'
+import { collectionPlace, returnPlace } from './places'
 import { formatDate, formatDateTime } from '@/lib/datetime/format'
 import { formatMoney } from '@/lib/money/money'
 import type { ContractSnapshot } from '@/types/database'
@@ -321,13 +322,13 @@ export function ContractDocument({ snapshot }: ContractDocumentProps) {
                 value={formatDateTime(new Date(rental.starts_at), zone)}
                 strong
               />
-              <Row label="From" value={rental.pickup_location || agency.city || '—'} />
+              <Row label="From" value={collectionPlace(rental, agency)} />
             </View>
           </View>
           <View style={styles.column}>
             <View style={styles.panel}>
               <Row label="Return" value={formatDateTime(new Date(rental.ends_at), zone)} strong />
-              <Row label="To" value={rental.return_location || rental.pickup_location || '—'} />
+              <Row label="To" value={returnPlace(rental, agency)} />
             </View>
           </View>
         </View>
