@@ -24,7 +24,9 @@
     "setup:check": "node scripts/setup-check.mjs",
     "setup:env": "node scripts/setup-env.mjs",
     "setup:site": "node scripts/setup-site.mjs",
-    "smoke:live": "node scripts/live-smoke-test.mjs"
+    "smoke:live": "node scripts/live-smoke-test.mjs",
+    "email:build": "node scripts/build-email-templates.mjs",
+    "email:push": "node scripts/push-auth-emails.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.7.1",

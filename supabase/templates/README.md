@@ -70,8 +70,32 @@ set the subject beside it.
 | Change email address | `email_change.html`     | Confirm the change of email address |
 | Reauthentication     | `reauthentication.html` | Your Pevvy confirmation code        |
 
-The password-changed notice is under **Authentication → Emails → Notification emails**
-and has to be switched on there; it is off by default.
+**The seventh has no Dashboard control.** `password_changed_notification.html` is gated
+on `mailer_notifications_password_changed_enabled`, a project-level setting that exists
+only in `config.toml` and the Management API. Six templates can be pasted in by hand and
+the seventh simply will not send, which is a confusing way to discover this.
+
+Do **not** reach for `supabase config push` to fix it. That uploads this whole
+`config.toml` — which is local-development configuration, `site_url` included — and
+would replace the live site URL and redirect allow-list with a laptop's. The warning is
+at the top of `[auth]` in that file.
+
+Use the Management API instead, which touches only the fields it names:
+
+```bash
+# A personal access token from https://supabase.com/dashboard/account/tokens
+export SUPABASE_ACCESS_TOKEN="sbp_..."      # PowerShell: $env:SUPABASE_ACCESS_TOKEN = "sbp_..."
+
+npm run email:push            # dry run — prints exactly what would change
+npm run email:push -- --apply # sends it
+```
+
+That pushes all seven templates and their subjects as well as the notification flag, so
+it also replaces the manual pasting above. After changing any wording: `npm run
+email:build`, then `npm run email:push -- --apply`.
+
+The token has full control of your projects. Set it in your shell, never in a file, and
+revoke it when you are done.
 
 ### 3. The team invitation transport
 
