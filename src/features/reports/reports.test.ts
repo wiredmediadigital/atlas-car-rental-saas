@@ -52,7 +52,17 @@ import type { ReportBusinessSummaryRow, ReportCustomerBalanceRow } from '@/types
  */
 
 const LISBON = 'Europe/Lisbon'
-const CASABLANCA = 'Africa/Casablanca'
+/*
+ * The Canaries, not Casablanca, for the pair that must agree.
+ *
+ * Lisbon and Casablanca used to share an offset, and this file relied on it.
+ * They no longer do: Morocco's offset is set by decree and the IANA database
+ * revises it, so a test built on that coincidence fails on a tzdata bump while
+ * the code under test is still correct. Lisbon and Atlantic/Canary share the
+ * European Union's rules, so they move together by construction rather than by
+ * luck.
+ */
+const CANARY = 'Atlantic/Canary'
 const LOCALE = 'en-GB'
 
 // -----------------------------------------------------------------------------
@@ -72,8 +82,9 @@ describe('the report period', () => {
   })
 
   it('resolves the same month differently for an agency in another zone', () => {
-    // Lisbon and Casablanca happen to share an offset in July, which is exactly
-    // why a zone comparison needs a pair that genuinely differs.
+    // Tokyo, because a zone comparison needs a pair that genuinely differs —
+    // and differs permanently. Japan has no daylight saving and has not moved
+    // its offset since 1951.
     const now = new Date('2032-07-15T12:00:00Z')
     const lisbon = resolveReportPeriod('this-month', LISBON, now)
     const tokyo = resolveReportPeriod('this-month', 'Asia/Tokyo', now)
@@ -86,7 +97,7 @@ describe('the report period', () => {
   it('agrees with an agency that shares its offset', () => {
     const now = new Date('2032-07-15T12:00:00Z')
     expect(resolveReportPeriod('this-month', LISBON, now).from.toISOString()).toBe(
-      resolveReportPeriod('this-month', CASABLANCA, now).from.toISOString(),
+      resolveReportPeriod('this-month', CANARY, now).from.toISOString(),
     )
   })
 
@@ -747,7 +758,14 @@ describe('regressions', () => {
   it('writes a hire date in the agency zone, not in UTC', () => {
     /*
      * `last_rental_starts_at` is a timestamp, not a date column. Sliced in UTC
-     * it reported a hire that began at 00:30 in Casablanca as the previous day.
+     * it reported a hire that began at 00:30 in the agency's zone as the
+     * previous day.
+     *
+     * Tokyo, although the bug was found in Casablanca. Morocco's offset is now
+     * +00:00 in the IANA database, and against a zero offset the UTC slice and
+     * the agency slice agree — so the test would still pass while proving
+     * nothing at all. A nine-hour offset that has not moved since 1951 keeps
+     * the two genuinely different, which is the whole point of the assertion.
      */
     const { contents } = exportCustomerBalances(
       {
@@ -771,12 +789,12 @@ describe('regressions', () => {
           paid_minor: 0,
           outstanding_minor: 10_000,
           deposits_held_minor: 0,
-          // 00:30 on 1 July in Casablanca is 23:30 on 30 June in UTC.
-          last_rental_starts_at: '2032-06-30T23:30:00Z',
+          // 00:30 on 1 July in Tokyo is 15:30 on 30 June in UTC.
+          last_rental_starts_at: '2032-06-30T15:30:00Z',
           total_rows: 1,
         },
       ],
-      { timeZone: 'Africa/Casablanca' },
+      { timeZone: 'Asia/Tokyo' },
     )
 
     expect(contents).toContain('2032-07-01')

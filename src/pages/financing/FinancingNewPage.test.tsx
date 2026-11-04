@@ -67,6 +67,20 @@ function renderPage() {
   )
 }
 
+/*
+ * Derived from today, never written down.
+ *
+ * The form defaults `startsOn` to today, and the schema rejects a first payment
+ * that falls before the agreement starts. A literal date here passes until the
+ * calendar reaches it and then fails forever — which is exactly what happened
+ * to the `2026-11-01` that used to sit below.
+ */
+function futureIsoDate(daysAhead: number): string {
+  const date = new Date()
+  date.setUTCDate(date.getUTCDate() + daysAhead)
+  return date.toISOString().slice(0, 10)
+}
+
 async function fillToReview() {
   const user = userEvent.setup()
   await user.selectOptions(screen.getByLabelText(/^Vehicle/), 'vehicle-1')
@@ -76,7 +90,7 @@ async function fillToReview() {
   await user.click(screen.getByRole('button', { name: 'Continue' }))
 
   fireEvent.change(await screen.findByLabelText(/^First payment due/), {
-    target: { value: '2026-11-01' },
+    target: { value: futureIsoDate(30) },
   })
   await user.type(screen.getByLabelText(/^Each payment/), '500')
   await user.type(screen.getByLabelText(/^Number of payments/), '12')

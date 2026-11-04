@@ -41,6 +41,31 @@ const CASABLANCA = 'Africa/Casablanca'
 
 const at = (iso: string) => new Date(iso)
 
+/**
+ * What a clock on the wall in `timeZone` reads at this instant, as
+ * `YYYY-MM-DD HH:mm`.
+ *
+ * Built on Intl directly rather than on the module under test, so an assertion
+ * made with it is independent evidence and not the implementation agreeing with
+ * itself.
+ */
+function wallClockIn(instant: Date, timeZone: string): string {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hourCycle: 'h23',
+  }).formatToParts(instant)
+
+  const value = (type: Intl.DateTimeFormatPartTypes) =>
+    parts.find((part) => part.type === type)?.value ?? ''
+
+  return `${value('year')}-${value('month')}-${value('day')} ${value('hour')}:${value('minute')}`
+}
+
 describe('the time grid', () => {
   it('builds one column per agency-local day', () => {
     const grid = buildTimeGrid(at('2028-06-05T00:00:00Z'), 7, PARIS, at('2028-06-07T10:00:00Z'))
@@ -325,7 +350,17 @@ describe('ranges', () => {
     const fallback = at('2028-01-01T00:00:00Z')
     const anchor = anchorFromIso('2028-06-08', CASABLANCA, fallback)
 
-    expect(anchor.toISOString()).toBe('2028-06-07T23:00:00.000Z') // 00:00 in +01:00
+    /*
+     * Asserted as a wall clock, not as a UTC instant.
+     *
+     * This used to read `'2028-06-07T23:00:00.000Z'`, with a comment saying
+     * "00:00 in +01:00". Morocco's offset is not ours to pin: the IANA database
+     * revises it, and when the bundled copy moved Casablanca to +00:00 the
+     * literal became wrong while the code stayed right. What the function
+     * promises is that the anchor is midnight *in the agency's zone*, so that
+     * is what is checked — against Intl, independently of the module.
+     */
+    expect(wallClockIn(anchor, CASABLANCA)).toBe('2028-06-08 00:00')
     expect(anchorFromIso('nonsense', CASABLANCA, fallback)).toBe(fallback)
     expect(anchorFromIso(null, CASABLANCA, fallback)).toBe(fallback)
     expect(anchorFromIso('2028-13-01', CASABLANCA, fallback)).toBe(fallback)
