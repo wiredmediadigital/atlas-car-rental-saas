@@ -64,6 +64,34 @@ export const CHARGE_KIND_LABELS: Readonly<Record<RentalChargeKind, string>> = {
   other: 'Other',
 }
 
+/**
+ * An example description for each kind, shown as the field's placeholder.
+ *
+ * The description is required and prints on the contract, so the hint is the
+ * only guidance the desk gets about what to write. One hint for every kind
+ * used to read "Child seat" — which, having chosen Cleaning, reads like the
+ * field has been filled in with the wrong thing rather than like an example.
+ *
+ * These are examples, not defaults: nothing here is ever submitted. They say
+ * what sort of detail is worth recording, which is why none of them simply
+ * repeats the name of the kind.
+ */
+export const CHARGE_KIND_PLACEHOLDERS: Readonly<Record<RentalChargeKind, string>> = {
+  base_rental: 'Hire charge',
+  additional_driver: 'Second driver',
+  delivery: 'Delivered to the airport',
+  collection: 'Collected from the hotel',
+  child_seat: 'Child seat, rear-facing',
+  insurance: 'Excess reduction',
+  cleaning: 'Interior valet',
+  late_return: 'Two hours over',
+  fuel: 'Tank refilled on return',
+  damage: 'Scratched wing mirror',
+  adjustment: 'Agreed reduction',
+  discount: 'Returning customer',
+  other: 'Toll charges',
+}
+
 /** Kinds a person can add by hand. `base_rental` comes from the period and rate. */
 export const ADDABLE_CHARGE_KINDS: readonly RentalChargeKind[] = [
   'additional_driver',

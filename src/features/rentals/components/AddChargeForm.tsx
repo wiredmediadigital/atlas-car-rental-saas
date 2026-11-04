@@ -5,7 +5,12 @@ import { Button, Field, Input, Select } from '@/components/ui'
 import { parseMoneyToMinor } from '@/lib/money/money'
 import type { RentalChargeKind } from '@/types/database'
 
-import { ADDABLE_CHARGE_KINDS, CHARGE_KIND_LABELS, type QuoteLine } from '../pricing'
+import {
+  ADDABLE_CHARGE_KINDS,
+  CHARGE_KIND_LABELS,
+  CHARGE_KIND_PLACEHOLDERS,
+  type QuoteLine,
+} from '../pricing'
 
 export interface AddChargeFormProps {
   currency: string
@@ -76,7 +81,7 @@ export function AddChargeForm({ currency, onAdd, isPending = false }: AddChargeF
           <Input
             value={description}
             onChange={(event) => setDescription(event.target.value)}
-            placeholder={kind === 'discount' ? 'Returning customer' : 'Child seat'}
+            placeholder={CHARGE_KIND_PLACEHOLDERS[kind]}
             maxLength={200}
           />
         </Field>
