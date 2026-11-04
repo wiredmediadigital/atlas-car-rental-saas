@@ -1,5 +1,6 @@
 import { getSupabaseClient } from '@/lib/supabase/client'
 import { AppError, toAppError } from '@/lib/supabase/errors'
+import { collectForExport, type CollectedRows } from '@/lib/export/csv-export'
 import type {
   FleetStatusCountsRow,
   FuelType,
@@ -462,4 +463,18 @@ export async function setPrimaryImage(imageId: string): Promise<void> {
     .eq('id', imageId)
 
   if (error) throw toAppError(error)
+}
+
+/**
+ * Every vehicle matching a query, not just the page on screen.
+ *
+ * Pages through `fetchVehicles` rather than rebuilding the filters, so an export
+ * cannot disagree with the list it was started from. The ceiling, the ordering
+ * and the truncation flag all live in `collectForExport`, which is shared with
+ * the other three exports — one place to change how much a file may hold.
+ */
+export async function fetchVehiclesForExport(
+  query: VehicleQuery,
+): Promise<CollectedRows<VehicleFleetEntry>> {
+  return collectForExport((page, pageSize) => fetchVehicles({ ...query, page, pageSize }))
 }

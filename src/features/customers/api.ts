@@ -1,5 +1,6 @@
 import { getSupabaseClient } from '@/lib/supabase/client'
 import { AppError, toAppError } from '@/lib/supabase/errors'
+import { collectForExport, type CollectedRows } from '@/lib/export/csv-export'
 import type {
   Customer,
   CustomerDirectoryEntry,
@@ -458,4 +459,18 @@ export async function deleteCustomerDocumentRow(documentId: string): Promise<voi
     .eq('id', documentId)
 
   if (error) throw toAppError(error)
+}
+
+/**
+ * Every customer matching a query, not just the page on screen.
+ *
+ * Pages through `fetchCustomers` rather than rebuilding the filters, so an export
+ * cannot disagree with the list it was started from. The ceiling, the ordering
+ * and the truncation flag all live in `collectForExport`, which is shared with
+ * the other three exports — one place to change how much a file may hold.
+ */
+export async function fetchCustomersForExport(
+  query: CustomerQuery,
+): Promise<CollectedRows<CustomerDirectoryEntry>> {
+  return collectForExport((page, pageSize) => fetchCustomers({ ...query, page, pageSize }))
 }

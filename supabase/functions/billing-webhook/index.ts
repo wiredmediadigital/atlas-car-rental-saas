@@ -6,10 +6,12 @@
  * without a valid one, nothing here reads the body as an event, records
  * anything, or touches the database.
  *
- * IT FAILS CLOSED. With no webhook secret configured — the state of this
- * deployment — every request is refused. There is deliberately no development
- * branch that trusts unsigned JSON: a fallback like that is a fallback somebody
- * ships.
+ * IT FAILS CLOSED. With no webhook secret configured, every request is refused.
+ * There is deliberately no development branch that trusts unsigned JSON: a
+ * fallback like that is a fallback somebody ships. The invariant is the point;
+ * whether a given deployment has the secret set is a fact about that deployment
+ * and not something to assert in a comment, which is how the previous version
+ * of this paragraph came to be false.
  *
  * THE RAW BODY. Read with `request.text()` before anything parses it. Stripe's
  * requirement is the body "without any changes", and parsing then re-serialising

@@ -1,5 +1,6 @@
 import { getSupabaseClient } from '@/lib/supabase/client'
 import { toAppError } from '@/lib/supabase/errors'
+import { collectForExport, type CollectedRows } from '@/lib/export/csv-export'
 import type {
   DuplicateExpenseRow,
   DuplicateVendorRow,
@@ -586,4 +587,18 @@ export async function fetchChangeEvents(expenseId: string): Promise<ExpenseChang
 
   if (error) throw toAppError(error)
   return data ?? []
+}
+
+/**
+ * Every expense matching a query, not just the page on screen.
+ *
+ * Pages through `fetchExpenses` rather than rebuilding the filters, so an export
+ * cannot disagree with the list it was started from. The ceiling, the ordering
+ * and the truncation flag all live in `collectForExport`, which is shared with
+ * the other three exports — one place to change how much a file may hold.
+ */
+export async function fetchExpensesForExport(
+  query: ExpenseQuery,
+): Promise<CollectedRows<ExpenseLedgerEntry>> {
+  return collectForExport((page, pageSize) => fetchExpenses({ ...query, page, pageSize }))
 }

@@ -1,11 +1,18 @@
-import { CarFront, Plus, SearchX, Upload } from 'lucide-react'
+import { CarFront, Download, Plus, SearchX, Upload } from 'lucide-react'
 import { useCallback, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 
 import { paths } from '@/app/routes/paths'
 import { ErrorState } from '@/components/feedback/ErrorState'
 import { Button, ButtonLink, Card, EmptyState, ListPagination, PageHeader } from '@/components/ui'
-import { VEHICLE_SORTS, type ComplianceFilter, type VehicleSort } from '@/features/vehicles/api'
+import { useCsvExport } from '@/features/exports/useCsvExport'
+import {
+  VEHICLE_SORTS,
+  fetchVehiclesForExport,
+  type ComplianceFilter,
+  type VehicleSort,
+} from '@/features/vehicles/api'
+import { exportVehicles } from '@/features/vehicles/export'
 import { FleetSummary } from '@/features/vehicles/components/FleetSummary'
 import { FleetToolbar, type FleetFilters } from '@/features/vehicles/components/FleetToolbar'
 import { VehicleCardList } from '@/features/vehicles/components/VehicleCardList'
@@ -143,15 +150,44 @@ export function VehiclesPage() {
   const countsQuery = useFleetCounts()
   const makesQuery = useVehicleMakes()
 
-  const listQuery = useVehicleList({
-    search: filters.search,
-    statuses,
-    makes: filters.makes,
-    modelYear: filters.modelYear,
-    compliance: filters.compliance,
-    includeArchived: filters.includeArchived,
-    sort: filters.sort,
-    page,
+  /*
+   * One definition of "which vehicles", shared by the list on screen and the
+   * export, so a file cannot disagree with the page it came from.
+   */
+  const currentFilter = useMemo(
+    () => ({
+      search: filters.search,
+      statuses,
+      makes: filters.makes,
+      modelYear: filters.modelYear,
+      compliance: filters.compliance,
+      includeArchived: filters.includeArchived,
+      sort: filters.sort,
+    }),
+    [filters, statuses],
+  )
+
+  const listQuery = useVehicleList({ ...currentFilter, page })
+
+  const filterLabel = useMemo(() => {
+    const parts: string[] = []
+    if (filters.search) parts.push(`matching "${filters.search}"`)
+    if (statuses.length > 0) parts.push(statuses.join(', '))
+    if (filters.makes.length > 0) parts.push(filters.makes.join(', '))
+    if (filters.modelYear !== null) parts.push(String(filters.modelYear))
+    if (filters.compliance !== 'any') parts.push(`compliance ${filters.compliance}`)
+    parts.push(filters.includeArchived ? 'including archived' : 'excluding archived')
+    return `Fleet ${parts.join(', ')}`
+  }, [filters, statuses])
+
+  const { exportNow, isExporting } = useCsvExport({
+    fetchRows: useCallback(
+      () => fetchVehiclesForExport({ ...currentFilter, organizationId: organization.id }),
+      [currentFilter, organization.id],
+    ),
+    build: exportVehicles,
+    filterLabel,
+    noun: 'vehicles',
   })
 
   const vehicles = useMemo(() => listQuery.data?.rows ?? [], [listQuery.data])
@@ -176,16 +212,38 @@ export function VehiclesPage() {
   const total = listQuery.data?.total ?? 0
   const pageCount = listQuery.data?.pageCount ?? 1
 
-  const addAction = canCreate ? (
+  /*
+   * Export is outside the `canCreate` branch on purpose. A restricted agency
+   * has vehicles.create withdrawn, and nesting the export inside that check
+   * would withdraw it on precisely the day the wind-down promises it.
+   */
+  const addAction = (
     <div className="flex items-center gap-2">
-      <Button variant="secondary" leadingIcon={<Upload />} onClick={() => setIsImportOpen(true)}>
-        Import
+      <Button
+        variant="secondary"
+        leadingIcon={<Download />}
+        onClick={() => void exportNow()}
+        isLoading={isExporting}
+        disabled={isExporting || !(hasAnyVehicles || isFiltered)}
+      >
+        Export
       </Button>
-      <ButtonLink variant="primary" leadingIcon={<Plus />} to={paths.vehicleNew}>
-        Add vehicle
-      </ButtonLink>
+      {canCreate ? (
+        <>
+          <Button
+            variant="secondary"
+            leadingIcon={<Upload />}
+            onClick={() => setIsImportOpen(true)}
+          >
+            Import
+          </Button>
+          <ButtonLink variant="primary" leadingIcon={<Plus />} to={paths.vehicleNew}>
+            Add vehicle
+          </ButtonLink>
+        </>
+      ) : null}
     </div>
-  ) : null
+  )
 
   return (
     <div className="space-y-6">

@@ -5,26 +5,23 @@ import { useSearchParams } from 'react-router-dom'
 import { paths } from '@/app/routes/paths'
 import { ErrorState } from '@/components/feedback/ErrorState'
 import { Button, ButtonLink, Card, EmptyState, ListPagination, PageHeader } from '@/components/ui'
-import { useToast } from '@/components/ui/toast/toast-context'
 import {
   RENTAL_SORTS,
   type RentalDeskView,
   type RentalPaymentFilter,
-  type RentalQuery,
   type RentalSort,
   deskViewFilter,
   fetchRentalsForExport,
   isRentalDeskView,
 } from '@/features/rentals/api'
+import { useCsvExport } from '@/features/exports/useCsvExport'
 import { exportRentals } from '@/features/rentals/export'
-import { downloadCsv } from '@/features/reports/csv'
 import { RentalCardList } from '@/features/rentals/components/RentalCardList'
 import { RentalSummary } from '@/features/rentals/components/RentalSummary'
 import { RentalTable } from '@/features/rentals/components/RentalTable'
 import { RentalToolbar, type RentalFilters } from '@/features/rentals/components/RentalToolbar'
 import { useRentalList, useRentalSummary } from '@/features/rentals/queries'
 import { useOrganization, usePermission } from '@/features/workspace/workspace-context'
-import { toAppError } from '@/lib/supabase/errors'
 import { addDaysInTimeZone, startOfDayInTimeZone } from '@/lib/datetime/timezone'
 
 const STATUS_VALUES: readonly string[] = [
@@ -69,10 +66,8 @@ function isRentalSort(value: string): value is RentalSort {
 export function RentalsPage() {
   const organization = useOrganization()
   const canCreate = usePermission('rentals.create')
-  const toast = useToast()
   const [searchParams, setSearchParams] = useSearchParams()
   const [now] = useState(() => new Date())
-  const [isExporting, setIsExporting] = useState(false)
 
   // The agency's day, not the browser's.
   const day = useMemo(() => {
@@ -233,46 +228,15 @@ export function RentalsPage() {
    * agency most likely to need this, and a read-only state with no way to take
    * the data out would be a worse promise than the one the wind-down makes.
    */
-  const handleExport = useCallback(async () => {
-    setIsExporting(true)
-    try {
-      const query: RentalQuery = { ...currentFilter, organizationId: organization.id }
-      const result = await fetchRentalsForExport(query)
-
-      if (result.rows.length === 0) {
-        toast.toast({
-          title: 'Nothing to export',
-          description: 'No rentals match the current filters.',
-          tone: 'info',
-        })
-        return
-      }
-
-      const file = exportRentals(
-        {
-          agencyName: organization.name,
-          filterLabel,
-          generatedAt: new Date().toISOString(),
-          truncated: result.truncated,
-        },
-        result.rows,
-      )
-      downloadCsv(file.filename, file.contents)
-
-      if (result.truncated) {
-        toast.toast({
-          title: 'Export reached its limit',
-          description: 'The file holds the first 10,000 rentals. Narrow the filters for the rest.',
-          tone: 'caution',
-          duration: 0,
-        })
-      }
-    } catch (error) {
-      toast.error('The export could not be completed', toAppError(error).message)
-    } finally {
-      setIsExporting(false)
-    }
-  }, [currentFilter, organization.id, organization.name, filterLabel, toast])
+  const { exportNow, isExporting } = useCsvExport({
+    fetchRows: useCallback(
+      () => fetchRentalsForExport({ ...currentFilter, organizationId: organization.id }),
+      [currentFilter, organization.id],
+    ),
+    build: exportRentals,
+    filterLabel,
+    noun: 'rentals',
+  })
 
   const hasAnyRentals =
     total > 0 ||
@@ -295,7 +259,7 @@ export function RentalsPage() {
             <Button
               variant="secondary"
               leadingIcon={<Download />}
-              onClick={() => void handleExport()}
+              onClick={() => void exportNow()}
               isLoading={isExporting}
               disabled={isExporting || !hasAnyRentals}
             >

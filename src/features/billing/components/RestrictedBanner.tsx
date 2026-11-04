@@ -32,11 +32,13 @@ import { usePermission, useIsBillingRestricted } from '@/features/workspace/work
  * confirming that everything recorded is still there and can still be taken
  * out.
  *
- * AND IT NAMES WHAT CAN ACTUALLY BE EXPORTED. "Exported as usual" would be a
- * promise the product does not yet keep: Rentals exports, and every report
- * exports, but Customers, Vehicles and Expenses have an import and no export.
- * A reassurance that turns out to be untrue on the day somebody relies on it is
- * worse than the narrower sentence. Widen it when those exports exist.
+ * AND IT NAMES WHAT CAN ACTUALLY BE EXPORTED. A bare "exported as usual" would
+ * still be wider than the truth — financing agreements and the team list have
+ * no export — so the sentence lists the four books that do, plus reports. The
+ * list grew once already: it used to name only rentals and reports, because
+ * Customers, Vehicles and Expenses had an import and no export. A reassurance
+ * that turns out to be untrue on the day somebody relies on it is worse than a
+ * narrower sentence, so widen this only alongside the export it describes.
  */
 export function RestrictedBanner() {
   const isRestricted = useIsBillingRestricted()
@@ -60,8 +62,8 @@ export function RestrictedBanner() {
       <p>
         There is no active subscription, so nothing new can be recorded &mdash; no rentals,
         contracts, customers, payments or expenses. Everything already recorded is still here and
-        can be opened, searched and printed as usual; the rentals book and every report can still be
-        exported.
+        can be opened, searched and printed as usual. The rentals book, the customer directory, the
+        fleet, the expense ledger and every report can still be exported.
       </p>
       <p className="mt-1">
         {canManageBilling

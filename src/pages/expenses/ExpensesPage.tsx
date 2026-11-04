@@ -1,4 +1,4 @@
-import { Plus, ReceiptText, SearchX, Settings2, Upload } from 'lucide-react'
+import { Download, Plus, ReceiptText, SearchX, Settings2, Upload } from 'lucide-react'
 import { useCallback, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 
@@ -14,7 +14,14 @@ import {
   ListPagination,
   PageHeader,
 } from '@/components/ui'
-import { EXPENSE_SORTS, type ExpenseSort, type ExpenseStatusFilter } from '@/features/expenses/api'
+import {
+  EXPENSE_SORTS,
+  fetchExpensesForExport,
+  type ExpenseSort,
+  type ExpenseStatusFilter,
+} from '@/features/expenses/api'
+import { exportExpenses } from '@/features/expenses/export'
+import { useCsvExport } from '@/features/exports/useCsvExport'
 import { CategoryBreakdown } from '@/features/expenses/components/CategoryBreakdown'
 import { ExpenseCardList } from '@/features/expenses/components/ExpenseCardList'
 import { ExpenseSummaryStrip } from '@/features/expenses/components/ExpenseSummary'
@@ -165,17 +172,51 @@ export function ExpensesPage() {
   const categoriesQuery = useExpenseCategories()
   const vendorsQuery = useExpenseVendors()
 
-  const listQuery = useExpenseList({
-    search: filters.search,
-    from: period.from,
-    to: period.to,
-    ...(filters.categoryId ? { categoryIds: [filters.categoryId] } : {}),
-    allocation: filters.allocation,
-    ...(filters.vendorId ? { vendorId: filters.vendorId } : {}),
-    ...(filters.currency ? { currency: filters.currency } : {}),
-    status: filters.status,
-    sort: filters.sort,
-    page,
+  /*
+   * One definition of "which expenses", shared by the list on screen and the
+   * export — including the period, which is the filter somebody is most likely
+   * to assume an export ignored.
+   */
+  const currentFilter = useMemo(
+    () => ({
+      search: filters.search,
+      from: period.from,
+      to: period.to,
+      ...(filters.categoryId ? { categoryIds: [filters.categoryId] } : {}),
+      allocation: filters.allocation,
+      ...(filters.vendorId ? { vendorId: filters.vendorId } : {}),
+      ...(filters.currency ? { currency: filters.currency } : {}),
+      status: filters.status,
+      sort: filters.sort,
+    }),
+    [filters, period.from, period.to],
+  )
+
+  const listQuery = useExpenseList({ ...currentFilter, page })
+
+  const filterLabel = useMemo(() => {
+    const parts = [`${period.from} to ${period.to}`]
+    if (filters.search) parts.push(`matching "${filters.search}"`)
+    if (filters.allocation !== 'any') parts.push(`allocation ${filters.allocation}`)
+    if (filters.currency) parts.push(filters.currency)
+    parts.push(
+      filters.status === 'all'
+        ? 'recorded and voided'
+        : filters.status === 'voided'
+          ? 'voided only'
+          : 'recorded only',
+    )
+    return `Expenses ${parts.join(', ')}`
+  }, [filters, period.from, period.to])
+
+  const { exportNow, isExporting } = useCsvExport({
+    fetchRows: useCallback(
+      () => fetchExpensesForExport({ ...currentFilter, organizationId: organization.id }),
+      [currentFilter, organization.id],
+    ),
+    build: exportExpenses,
+    filterLabel,
+    noun: 'expenses',
   })
 
   const expenses = listQuery.data?.rows ?? []
@@ -211,6 +252,20 @@ export function ExpensesPage() {
         description={`What ${organization.name} spends, and what each cost belongs to.`}
         actions={
           <div className="flex flex-wrap items-center gap-2">
+            {/*
+              Outside every permission branch on purpose: a restricted agency
+              has expenses.create withdrawn and needs its ledger most on the day
+              it stops paying.
+            */}
+            <Button
+              variant="secondary"
+              leadingIcon={<Download />}
+              onClick={() => void exportNow()}
+              isLoading={isExporting}
+              disabled={isExporting}
+            >
+              Export
+            </Button>
             {canManageCategories || canManageVendors ? (
               <Button
                 variant="secondary"

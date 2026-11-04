@@ -1,5 +1,6 @@
 import { getSupabaseClient } from '@/lib/supabase/client'
 import { toAppError } from '@/lib/supabase/errors'
+import { collectForExport, EXPORT_ROW_LIMIT, type CollectedRows } from '@/lib/export/csv-export'
 import type {
   Payment,
   PaymentDirection,
@@ -242,46 +243,29 @@ export async function fetchRentals(query: RentalQuery): Promise<RentalPage> {
  * that stops responding. 10,000 rentals is far beyond any realistic filtered
  * view and still a file of a few megabytes.
  */
-export const RENTAL_EXPORT_LIMIT = 10_000
+/**
+ * Kept as a named constant because the Rentals page quotes the figure back to
+ * the person in a toast when an export is truncated, and a message that says
+ * "the first 10,000" while the loop stops at a different number is the kind of
+ * discrepancy nobody reports and everybody notices.
+ */
+export const RENTAL_EXPORT_LIMIT = EXPORT_ROW_LIMIT
 
-export interface RentalExportResult {
-  readonly rows: RentalBoardEntry[]
-  /** True when the ceiling was reached and there were more rows behind it. */
-  readonly truncated: boolean
-}
+export type RentalExportResult = CollectedRows<RentalBoardEntry>
 
 /**
  * Every rental matching a query, not just the page on screen.
  *
- * SAME QUERY, NO SECOND DEFINITION. It pages through fetchRentals rather than
- * rebuilding the filters, so an export cannot disagree with the list it was
- * started from — which is the failure that makes somebody distrust every export
- * they are ever given afterwards.
- *
- * Sequential rather than parallel on purpose. The pages have to arrive in order
- * for the file to be in the order the screen was, and firing a hundred requests
- * at once at a database an agency is already working in buys nothing.
+ * Pages through fetchRentals rather than rebuilding the filters, so an export
+ * cannot disagree with the list it was started from — the failure that makes
+ * somebody distrust every export they are ever given afterwards. The paging,
+ * the ceiling and the truncation flag are shared with the other three exports.
  */
 export async function fetchRentalsForExport(query: RentalQuery): Promise<RentalExportResult> {
-  const pageSize = 100
-  const rows: RentalBoardEntry[] = []
-  let page = 1
-
-  for (;;) {
-    const result = await fetchRentals({ ...query, page, pageSize })
-    rows.push(...result.rows)
-
-    if (rows.length >= RENTAL_EXPORT_LIMIT) {
-      return {
-        rows: rows.slice(0, RENTAL_EXPORT_LIMIT),
-        truncated: result.total > RENTAL_EXPORT_LIMIT,
-      }
-    }
-    if (page >= result.pageCount || result.rows.length === 0) {
-      return { rows, truncated: false }
-    }
-    page += 1
-  }
+  return collectForExport(
+    (page, pageSize) => fetchRentals({ ...query, page, pageSize }),
+    RENTAL_EXPORT_LIMIT,
+  )
 }
 
 export interface RentalSummary {

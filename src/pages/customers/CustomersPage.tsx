@@ -1,4 +1,4 @@
-import { Plus, SearchX, Upload, Users } from 'lucide-react'
+import { Download, Plus, SearchX, Upload, Users } from 'lucide-react'
 import { useCallback, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 
@@ -18,7 +18,10 @@ import {
   CustomerToolbar,
   type CustomerFilters,
 } from '@/features/customers/components/CustomerToolbar'
+import { fetchCustomersForExport } from '@/features/customers/api'
+import { exportCustomers } from '@/features/customers/export'
 import { useCustomerCountries, useCustomerList } from '@/features/customers/queries'
+import { useCsvExport } from '@/features/exports/useCsvExport'
 import { useComplianceOptions } from '@/features/workspace/useOrganizationSettings'
 import { useOrganization, usePermission } from '@/features/workspace/workspace-context'
 
@@ -113,15 +116,44 @@ export function CustomersPage() {
     setSearchParams(new URLSearchParams(), { replace: true })
   }, [setSearchParams])
 
+  /*
+   * One definition of "which customers", shared by the list on screen and the
+   * export. Rebuilding the filters for the export is how a file comes to
+   * disagree with the page it was started from.
+   */
+  const currentFilter = useMemo(
+    () => ({
+      search: filters.search,
+      countries: filters.countries,
+      licence: filters.licence,
+      rental: filters.rental,
+      includeArchived: filters.includeArchived,
+      sort: filters.sort,
+    }),
+    [filters],
+  )
+
   const countriesQuery = useCustomerCountries()
-  const listQuery = useCustomerList({
-    search: filters.search,
-    countries: filters.countries,
-    licence: filters.licence,
-    rental: filters.rental,
-    includeArchived: filters.includeArchived,
-    sort: filters.sort,
-    page,
+  const listQuery = useCustomerList({ ...currentFilter, page })
+
+  const filterLabel = useMemo(() => {
+    const parts: string[] = []
+    if (filters.search) parts.push(`matching "${filters.search}"`)
+    if (filters.countries.length > 0) parts.push(`in ${filters.countries.join(', ')}`)
+    if (filters.licence !== 'any') parts.push(`licence ${filters.licence}`)
+    if (filters.rental !== 'any') parts.push(`rentals ${filters.rental}`)
+    parts.push(filters.includeArchived ? 'including archived' : 'excluding archived')
+    return parts.length > 0 ? `Customers ${parts.join(', ')}` : 'All customers'
+  }, [filters])
+
+  const { exportNow, isExporting } = useCsvExport({
+    fetchRows: useCallback(
+      () => fetchCustomersForExport({ ...currentFilter, organizationId: organization.id }),
+      [currentFilter, organization.id],
+    ),
+    build: exportCustomers,
+    filterLabel,
+    noun: 'customers',
   })
 
   const customers = listQuery.data?.rows ?? []
@@ -148,20 +180,37 @@ export function CustomersPage() {
             : `Renters and company accounts for ${organization.name}.`
         }
         actions={
-          canCreate ? (
-            <div className="flex items-center gap-2">
-              <Button
-                variant="secondary"
-                leadingIcon={<Upload />}
-                onClick={() => setIsImportOpen(true)}
-              >
-                Import
-              </Button>
-              <ButtonLink variant="primary" leadingIcon={<Plus />} to={paths.customerNew}>
-                Add customer
-              </ButtonLink>
-            </div>
-          ) : null
+          /*
+           * Export sits outside the `canCreate` branch deliberately. An agency
+           * whose subscription has lapsed has customers.create withdrawn, and
+           * nesting the export inside that check would remove it on exactly the
+           * day the wind-down promises it.
+           */
+          <div className="flex items-center gap-2">
+            <Button
+              variant="secondary"
+              leadingIcon={<Download />}
+              onClick={() => void exportNow()}
+              isLoading={isExporting}
+              disabled={isExporting || !hasAnyCustomers}
+            >
+              Export
+            </Button>
+            {canCreate ? (
+              <>
+                <Button
+                  variant="secondary"
+                  leadingIcon={<Upload />}
+                  onClick={() => setIsImportOpen(true)}
+                >
+                  Import
+                </Button>
+                <ButtonLink variant="primary" leadingIcon={<Plus />} to={paths.customerNew}>
+                  Add customer
+                </ButtonLink>
+              </>
+            ) : null}
+          </div>
         }
       />
 

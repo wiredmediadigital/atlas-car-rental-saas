@@ -1,23 +1,30 @@
-import { csvDate, csvMoney, csvNumber, csvText, guardCsvCell } from '@/features/reports/csv'
-import { buildCsv } from '@/lib/import/csv'
+import { csvMoney, csvNumber, csvText } from '@/features/reports/csv'
+import {
+  buildExportFile,
+  csvBoolean,
+  csvInstant,
+  exportFilename,
+  type ExportContext,
+  type ExportFile,
+} from '@/lib/export/csv-export'
 import type { RentalBoardEntry } from '@/types/database'
 
 /**
  * Taking the rental book out of the product.
  *
- * WHY THIS EXISTS, AND WHY IT SHIPS WITH THE BILLING RESTRICTION.
+ * WHY THIS EXISTS, AND WHY IT SHIPPED WITH THE BILLING RESTRICTION.
  *
  * An agency whose subscription lapses keeps read access to everything it ever
- * recorded — that is the whole design of the wind-down, and it is the reason the
- * 44 SELECT policies were left alone. But "you can still read it" is a hollow
+ * recorded — that is the whole design of the wind-down, and the reason the 44
+ * SELECT policies were left alone. But "you can still read it" is a hollow
  * promise if the only way to read four years of rentals is twenty-five rows at
  * a time in a browser. A read-only state without an export is a slower kind of
- * hostage-taking, so the export lands with it rather than after it.
+ * hostage-taking, so the export landed with it rather than after it.
  *
- * It is NOT a billing feature, and it is not gated on anything. An agency in
- * perfectly good standing exports its rental book for its accountant, for a
- * tax authority, for a bank, or because it wants to. The restriction is only
- * the reason it was written now.
+ * It is NOT a billing feature and is not gated on anything. An agency in good
+ * standing exports its rental book for its accountant, for a tax authority, for
+ * a bank, or because it wants to. The restriction was only the reason it was
+ * written when it was.
  *
  * WHAT IT CONTAINS, AND WHY THAT DIFFERS FROM A REPORT.
  *
@@ -29,36 +36,15 @@ import type { RentalBoardEntry } from '@/types/database'
  * carry anyway: no address, no telephone number, no identity document, no
  * licence number, no stored card, no GPS position.
  *
- * THE FILENAME NAMES NOBODY. A download folder is shared, indexed and backed
- * up, so the file is called after the agency's export and the date, never after
- * a customer or a plate — the same rule reportFilename follows.
- *
- * EVERY CELL GOES THROUGH THE REPORT CELL HELPERS. They are what stop a
- * customer recorded as `=HYPERLINK(...)` becoming a live formula in whoever
- * opens the file next. Reusing them rather than restating them means a fix to
- * the formula guard reaches this export too.
+ * The file-level rules it used to define for itself — the byte order mark, the
+ * provenance block, the truncation note, the filename that names nobody — now
+ * live in `@/lib/export/csv-export` and are shared with the other three
+ * exports. What stays here is the column set, which is the only part that is
+ * about rentals.
  */
 
-export interface RentalsExport {
-  readonly filename: string
-  readonly contents: string
-}
-
-export interface RentalsExportContext {
-  readonly agencyName: string
-  /** What the person was looking at, in words. Travels into the file. */
-  readonly filterLabel: string
-  readonly generatedAt: string
-  /** True when the export stopped at the row ceiling rather than the last row. */
-  readonly truncated?: boolean
-}
-
-const BOM = '﻿'
-
-/** Mirrors the escaping `buildCsv` applies, for the provenance block. */
-function escapeForCsv(value: string): string {
-  return /[",\n]/.test(value) ? `"${value.replace(/"/g, '""')}"` : value
-}
+export type RentalsExportContext = ExportContext
+export type RentalsExport = ExportFile
 
 const HEADERS = [
   'Reference',
@@ -90,47 +76,19 @@ const HEADERS = [
   'Created',
 ] as const
 
-/** An ISO instant as a date-and-time a spreadsheet will not reinterpret. */
-function csvInstant(value: string | null | undefined): string {
-  if (!value) return ''
-  // Seconds, no timezone suffix mangling: `2026-11-03 14:05`.
-  return guardCsvCell(value.slice(0, 16).replace('T', ' '))
-}
-
 function vehicleLabel(row: RentalBoardEntry): string {
   const year = row.vehicle_model_year ? ` ${row.vehicle_model_year}` : ''
   return `${row.vehicle_make} ${row.vehicle_model}${year}`
 }
 
-export function buildRentalsCsv(
+export function exportRentals(
   context: RentalsExportContext,
   rows: readonly RentalBoardEntry[],
-): string {
-  const provenance: string[][] = [
-    ['Agency', csvText(context.agencyName)],
-    ['Export', csvText('Rentals and contracts')],
-    ['Showing', csvText(context.filterLabel)],
-    ['Rows', csvNumber(rows.length)],
-    ['Generated', csvText(context.generatedAt)],
-  ]
-
-  /*
-   * A truncated export that does not say so is worse than no export: somebody
-   * reconciles against it and finds the totals short. The note is a row in the
-   * file itself, not a toast that is gone by the time the file is opened.
-   */
-  if (context.truncated) {
-    provenance.push([
-      'Note',
-      csvText('This export reached its row limit. Narrow the filters and export again.'),
-    ])
-  }
-  provenance.push([])
-
+): RentalsExport {
   const body = rows.map((row) => [
     csvText(row.reference),
     csvText(row.status),
-    row.is_overdue ? 'Yes' : 'No',
+    csvBoolean(row.is_overdue),
     csvInstant(row.starts_at),
     csvInstant(row.ends_at),
     csvInstant(row.picked_up_at),
@@ -157,29 +115,16 @@ export function buildRentalsCsv(
     csvInstant(row.created_at),
   ])
 
-  const width = HEADERS.length
-  const head = provenance
-    .map((line) => {
-      const padded = [...line]
-      while (padded.length < width) padded.push('')
-      return padded.map(escapeForCsv).join(',')
-    })
-    .join('\n')
+  return buildExportFile(context, 'rentals', 'Rentals and contracts', HEADERS, body)
+}
 
-  // The byte order mark is what stops Excel guessing the code page.
-  return `${BOM}${head}\n${buildCsv(HEADERS.map(guardCsvCell), body)}`
+export function buildRentalsCsv(
+  context: RentalsExportContext,
+  rows: readonly RentalBoardEntry[],
+): string {
+  return exportRentals(context, rows).contents
 }
 
 export function rentalsExportFilename(generatedAt: string): string {
-  return `rentals-${csvDate(generatedAt)}.csv`
-}
-
-export function exportRentals(
-  context: RentalsExportContext,
-  rows: readonly RentalBoardEntry[],
-): RentalsExport {
-  return {
-    filename: rentalsExportFilename(context.generatedAt),
-    contents: buildRentalsCsv(context, rows),
-  }
+  return exportFilename('rentals', generatedAt)
 }
