@@ -1,6 +1,7 @@
 import { z } from 'zod'
 
-import { parseMoneyToMinor } from '@/lib/money/money'
+import { minorToDecimalString, parseMoneyToMinor } from '@/lib/money/money'
+import type { FinancingAgreement } from '@/types/database'
 
 /**
  * Financing validation.
@@ -242,6 +243,47 @@ export function emptyAgreementForm(currency: string, todayIso: string): Agreemen
     rateBps: null,
     installmentsCount: '',
     notes: '',
+  }
+}
+
+/**
+ * An existing agreement, back into the shape the form edits.
+ *
+ * The inverse of `agreementColumns` in `api.ts`, and the reason a draft can be
+ * corrected rather than deleted and retyped. Two asymmetries are deliberate:
+ *
+ *   * A NULL money column becomes an empty string, not `'0'`. The schema turns
+ *     it back into NULL on save, so a figure the agency never knew stays
+ *     unknown instead of silently becoming zero the first time somebody opens
+ *     the form to change something else.
+ *   * `first_payment_on` is nullable in the database but required by the form.
+ *     It falls back to the start date, which is the earliest the schema allows
+ *     and so never lands the person on a field that is invalid before they
+ *     have touched it.
+ */
+export function agreementToForm(agreement: FinancingAgreement): AgreementFormInput {
+  const currency = agreement.currency
+  const money = (minor: number | null) =>
+    minor === null ? '' : minorToDecimalString(minor, currency)
+
+  return {
+    vehicleId: agreement.vehicle_id,
+    lenderId: agreement.lender_id,
+    agreementType: agreement.agreement_type,
+    mode: agreement.mode,
+    currency: agreement.currency,
+    reference: agreement.reference ?? '',
+    startsOn: agreement.starts_on,
+    firstPaymentOn: agreement.first_payment_on ?? agreement.starts_on,
+    paymentFrequency: agreement.payment_frequency,
+    financedAmount: money(agreement.financed_amount_minor),
+    downPayment: money(agreement.down_payment_amount_minor),
+    installmentAmount: money(agreement.installment_amount_minor),
+    balloon: money(agreement.balloon_minor),
+    rateBps: agreement.rate_bps,
+    installmentsCount:
+      agreement.installments_count === null ? '' : String(agreement.installments_count),
+    notes: agreement.notes ?? '',
   }
 }
 

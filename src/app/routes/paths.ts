@@ -31,6 +31,8 @@ export const paths = {
   financingNew: '/financing/new',
   /** Detail route; build with `financingDetailPath(id)`. */
   financingDetail: '/financing/:financingId',
+  /** Draft correction; build with `financingEditPath(id)`. */
+  financingEdit: '/financing/:financingId/edit',
   reports: '/reports',
 
   notifications: '/notifications',
@@ -70,4 +72,8 @@ export function expenseDetailPath(expenseId: string): string {
 
 export function financingDetailPath(agreementId: string): string {
   return `/financing/${agreementId}`
+}
+
+export function financingEditPath(agreementId: string): string {
+  return `/financing/${agreementId}/edit`
 }

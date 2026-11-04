@@ -1,13 +1,23 @@
-import { ArrowLeft, Ban, CheckCircle2, CircleHelp, Play, Trash2, TriangleAlert } from 'lucide-react'
+import {
+  ArrowLeft,
+  Ban,
+  CheckCircle2,
+  CircleHelp,
+  Pencil,
+  Play,
+  Trash2,
+  TriangleAlert,
+} from 'lucide-react'
 import { useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 
-import { paths, vehicleDetailPath } from '@/app/routes/paths'
+import { financingEditPath, paths, vehicleDetailPath } from '@/app/routes/paths'
 import { ErrorState } from '@/components/feedback/ErrorState'
 import {
   Alert,
   Badge,
   Button,
+  ButtonLink,
   Card,
   CardBody,
   CardHeader,
@@ -202,6 +212,18 @@ export function FinancingDetailPage() {
               </Button>
             ) : null}
 
+            {/* Drafts only. The alert below promises the terms can still be
+                corrected, and until this existed nothing honoured it. */}
+            {isDraft && canManage ? (
+              <ButtonLink
+                variant="ghost"
+                leadingIcon={<Pencil />}
+                to={financingEditPath(agreement.id)}
+              >
+                Edit terms
+              </ButtonLink>
+            ) : null}
+
             {isDraft && canDelete && agreement.payment_count === 0 ? (
               <Button variant="ghost" leadingIcon={<Trash2 />} onClick={() => setDeleting(true)}>
                 Delete draft
@@ -231,8 +253,9 @@ export function FinancingDetailPage() {
 
       {isDraft ? (
         <Alert tone="info" title="This is a draft">
-          No schedule exists and no payment can be recorded yet. Terms can be corrected freely until
-          it is activated.
+          No schedule exists and no payment can be recorded yet. Terms can be corrected freely with
+          <strong> Edit terms</strong> until it is activated — after that the schedule is built from
+          them and they are fixed.
         </Alert>
       ) : null}
 

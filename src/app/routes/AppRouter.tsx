@@ -83,6 +83,11 @@ const FinancingNewPage = lazy(() =>
     default: module.FinancingNewPage,
   })),
 )
+const FinancingEditPage = lazy(() =>
+  import('@/pages/financing/FinancingEditPage').then((module) => ({
+    default: module.FinancingEditPage,
+  })),
+)
 const FinancingDetailPage = lazy(() =>
   import('@/pages/financing/FinancingDetailPage').then((module) => ({
     default: module.FinancingDetailPage,
@@ -285,6 +290,13 @@ export function AppRouter() {
                     <Route path={paths.financingDetail} element={<FinancingDetailPage />} />
                     <Route element={<RequirePermission permission="financing.create" />}>
                       <Route path={paths.financingNew} element={<FinancingNewPage />} />
+                    </Route>
+                    {/* Correcting a draft is an update, not a creation: an
+                        agency that may fix a wrong agreement is not thereby
+                        allowed to add new ones. The page refuses anything
+                        that is no longer a draft. */}
+                    <Route element={<RequirePermission permission="financing.update" />}>
+                      <Route path={paths.financingEdit} element={<FinancingEditPage />} />
                     </Route>
                   </Route>
 
