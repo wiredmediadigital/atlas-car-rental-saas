@@ -14,7 +14,12 @@ import {
   normaliseDocumentNumber,
   phoneKey,
 } from './identity'
-import { customerDocumentSchema, customerSchema, emptyCustomerForm } from './schemas'
+import {
+  buildCustomerSchema,
+  customerDocumentSchema,
+  customerSchema,
+  emptyCustomerForm,
+} from './schemas'
 
 describe('identifier normalisation', () => {
   it('compares document numbers without spacing or case', () => {
@@ -107,6 +112,18 @@ describe('customer validation', () => {
     expect(customerSchema.safeParse({ ...valid, dateOfBirth: `${nextYear}-01-01` }).success).toBe(
       false,
     )
+  })
+
+  it('allows a birth date of today, and refuses tomorrow', () => {
+    /*
+     * The boundary, on a day of this test's choosing rather than whichever one
+     * the suite runs on. The rule above can only ever say "some time next year
+     * is too late", which is true but never touches the line it is guarding.
+     */
+    const schema = buildCustomerSchema(() => '2026-05-04')
+
+    expect(schema.safeParse({ ...valid, dateOfBirth: '2026-05-04' }).success).toBe(true)
+    expect(schema.safeParse({ ...valid, dateOfBirth: '2026-05-05' }).success).toBe(false)
   })
 
   it('refuses a birth date before 1900 or one that does not exist', () => {

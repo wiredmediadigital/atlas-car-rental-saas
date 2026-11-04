@@ -40,6 +40,7 @@ import { useOrganization, usePermission } from '@/features/workspace/workspace-c
 import { formatDate, formatDateTime } from '@/lib/datetime/format'
 import { formatMoney, minorToDecimalString } from '@/lib/money/money'
 import { toErrorMessage } from '@/lib/supabase/errors'
+import { toIsoDateInTimeZone } from '@/lib/datetime/timezone'
 
 /**
  * One cost, in full.
@@ -133,7 +134,10 @@ export function ExpenseDetailPage() {
 
   const save = async () => {
     if (!draft) return
-    const schema = buildExpenseSchema(draft.currency || expense.currency)
+    const schema = buildExpenseSchema(
+      draft.currency || expense.currency,
+      toIsoDateInTimeZone(new Date(), timeZone),
+    )
     const parsed = schema.safeParse(draft)
 
     if (!parsed.success) {

@@ -635,9 +635,10 @@ describe('recording an agreement', () => {
 })
 
 describe('recording a lender payment', () => {
-  const schema = buildFinancingPaymentSchema('EUR')
-  // A payment already made, because one dated in the future is refused below.
-  const pastIso = new Date(Date.now() - 86_400_000).toISOString().slice(0, 10)
+  // A fixed day, so the future is a fact of this test rather than of the clock.
+  const TODAY = '2026-05-04'
+  const schema = buildFinancingPaymentSchema('EUR', TODAY)
+  const pastIso = '2026-05-03'
   const valid = { ...emptyPaymentForm(pastIso), amount: '4300.00' }
 
   it('saves a payment nobody can split', () => {
@@ -663,6 +664,13 @@ describe('recording a lender payment', () => {
 
   it('refuses a payment dated in the future', () => {
     expect(schema.safeParse({ ...valid, paidOn: '2099-01-01' }).success).toBe(false)
+  })
+
+  it('accepts a payment made today, and refuses tomorrow', () => {
+    // The boundary a sentinel year never reaches. Today must be allowed: a
+    // lender payment is usually recorded the day it leaves the account.
+    expect(schema.safeParse({ ...valid, paidOn: TODAY }).success).toBe(true)
+    expect(schema.safeParse({ ...valid, paidOn: '2026-05-05' }).success).toBe(false)
   })
 
   it('leaves the rest unallocated, and says how much', () => {

@@ -23,6 +23,7 @@ import {
   parseCsv,
   validateImportRows,
 } from '../csv'
+import { toIsoDateInTimeZone } from '@/lib/datetime/timezone'
 import {
   expenseKeys,
   useExpenseCategories,
@@ -173,10 +174,18 @@ function ImportDialogContent({ open, onOpenChange }: ExpenseImportDialogProps) {
     if (!parsed) return null
     return validateImportRows(parsed, mapping, {
       defaultCurrency: organization.default_currency,
+      todayIso: toIsoDateInTimeZone(new Date(), organization.time_zone),
       lookups,
       existingKeys,
     })
-  }, [parsed, mapping, organization.default_currency, lookups, existingKeys])
+  }, [
+    parsed,
+    mapping,
+    organization.default_currency,
+    organization.time_zone,
+    lookups,
+    existingKeys,
+  ])
 
   const reset = () => {
     setStep('choose')

@@ -191,6 +191,8 @@ export interface ImportLookups {
 
 export interface ValidateImportOptions {
   readonly defaultCurrency: string
+  /** Today, as the agency's calendar has it. A cost cannot be dated after it. */
+  readonly todayIso: string
   readonly lookups: ImportLookups
   /** Keys of costs already recorded, for the supplier + invoice-number check. */
   readonly existingKeys: ReadonlySet<string>
@@ -226,7 +228,7 @@ function buildAdapter(
   const schemaFor = (currency: string) => {
     const existing = schemas.get(currency)
     if (existing) return existing
-    const created = buildExpenseSchema(currency)
+    const created = buildExpenseSchema(currency, options.todayIso)
     schemas.set(currency, created)
     return created
   }

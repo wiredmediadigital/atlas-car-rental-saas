@@ -50,7 +50,18 @@ export const PAYMENT_METHOD_LABELS: Readonly<
   other: 'Other',
 }
 
-export function buildExpenseSchema(currency: string) {
+/**
+ * @param todayIso Today, as the agency's calendar has it.
+ *
+ * Required rather than defaulted, because the obvious default is wrong. This
+ * rule used to read `new Date().toISOString().slice(0, 10)`, which is today in
+ * UTC — and an agency east of it spends the first hours of every working day
+ * unable to record a cost incurred that morning, because its own date is still
+ * "in the future" by a clock it does not keep. Morocco sits at UTC, which is
+ * why nobody noticed. Making the caller say which day it means is the only
+ * version of this that cannot quietly go wrong again.
+ */
+export function buildExpenseSchema(currency: string, todayIso: string) {
   return z
     .object({
       incurredOn: businessDate,
@@ -147,8 +158,7 @@ export function buildExpenseSchema(currency: string) {
       }
 
       // A cost dated in the future is almost always a typo in the year.
-      const today = new Date().toISOString().slice(0, 10)
-      if (values.incurredOn > today) {
+      if (values.incurredOn > todayIso) {
         ctx.addIssue({
           code: 'custom',
           path: ['incurredOn'],

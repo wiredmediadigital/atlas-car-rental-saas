@@ -64,7 +64,10 @@ export function ExpenseNewPage() {
   const categories = categoriesQuery.data ?? []
 
   const submit = async () => {
-    const schema = buildExpenseSchema(values.currency || organization.default_currency)
+    const schema = buildExpenseSchema(
+      values.currency || organization.default_currency,
+      toIsoDateInTimeZone(new Date(), organization.time_zone),
+    )
     const parsed = schema.safeParse(values)
 
     if (!parsed.success) {

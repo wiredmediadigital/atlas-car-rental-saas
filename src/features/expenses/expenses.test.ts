@@ -242,7 +242,13 @@ describe('several currencies', () => {
 // -----------------------------------------------------------------------------
 
 describe('recording a cost', () => {
-  const schema = buildExpenseSchema('EUR')
+  /*
+   * A fixed day, so "the future" is a fact of this test and not of the clock
+   * the suite happens to run on. The rule used to read UTC's today, which made
+   * its boundary untestable except through a sentinel year.
+   */
+  const TODAY = '2026-05-04'
+  const schema = buildExpenseSchema('EUR', TODAY)
   const valid = {
     ...emptyExpenseForm('EUR', '2026-05-04'),
     description: 'Front brake pads',
@@ -299,6 +305,27 @@ describe('recording a cost', () => {
     }
   })
 
+  it('accepts a cost incurred today, and refuses tomorrow', () => {
+    /*
+     * The boundary itself, which a sentinel year never reaches.
+     *
+     * Today has to be allowed: the common case is somebody entering this
+     * morning's fuel receipt. It used to be compared against UTC's date, so an
+     * agency east of UTC was told its own Tuesday was "in the future" until
+     * the small hours of Tuesday afternoon. A fixed day makes both sides of
+     * the line assertable.
+     */
+    expect(schema.safeParse({ ...valid, incurredOn: TODAY }).success).toBe(true)
+    expect(schema.safeParse({ ...valid, incurredOn: '2026-05-05' }).success).toBe(false)
+  })
+
+  it("takes the agency's day rather than the machine's", () => {
+    // Tokyo is nine hours ahead: when it is the 5th there it can still be the
+    // 4th in UTC. The agency's calendar is the one that decides.
+    const tokyo = buildExpenseSchema('EUR', '2026-05-05')
+    expect(tokyo.safeParse({ ...valid, incurredOn: '2026-05-05' }).success).toBe(true)
+  })
+
   it('refuses a date that does not exist', () => {
     expect(schema.safeParse({ ...valid, incurredOn: '2026-02-30' }).success).toBe(false)
   })
@@ -316,7 +343,7 @@ describe('recording a cost', () => {
   })
 
   it('reads a zero-decimal currency in whole units', () => {
-    const yen = buildExpenseSchema('JPY')
+    const yen = buildExpenseSchema('JPY', TODAY)
     const result = yen.safeParse({ ...valid, currency: 'JPY', amount: '1840' })
     expect(result.success).toBe(true)
     if (result.success) expect(result.data.amount).toBe(1840)
@@ -345,6 +372,9 @@ const LOOKUPS: ImportLookups = {
   ]),
 }
 
+/* Imported costs are dated against the agency's calendar, fixed here. */
+const IMPORT_TODAY = '2030-01-01'
+
 const HEADER =
   'Date,Description,Amount,Category,Belongs to,Plate,Contract,Supplier,Invoice,Paid by\n'
 
@@ -353,6 +383,7 @@ function importRows(body: string, existingKeys = new Set<string>()) {
   const mapping = guessColumnMapping(parsed.headers)
   return validateImportRows(parsed, mapping, {
     defaultCurrency: 'MAD',
+    todayIso: IMPORT_TODAY,
     lookups: LOOKUPS,
     existingKeys,
   })
@@ -547,6 +578,7 @@ describe('importing costs from a spreadsheet', () => {
 
     const result = validateImportRows(parsed, mapping, {
       defaultCurrency: 'MAD',
+      todayIso: IMPORT_TODAY,
       lookups: {
         categoriesByName: new Map([
           ['REPAIRS', 'cat-repairs'],

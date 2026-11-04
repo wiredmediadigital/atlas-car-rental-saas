@@ -74,77 +74,98 @@ const optionalDate = z
   .nullable()
   .refine((value) => value === null || isRealDate(value), 'Enter a valid date, or leave it blank.')
 
-const todayIso = () => new Date().toISOString().slice(0, 10)
+/**
+ * Today in UTC, for the date-of-birth ceiling only.
+ *
+ * The expense and financing-payment rules take the agency's own date, because
+ * those two are about something that happened *this morning* and being a day
+ * out stops real work. A date of birth is not same-day sensitive: the customer
+ * who would be misjudged by the zone is one born within hours of signing a
+ * rental agreement, and the cost of being wrong about them is nil.
+ *
+ * `buildCustomerSchema` exists so the boundary can still be tested on a chosen
+ * day rather than only through a sentinel year.
+ */
+const utcTodayIso = () => new Date().toISOString().slice(0, 10)
 
 export const CUSTOMER_TYPE_OPTIONS = [
   { value: 'individual', label: 'Individual' },
   { value: 'company', label: 'Company' },
 ] as const
 
-export const customerSchema = z
-  .object({
-    customerType: z.enum(['individual', 'company']),
-    firstName: optionalText(80),
-    lastName: optionalText(80),
-    companyName: optionalText(160),
+export function buildCustomerSchema(todayIso: () => string = utcTodayIso) {
+  return z
+    .object({
+      customerType: z.enum(['individual', 'company']),
+      firstName: optionalText(80),
+      lastName: optionalText(80),
+      companyName: optionalText(160),
 
-    email: optionalEmail,
-    phone: optionalPhone('Phone'),
-    secondaryPhone: optionalPhone('Second phone'),
+      email: optionalEmail,
+      phone: optionalPhone('Phone'),
+      secondaryPhone: optionalPhone('Second phone'),
 
-    dateOfBirth: optionalDate,
-    nationalityCountryCode: optionalCountry,
-    preferredLocale: z
-      .string()
-      .trim()
-      .transform((value) => (value === '' ? null : value))
-      .nullable()
-      .refine(
-        (value) => value === null || isSupportedLocale(value),
-        'Choose a language from the list.',
-      ),
+      dateOfBirth: optionalDate,
+      nationalityCountryCode: optionalCountry,
+      preferredLocale: z
+        .string()
+        .trim()
+        .transform((value) => (value === '' ? null : value))
+        .nullable()
+        .refine(
+          (value) => value === null || isSupportedLocale(value),
+          'Choose a language from the list.',
+        ),
 
-    addressLine1: optionalText(160),
-    addressLine2: optionalText(160),
-    city: optionalText(96),
-    // "Region" rather than "State": most of the world does not have states, and
-    // a US-shaped address form is wrong nearly everywhere this product runs.
-    region: optionalText(96),
-    postalCode: optionalText(24),
-    countryCode: optionalCountry,
+      addressLine1: optionalText(160),
+      addressLine2: optionalText(160),
+      city: optionalText(96),
+      // "Region" rather than "State": most of the world does not have states, and
+      // a US-shaped address form is wrong nearly everywhere this product runs.
+      region: optionalText(96),
+      postalCode: optionalText(24),
+      countryCode: optionalCountry,
 
-    notes: optionalText(4000),
-  })
-  .superRefine((values, ctx) => {
-    // Mirrors customers_name_present in the schema.
-    if (values.customerType === 'company') {
-      if (!values.companyName) {
+      notes: optionalText(4000),
+    })
+    .superRefine((values, ctx) => {
+      // Mirrors customers_name_present in the schema.
+      if (values.customerType === 'company') {
+        if (!values.companyName) {
+          ctx.addIssue({
+            code: 'custom',
+            path: ['companyName'],
+            message: 'Enter the company name.',
+          })
+        }
+      } else if (!values.firstName && !values.lastName) {
         ctx.addIssue({
           code: 'custom',
-          path: ['companyName'],
-          message: 'Enter the company name.',
+          path: ['firstName'],
+          message: 'Enter a first or last name.',
         })
       }
-    } else if (!values.firstName && !values.lastName) {
-      ctx.addIssue({ code: 'custom', path: ['firstName'], message: 'Enter a first or last name.' })
-    }
 
-    if (values.dateOfBirth && values.dateOfBirth > todayIso()) {
-      ctx.addIssue({
-        code: 'custom',
-        path: ['dateOfBirth'],
-        message: 'A date of birth cannot be in the future.',
-      })
-    }
+      if (values.dateOfBirth && values.dateOfBirth > todayIso()) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['dateOfBirth'],
+          message: 'A date of birth cannot be in the future.',
+        })
+      }
 
-    if (values.dateOfBirth && values.dateOfBirth < '1900-01-01') {
-      ctx.addIssue({
-        code: 'custom',
-        path: ['dateOfBirth'],
-        message: 'Enter a date of birth after 1900.',
-      })
-    }
-  })
+      if (values.dateOfBirth && values.dateOfBirth < '1900-01-01') {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['dateOfBirth'],
+          message: 'Enter a date of birth after 1900.',
+        })
+      }
+    })
+}
+
+/** The schema the form and the CSV import use. */
+export const customerSchema = buildCustomerSchema()
 
 export type CustomerFormInput = z.input<typeof customerSchema>
 export type CustomerFormValues = z.output<typeof customerSchema>

@@ -129,7 +129,7 @@ function PaymentDialogContent({
   }
 
   const submit = async () => {
-    const schema = buildFinancingPaymentSchema(currency)
+    const schema = buildFinancingPaymentSchema(currency, todayIso)
     const parsed = schema.safeParse(values)
 
     if (!parsed.success) {

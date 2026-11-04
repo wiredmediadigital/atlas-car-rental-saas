@@ -338,7 +338,11 @@ export type AcquisitionFormValues = z.output<ReturnType<typeof buildAcquisitionS
 
 export const PAYMENT_PURPOSE_VALUES = ['installment', 'extra', 'payoff', 'fee'] as const
 
-export function buildFinancingPaymentSchema(currency: string) {
+/**
+ * @param todayIso Today, as the agency's calendar has it. See
+ * `buildExpenseSchema` for why this is required rather than defaulted.
+ */
+export function buildFinancingPaymentSchema(currency: string, todayIso: string) {
   return z
     .object({
       paidOn: businessDate,
@@ -391,8 +395,7 @@ export function buildFinancingPaymentSchema(currency: string) {
         })
       }
 
-      const today = new Date().toISOString().slice(0, 10)
-      if (values.paidOn > today) {
+      if (values.paidOn > todayIso) {
         ctx.addIssue({
           code: 'custom',
           path: ['paidOn'],
