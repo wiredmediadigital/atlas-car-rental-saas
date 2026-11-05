@@ -216,7 +216,7 @@ describe('the Stripe guide link', () => {
     // monetize the software they were given.
     expect(link).toHaveAttribute(
       'href',
-      'https://profitstudio.app/video/add-stripe-subscriptions-supabase',
+      'https://docs.stripe.com/billing/subscriptions/build-subscriptions',
     )
   })
 

@@ -28,7 +28,7 @@ afterEach(() => {
 describe('the Stripe guide address', () => {
   it('is the canonical guide when nothing is configured', () => {
     expect(getStripeGuideUrl()).toBe(
-      'https://profitstudio.app/video/add-stripe-subscriptions-supabase',
+      'https://docs.stripe.com/billing/subscriptions/build-subscriptions',
     )
     // Written once, in one place, so it cannot drift between components.
     expect(STRIPE_SUBSCRIPTIONS_GUIDE_URL).toBe(getStripeGuideUrl())

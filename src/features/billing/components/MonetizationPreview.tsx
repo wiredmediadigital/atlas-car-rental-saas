@@ -204,11 +204,11 @@ export function MonetizationPreview({ locale }: { locale: string }) {
               IT NO LONGER CLAIMS THE GUIDE. This read "is free software by X,
               who also wrote the guide", which was true of the publisher who
               gave this software away and is not true of whoever rebrands it
-              afterwards: the guide is still hosted by the upstream authors.
-              Leaving the clause in after a rename turns a credit into a false
-              claim about somebody else's work, so the sentence stops before it.
-              The button below still goes to the guide; nothing is hidden, it is
-              simply not attributed to the wrong people.
+              afterwards. The claim has since stopped being true of anybody
+              here: the button now goes to Stripe's own documentation, because
+              the original video was the former publisher's work and shipping
+              their channel as this build's default was the wrong thing to do.
+              The sentence credits the publisher and stops there.
             */}
             <p className="text-ink-subtle mt-1.5 max-w-[60ch] text-[0.75rem] leading-4">
               {getAppName()} is published by{' '}
