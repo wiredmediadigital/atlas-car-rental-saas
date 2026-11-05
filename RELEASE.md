@@ -1,8 +1,8 @@
 # Release configuration
 
-_Atlas — Car Rental Management SaaS, by Adera Labs Inc_
+_Pevvy — Car Rental Management SaaS, by Adera Labs Inc_
 
-What has to be set before an agency can use Atlas, and what is optional. Nothing in
+What has to be set before an agency can use Pevvy, and what is optional. Nothing in
 this file is a secret; it says which secrets exist and where they belong.
 
 The build distributed today is the **Free build**: every module is unlocked, no

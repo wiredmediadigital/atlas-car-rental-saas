@@ -5,7 +5,7 @@ Supabase dashboard: if a table, policy or function exists, a file here created i
 
 ## Setting up a fresh project
 
-1. **Create a project.** Atlas does not create one for you —
+1. **Create a project.** Pevvy does not create one for you —
    [Supabase dashboard](https://supabase.com/dashboard) → New project. Note its project
    ref (the subdomain in `https://<ref>.supabase.co`).
 2. **Link and push the schema:**

@@ -1,19 +1,19 @@
-# Atlas — notes for Claude
+# Pevvy — notes for Claude
 
-Atlas is a multi-tenant car rental SaaS: Vite + React 19 + TypeScript in `src/`, a Supabase
+Pevvy is a multi-tenant car rental SaaS: Vite + React 19 + TypeScript in `src/`, a Supabase
 backend in `supabase/` (54 ordered migrations, four Edge Functions), deployed as a static
 build from `dist/`.
 
-## Setting Atlas up
+## Setting Pevvy up
 
-When someone asks to install, set up, connect, publish or deploy Atlas, follow the
+When someone asks to install, set up, connect, publish or deploy Pevvy, follow the
 **atlas-setup** skill (`.claude/skills/atlas-setup/SKILL.md`). It is deployment-first and
 agent-led. Supabase comes first, then their own GitHub repository, then Hostinger. Sign-in
 settings use the live address, and the first agency is created on the live site; setup never
-runs Atlas on localhost. You do every safe step yourself and keep going without "continue?"
+runs Pevvy on localhost. You do every safe step yourself and keep going without "continue?"
 questions. You stop only when the user must act in their own accounts or approve a change
 outside this folder. Then you ask once, naming the exact destination and operations, and that
-approval covers them. Don't hand out manual testing. Keep Atlas's default name, logo and
+approval covers them. Don't hand out manual testing. Keep Pevvy's default name, logo and
 colours unless asked.
 
 `npm run setup:check` is a read-only checklist of where the folder stands. Run it at the

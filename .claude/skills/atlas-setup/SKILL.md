@@ -1,13 +1,13 @@
 ---
 name: atlas-setup
-description: Agent-led, deployment-first setup of this Atlas folder for people with no technical background — check the computer, install Atlas into the user's own new Supabase project, publish it to their own GitHub repository, deploy it on Hostinger, configure sign-in for the live address and verify the first Owner agency on the live site. Claude does the work and stops only for steps that need the user's account, decision or approval. Use when the user asks to set up, install, connect, publish or deploy Atlas, or to continue a setup that was interrupted.
+description: Agent-led, deployment-first setup of this Pevvy folder for people with no technical background — check the computer, install Pevvy into the user's own new Supabase project, publish it to their own GitHub repository, deploy it on Hostinger, configure sign-in for the live address and verify the first Owner agency on the live site. Claude does the work and stops only for steps that need the user's account, decision or approval. Use when the user asks to set up, install, connect, publish or deploy Pevvy, or to continue a setup that was interrupted. Pevvy was formerly called Atlas, and the folder may still be named `atlas-car-rental-saas`; a request to set up Atlas means this.
 ---
 
-# Atlas setup
+# Pevvy setup
 
-You are setting up Atlas **for** someone with no technical background, and the goal is Atlas
+You are setting up Pevvy **for** someone with no technical background, and the goal is Pevvy
 running **live on their Hostinger website**. You do the work; the user only does what needs their
-account, their decision or their approval. Atlas is never run on this computer during setup — the
+account, their decision or their approval. Pevvy is never run on this computer during setup — the
 first agency is created on the live site.
 
 ## How to behave
@@ -23,9 +23,9 @@ first agency is created on the live site.
   project or repository) and every operation; then carry them out in order. Ask again only for
   something it did not name, or when a check turns up something unexpected.
 - **No homework.** Never ask the user to add vehicles, customers, rentals or payments, refresh
-  pages or otherwise test the app — Atlas's automated tests cover those workflows. Anything no
+  pages or otherwise test the app — Pevvy's automated tests cover those workflows. Anything no
   check has proven is **not verified**; never claim it passed.
-- **Keep Atlas's defaults.** Do not ask about name, tagline, colours or logo. Customize only when
+- **Keep Pevvy's defaults.** Do not ask about name, tagline, colours or logo. Customize only when
   the user asks (end of this file).
 - **Never display secrets**: access tokens, database password, secret / service_role keys,
   invitation links. The publishable key is public; show it only when the user must paste it into
@@ -34,17 +34,17 @@ first agency is created on the live site.
   a migration blindly or finish one by hand in the SQL editor.
 - **One project.** Before every command that reaches Supabase, `supabase/.temp/project-ref` must
   equal the ref the user confirmed.
-- Run commands from the Atlas folder with `npx supabase …` (the CLI is a dev dependency). When you
+- Run commands from the Pevvy folder with `npx supabase …` (the CLI is a dev dependency). When you
   run them, `projects list` and `migration list` print JSON; do not add `-o json` to
   `migration list` — that prints a table there.
 - Do not start `npm run dev`, open localhost, or ask for localhost Auth URLs — unless the user asks
-  to run Atlas on their computer (see "Running Atlas locally").
+  to run Pevvy on their computer (see "Running Pevvy locally").
 
 ## The user moments — the only times you stop
 
 1. **Supabase project:** create one and paste its ID (plus `npx supabase login`, only if the CLI is
    not signed in).
-2. **Install approval:** one yes to install Atlas into that exact project.
+2. **Install approval:** one yes to install Pevvy into that exact project.
 3. **GitHub:** an empty private repository, then one yes to publish to it (plus a Git sign-in or
    name/email only if Git asks).
 4. **Hostinger:** the hPanel steps, then paste the live address.
@@ -58,7 +58,7 @@ asking and say in one line where things stand:
 
 - Linked, every migration applied (`npx supabase migration list --linked`), functions ACTIVE,
   `.env.local` written → B is done.
-- An `origin` remote that is not the original Atlas, and `git ls-remote origin main` equals
+- An `origin` remote that is not the upstream repository, and `git ls-remote origin main` equals
   `git rev-parse HEAD` → D is done.
 - If D is done, ask once for the live address if you do not have it, then run
   `npm run setup:site -- <address>` → E is done when it passes.
@@ -89,8 +89,8 @@ and files there are the owner's own.
    Never pick a project yourself, even though you can see every project in their account.
 2. Find the ref in `npx supabase projects list -o json`. Not there → they are signed in to another
    account: say so and stop. Otherwise **user moment 2 — one message:** show the project's name,
-   region and creation date and ask: "Install Atlas into this project? I'll connect this folder to
-   it, make sure it is empty, create the Atlas database (54 steps) and install its 4 background
+   region and creation date and ask: "Install Pevvy into this project? I'll connect this folder to
+   it, make sure it is empty, create the Pevvy database (54 steps) and install its 4 background
    services. If it is not empty, or anything differs from that plan, I'll stop and change
    nothing." A yes approves exactly that.
 3. Then, without asking again:
@@ -100,11 +100,11 @@ and files there are the owner's own.
    `npx supabase db query --linked "select (select count(*) from information_schema.tables where table_schema = 'public') as public_tables, (select count(*) from auth.users) as users, (select count(*) from storage.objects) as files"`
    and `npx supabase migration list --linked`.
    - 0 tables, 0 users, 0 files, no history → **empty**: continue.
-   - 0 users, 0 files, a history made only of Atlas's own migration files → **an earlier install
+   - 0 users, 0 files, a history made only of Pevvy's own migration files → **an earlier install
      stopped**: say so and continue (the push applies only what is missing).
    - Anything else → **in use**: stop, change nothing, run `npx supabase unlink`, and explain that
-     Atlas goes into a new, empty project. A live Atlas with users is never touched by setup.
-5. `npx supabase db push --dry-run` → exactly the Atlas migrations not yet applied (all 54 on an
+     Pevvy goes into a new, empty project. A live Pevvy with users is never touched by setup.
+5. `npx supabase db push --dry-run` → exactly the Pevvy migrations not yet applied (all 54 on an
    empty project). Any other file or count is unexpected: stop.
 6. `npx supabase db push --yes` (a few minutes; a Docker warning is harmless). Verify:
    - `npx supabase migration list --linked` shows every local migration remotely;
@@ -127,7 +127,7 @@ and files there are the owner's own.
 - `npm run setup:check` passes.
 - `npm run build` succeeds with the new `.env.local` (the same build Hostinger will run).
 - `npx vitest run supabase/tests` — replays every migration on a throw-away local Postgres and runs
-  Atlas's database tests: tenant isolation, roles, vehicles, rentals and overlaps, payments,
+  Pevvy's database tests: tenant isolation, roles, vehicles, rentals and overlaps, payments,
   expenses, financing, reports.
 
 One status line ("database installed and verified; app builds; automated tests pass"), then
@@ -141,10 +141,10 @@ straight to D.
    - Downloaded as a ZIP (no `.git`) → a repository will be created (`git init` then
      `git checkout -b main`; `git init -b` needs Git 2.28+).
 2. **User moment 3 — one message:** create an **empty, private** repository at github.com/new (no
-   README, licence or .gitignore) and paste its URL. If it is the original Atlas repository or not
+   README, licence or .gitignore) and paste its URL. If it is the upstream repository or not
    a GitHub URL, say so and ask again — never publish there. Otherwise show in one short block: the
    repository, branch `main`, that `.env.local` and the Supabase link stay on this computer, that
-   nothing can be pushed to the original Atlas repository — and ask "Publish Atlas to this
+   nothing can be pushed to the upstream repository — and ask "Publish Pevvy to this
    repository?" A yes approves all of step 3.
 3. Then, without asking again:
    - Clone: `git remote rename origin upstream`;
@@ -153,9 +153,9 @@ straight to D.
    - `git check-ignore -q .env.local` must succeed. `git remote add origin <url>`; `git add -A`;
      `git status --short` must list no `.env*` (except `.env.example`), `.claude/settings.local.json`,
      `dist/`, `node_modules/` or `supabase/.temp/`, and `git diff --cached | grep -E 'sb_secret_[A-Za-z0-9_-]{24,}|sbp_[a-f0-9]{20,}'` must find
-     nothing (Atlas's tests contain short fake `sb_secret_…` strings; those are fine).
+     nothing (Pevvy's tests contain short fake `sb_secret_…` strings; those are fine).
      Otherwise unstage and stop.
-   - `git commit -m "Set up Atlas"`. If Git asks who they are, ask once for the name and email for
+   - `git commit -m "Set up Pevvy"`. If Git asks who they are, ask once for the name and email for
      their commits and set them for this folder only (`git config user.name/user.email`).
    - `git push -u origin main`.
      - `RPC failed; HTTP 400` (old Git): retry once with
@@ -205,25 +205,25 @@ Do not ask for localhost URLs. Leave **Confirm email** on.
    `npx supabase db query --linked "select o.name, m.role, u.email_confirmed_at is not null as confirmed from public.organizations o join public.organization_members m on m.organization_id = o.id join auth.users u on u.id = m.user_id"`
    → their agency, role `owner`, confirmed. If it is missing: an "email not authorized" error means
    a non-team email; a link that opens the wrong site means the Site URL; a link that fails means
-   a different browser. Fix and retry before suspecting Atlas.
+   a different browser. Fix and retry before suspecting Pevvy.
 
 ## H. Done
 
 Short summary, then stop — no QA, no branding interview:
 
-- Atlas is live at `https://<their domain>`, connected to their own Supabase project; their first
+- Pevvy is live at `https://<their domain>`, connected to their own Supabase project; their first
   agency is set up with them as Owner.
 - Their GitHub repository controls the site: every push to `main` redeploys on Hostinger.
-- They can ask Claude to customize Atlas whenever they like.
+- They can ask Claude to customize Pevvy whenever they like.
 - **Before accepting real customer sign-ups:** set up their own email provider (Supabase →
   Authentication → Emails → SMTP Settings).
 - Optional any time: Stripe subscriptions, Wialon GPS, team invitation emails (Resend), map tiles —
   README.md → "Optional configuration" and "Edge Function secrets". Secrets go into Supabase (Edge
   Functions → Secrets), never `.env.local` or Hostinger.
 
-## Running Atlas locally — only on request
+## Running Pevvy locally — only on request
 
-For someone who wants to work on Atlas on their computer: `npm run dev`, then in Supabase → URL
+For someone who wants to work on Pevvy on their computer: `npm run dev`, then in Supabase → URL
 Configuration **add** `http://localhost:5173/auth/callback`, `/accept-invite`,
 `/auth/reset-password` and `/confirm-email` (with `http://localhost:5173` in front) as Redirect
 URLs — keep the live Site URL. They sign in with their live account; no second agency is needed.
@@ -238,5 +238,5 @@ logic while customizing; `npm run build` must pass, and a push to `main` publish
 
 ## Later updates
 
-Every push to `main` redeploys on Hostinger. An Atlas update that adds a migration:
+Every push to `main` redeploys on Hostinger. A Pevvy update that adds a migration:
 `npx supabase db push --dry-run`, then apply it with the owner's approval.

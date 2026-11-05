@@ -1,4 +1,4 @@
-# Atlas — Car Rental Management SaaS
+# Pevvy — Car Rental Management SaaS
 
 _by Adera Labs Inc_
 
@@ -24,10 +24,10 @@ email provider are all optional — nothing below requires any of them; see
 Open this folder in Claude Code (the Code tab of Claude Desktop, or the VS Code
 extension) and ask:
 
-> Set up Atlas for me.
+> Set up Pevvy for me.
 
 Claude follows the [`atlas-setup`](.claude/skills/atlas-setup/SKILL.md) skill, which is
-**deployment-first**: Atlas goes straight to your own website, without running on your
+**deployment-first**: Pevvy goes straight to your own website, without running on your
 computer. Claude checks your computer, installs the database and Edge Functions into **your
 own** new Supabase project, publishes the code to your own private GitHub repository, then
 walks you through deploying it as a Hostinger **Web App**. Once the site is live you add its
@@ -40,7 +40,7 @@ deploy a Web App from Git). `npm run setup:check` shows where the folder stands 
 
 ### Manual setup (developers)
 
-For working on Atlas on your own computer. The guided setup above does not need any of this.
+For working on Pevvy on your own computer. The guided setup above does not need any of this.
 
 ```bash
 git clone https://github.com/salhiworks/atlas-car-rental-saas.git
@@ -115,7 +115,7 @@ deployments keep working. When both are set, `VITE_SUPABASE_PUBLISHABLE_KEY` win
 
 ### Optional configuration
 
-Not needed to run Atlas, and deliberately left out of `.env.example` so hosting panels that
+Not needed to run Pevvy, and deliberately left out of `.env.example` so hosting panels that
 read it only suggest the two required values. Add any of these to `.env.local` and to your
 host's environment variables only if you want them:
 
@@ -352,7 +352,7 @@ the interface only ever offers bookings the database will accept.
 deployed from your own GitHub repository, which rebuilds on every push:
 
 1. hPanel → **Websites → Add Website → Web App → Import Git Repository**; connect GitHub
-   (grant access to only your Atlas repository) and choose branch `main`.
+   (grant access to only your Pevvy repository) and choose branch `main`.
 2. Node.js **22**, build command **`npm run build`**, output directory **`dist`**.
 3. Environment variables: `VITE_SUPABASE_URL` and `VITE_SUPABASE_PUBLISHABLE_KEY` — nothing else
    is required.
@@ -412,7 +412,7 @@ password generated for that run, which is never printed.
 
 ## License
 
-Atlas is released under the MIT License.
+Pevvy is released under the MIT License.
 
 You may use, modify, distribute and use the software commercially under the terms of the
 license.
