@@ -1,6 +1,6 @@
 # Atlas — Car Rental Management SaaS
 
-_by [Profit Studio](https://profitstudio.app)_
+_by Adera Labs Inc_
 
 A multi-tenant SaaS for car rental agencies: fleet, contracts, customers, payments,
 expenses, financing and reporting. Every agency is an isolated tenant sharing one
