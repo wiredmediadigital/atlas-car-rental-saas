@@ -1,4 +1,5 @@
 import { Differentiation } from './components/Differentiation'
+import { Faq } from './components/Faq'
 import { FeatureGrid } from './components/FeatureGrid'
 import { FinalCta } from './components/FinalCta'
 import { Hero } from './components/Hero'
@@ -26,6 +27,7 @@ export function MarketingHomePage() {
         <FeatureGrid />
         <Differentiation />
         <FinalCta />
+        <Faq />
       </main>
       <MarketingFooter />
     </div>
