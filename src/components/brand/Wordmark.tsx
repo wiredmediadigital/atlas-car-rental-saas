@@ -1,6 +1,12 @@
 import { getAppName } from '@/lib/config/env'
 import { cn } from '@/lib/utils/cn'
 
+import markUrl from '@/assets/brand/pevvy-mark.png'
+
+/** The mark's intrinsic pixel size, so the browser reserves the right box before it loads. */
+const MARK_WIDTH = 128
+const MARK_HEIGHT = 101
+
 export interface WordmarkProps {
   /** `inverse` is for the deep brand panel; `default` for light surfaces. */
   tone?: 'default' | 'inverse'
@@ -10,46 +16,32 @@ export interface WordmarkProps {
 }
 
 /**
- * The product mark: a key-fob square beside the name.
+ * The product mark: the car-and-road monogram beside the name.
  *
- * The glyph is a stylised key head — the object every rental transaction ends
- * with — drawn as two concentric forms so it stays legible at 28px.
+ * The name is live text rather than part of the image, for two reasons. It
+ * follows `getAppName()`, so a deployment that renames the app renames its own
+ * header instead of showing one name in the picture and another everywhere
+ * else. And it takes the tone it is given — the supplied artwork sets the name
+ * in navy, which all but disappears against the deep brand panel behind the
+ * sign-in form.
+ *
+ * The monogram itself carries its own colour and needs no plate behind it: it
+ * is green and white, which reads on both the light surfaces and that panel.
  */
 export function Wordmark({ tone = 'default', size = 'default', className }: WordmarkProps) {
   const isInverse = tone === 'inverse'
   const isLarge = size === 'lg'
 
   return (
-    <span className={cn('inline-flex items-center gap-2.5', className)}>
-      <span
+    <span className={cn('inline-flex items-center gap-2', className)}>
+      <img
+        src={markUrl}
+        alt=""
         aria-hidden="true"
-        className={cn(
-          'flex items-center justify-center rounded-md',
-          isLarge ? 'size-8' : 'size-7',
-          isInverse ? 'bg-ink-inverse/10 ring-ink-inverse/20 ring-1' : 'bg-brand-700',
-        )}
-      >
-        <svg
-          viewBox="0 0 20 20"
-          className={isLarge ? 'size-[1.1rem]' : 'size-4'}
-          fill="none"
-          aria-hidden="true"
-        >
-          <circle
-            cx="7.5"
-            cy="7.5"
-            r="3.75"
-            stroke={isInverse ? '#ffffff' : '#ffffff'}
-            strokeWidth="1.75"
-          />
-          <path
-            d="M10.2 10.2 16 16M13.4 12.6l-1.6 1.6M16 16l-1.4 1.4"
-            stroke="#ffffff"
-            strokeWidth="1.75"
-            strokeLinecap="round"
-          />
-        </svg>
-      </span>
+        width={MARK_WIDTH}
+        height={MARK_HEIGHT}
+        className={cn('w-auto', isLarge ? 'h-8' : 'h-7')}
+      />
       <span
         className={cn(
           'font-semibold tracking-tight',
