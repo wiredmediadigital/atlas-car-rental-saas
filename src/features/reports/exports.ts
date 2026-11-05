@@ -17,6 +17,7 @@ import {
   csvNumber,
   csvPercent,
   csvText,
+  reportFilename,
 } from './csv'
 
 /**
@@ -37,12 +38,13 @@ export interface ReportExport {
   readonly contents: string
 }
 
+/*
+ * One naming rule, in one place. This used to be a second copy of
+ * `reportFilename`, and the two drifted: both carried a stale product prefix
+ * and had to be corrected twice.
+ */
 function fileFor(context: ReportCsvContext, key: string): string {
-  const safe = key
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '')
-  return `atlas-${safe}-${csvDate(context.from)}-to-${csvDate(context.to)}.csv`
+  return reportFilename(key, context.from, context.to)
 }
 
 export function exportBusinessSummary(

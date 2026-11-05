@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
+import { PRODUCT_BRAND } from '@/lib/config/brand'
+
 import {
   buildReportCsv,
   csvDate,
@@ -435,8 +437,38 @@ describe('CSV export', () => {
 
   it('names the file after the report and the period, never after a person', () => {
     const name = reportFilename('Outstanding balances', '2032-07-01', '2032-08-01')
-    expect(name).toBe('atlas-outstanding-balances-2032-07-01-to-2032-08-01.csv')
+    expect(name).toBe('outstanding-balances-2032-07-01-to-2032-08-01.csv')
     expect(name).not.toMatch(/[A-Z]/)
+  })
+
+  it('does not put the name of this software on a file sent to an accountant', () => {
+    /*
+     * These files leave the business. The recipient did not choose this
+     * software and has no reason to care what it is called, and a stale
+     * prefix outlives a rename: the product had been called Pevvy for some
+     * time while every report still downloaded as `atlas-...`.
+     */
+    const name = reportFilename('Business summary', '2032-07-01', '2032-08-01')
+    expect(name.startsWith('business-summary-')).toBe(true)
+    expect(name).not.toContain(PRODUCT_BRAND.name.toLowerCase())
+    expect(name).not.toContain('atlas')
+  })
+
+  it('names an exported file the same way the helper does', () => {
+    // exports.ts kept its own copy of this rule, and the two drifted.
+    const file = exportCustomerBalances(
+      {
+        agencyName: 'Atlas Motors',
+        reportName: 'Outstanding balances',
+        periodLabel: 'July',
+        from: '2032-07-01',
+        to: '2032-08-01',
+        currency: 'EUR',
+        generatedAt: '2032-08-02',
+      },
+      [],
+    )
+    expect(file.filename).toBe(reportFilename('outstanding-balances', '2032-07-01', '2032-08-01'))
   })
 })
 

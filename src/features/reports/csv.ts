@@ -156,13 +156,19 @@ function escapeForCsv(value: string): string {
  * vehicle plate. A download folder is shared, indexed and backed up, and a file
  * called `outstanding-balances-cherkaoui.csv` says something about a person to
  * everyone who can see the folder.
+ *
+ * No product name either. These files are sent to accountants and tax offices
+ * by people who did not choose this software and have no reason to care what it
+ * is called; the report and the period are the only things that help somebody
+ * find the file again. This is also what every other export already does, via
+ * `exportFilename` in `@/lib/export/csv-export`.
  */
 export function reportFilename(reportKey: string, from: string, to: string): string {
   const safe = reportKey
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-+|-+$/g, '')
-  return `atlas-${safe || 'report'}-${csvDate(from)}-to-${csvDate(to)}.csv`
+  return `${safe || 'report'}-${csvDate(from)}-to-${csvDate(to)}.csv`
 }
 
 /** Hands the file to the browser and releases the object URL immediately after. */
