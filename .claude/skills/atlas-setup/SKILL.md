@@ -232,7 +232,7 @@ URLs — keep the live Site URL. They sign in with their live account; no second
 
 Product name and tagline: `src/lib/config/brand.ts` (`name`, `fullName`, `tagline`; keep
 `creator`, `creatorUrl` and the MIT notice). Colours: the `--color-brand-*` variables in
-`src/styles/index.css`. Icon: `public/favicon.svg`. Agency details, logo, currency and contract
+`src/styles/index.css`. Icon: `public/favicon-32.png` and `public/apple-touch-icon.png`. Agency details, logo, currency and contract
 wording are in the app under **Settings**. Never touch migrations, RLS, authorization or payment
 logic while customizing; `npm run build` must pass, and a push to `main` publishes the change.
 
