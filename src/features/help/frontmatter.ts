@@ -3,6 +3,7 @@ import { HELP_GROUPS, type HelpFrontMatter, type HelpGroup } from './types'
 const DELIMITER = '---'
 const BOM = String.fromCharCode(0xfeff)
 const REQUIRED_KEYS = ['title', 'group', 'summary'] as const
+const ALLOWED_KEYS: readonly string[] = [...REQUIRED_KEYS, 'permission']
 
 function isHelpGroup(value: string): value is HelpGroup {
   return (HELP_GROUPS as readonly string[]).includes(value)
@@ -29,7 +30,16 @@ export function parseFrontMatter(
     if (colon === -1) {
       throw new Error(`${fileName}: invalid front matter line "${line}"`)
     }
-    values.set(line.slice(0, colon).trim(), line.slice(colon + 1).trim())
+    const key = line.slice(0, colon).trim()
+    if (!ALLOWED_KEYS.includes(key)) {
+      throw new Error(
+        `${fileName}: unknown front matter key "${key}", expected one of ${ALLOWED_KEYS.join(', ')}`,
+      )
+    }
+    if (values.has(key)) {
+      throw new Error(`${fileName}: duplicate front matter key "${key}"`)
+    }
+    values.set(key, line.slice(colon + 1).trim())
   }
 
   for (const key of REQUIRED_KEYS) {
@@ -46,6 +56,9 @@ export function parseFrontMatter(
     )
   }
   const permission = values.get('permission')
+  if (permission === '') {
+    throw new Error(`${fileName}: front matter key "permission" is present but empty`)
+  }
 
   return {
     frontMatter: { title, group, summary, ...(permission ? { permission } : {}) },

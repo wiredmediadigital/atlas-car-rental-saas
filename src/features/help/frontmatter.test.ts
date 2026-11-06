@@ -72,4 +72,22 @@ describe('parseFrontMatter', () => {
     expect(() => parseFrontMatter(raw, 'badgroup.md')).toThrow(/badgroup\.md/)
     expect(() => parseFrontMatter(raw, 'badgroup.md')).toThrow(/group/)
   })
+
+  test('throws naming the file and the key when an unknown key appears', () => {
+    const raw = page([...full, 'permision: rentals.view'])
+
+    expect(() => parseFrontMatter(raw, 'typo.md')).toThrow(/typo\.md.*permision/)
+  })
+
+  test('throws naming the file and the key when a key is duplicated', () => {
+    const raw = page([...full, 'title: Again'])
+
+    expect(() => parseFrontMatter(raw, 'dupe.md')).toThrow(/dupe\.md.*duplicate.*title/)
+  })
+
+  test('throws naming the file when permission is present but empty', () => {
+    const raw = page(['title: T', 'group: Fleet', 'permission:', 'summary: S.'])
+
+    expect(() => parseFrontMatter(raw, 'emptyperm.md')).toThrow(/emptyperm\.md.*permission/)
+  })
 })
