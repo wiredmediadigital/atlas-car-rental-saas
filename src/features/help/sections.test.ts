@@ -111,6 +111,38 @@ describe('helpSections', () => {
     expect(helpSections('## About rentals_view\n')[0]?.heading).toBe('About rentals_view')
   })
 
+  it('reads a body saved with Windows line endings exactly as it reads one without', () => {
+    // A Markdown file authored on Windows reaches Vite before git normalises
+    // anything. A stray `\r` used to make every heading fail to match, which
+    // cost the whole page its labels and jump links without any error.
+    expect(helpSections(BODY.replaceAll('\n', '\r\n'))).toEqual(helpSections(BODY))
+  })
+
+  it('still labels and anchors every section of a CRLF body', () => {
+    const body = '## Delete a rental\r\n<!-- permission: rentals.delete -->\r\n\r\nProse.\r\n'
+
+    expect(helpSections(body)).toEqual([
+      {
+        heading: 'Delete a rental',
+        id: 'delete-a-rental',
+        roleLabel: 'Manager and above',
+        line: 1,
+      },
+    ])
+  })
+
+  it('drops an ATX closing sequence instead of slugging it', () => {
+    expect(helpSections('## Close a rental ##\n')[0]).toMatchObject({
+      heading: 'Close a rental',
+      id: 'close-a-rental',
+    })
+  })
+
+  it('keeps a hash that is part of the heading rather than closing it', () => {
+    // No space before it, so it is not a closing sequence.
+    expect(helpSections('## Tag a vehicle #1\n')[0]?.heading).toBe('Tag a vehicle #1')
+  })
+
   it('does not treat a heading inside a fenced code block as a task section', () => {
     const body = [
       '## A real task',

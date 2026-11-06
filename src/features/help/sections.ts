@@ -30,12 +30,17 @@ export interface HelpSection {
  * A level-two ATX heading, and only a level two: `###` is a detail inside a
  * task, not a task of its own, and must not pick up a label or a jump link.
  *
+ * The trailing `(?:[ \t]+#+)?` is CommonMark's optional closing sequence, so
+ * `## Close a rental ##` is the heading "Close a rental" and not "Close a
+ * rental ##". It requires whitespace before the hashes, which is what keeps
+ * `## Tag a vehicle #1` intact.
+ *
  * Setext headings (`Heading` over `------`) are not recognised. One that slipped
  * into a help page would render as an `<h2>` with no label and no jump link,
  * which is wrong but harmless — it cannot shift a label onto a neighbouring
  * section, because sections are matched by source position rather than counted.
  */
-const TASK_HEADING_PATTERN = /^##[ \t]+(.+?)[ \t]*$/
+const TASK_HEADING_PATTERN = /^##[ \t]+(.+?)(?:[ \t]+#+)?[ \t]*$/
 
 /** The opening or closing line of a fenced code block. */
 const CODE_FENCE_PATTERN = /^ {0,3}(`{3,}|~{3,})/
@@ -101,7 +106,15 @@ function headingId(heading: string): string {
  * page in a browser should not blow up over a label.
  */
 export function helpSections(body: string): readonly HelpSection[] {
-  const lines = body.split('\n')
+  /*
+   * Split on CRLF as well as LF, so the `\r` never reaches the line patterns.
+   * `.gitattributes` normalises checkouts to LF, but a Markdown file written
+   * fresh on a Windows machine is read by Vite exactly as it was saved, before
+   * git has had any say. A `\r` left on the end of a line would make every
+   * heading fail to match and the page would lose every label and every jump
+   * link at once, in silence.
+   */
+  const lines = body.split(/\r?\n/)
   const found: { heading: string; index: number }[] = []
   let fence: string | null = null
 

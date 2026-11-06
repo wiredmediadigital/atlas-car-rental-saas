@@ -216,6 +216,16 @@ describe('heading anchors and labels, for headings that are not plain text', () 
     }
   })
 
+  it('anchors and labels a body saved with Windows line endings', async () => {
+    // The section lookup is by source line, so this also proves CRLF does not
+    // put the parsed line numbers and the rendered ones out of step.
+    renderBody('## Delete a rental\r\n<!-- permission: rentals.delete -->\r\n\r\nProse.\r\n')
+
+    const heading = await screen.findByRole('heading', { level: 2 })
+    expect(heading).toHaveAttribute('id', 'delete-a-rental')
+    expect(heading).toHaveTextContent('Manager and above')
+  })
+
   it('prints the heading in the right rail the way the article prints it', async () => {
     renderBody('## Close a **rental**\n\nProse.\n')
 
