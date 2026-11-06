@@ -1,10 +1,9 @@
-import { isValidElement, type ReactNode } from 'react'
 import Markdown, { type Components } from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 
 import { Badge } from '@/components/ui'
 
-import { headingId, type HelpSection } from '../sections'
+import type { HelpSection } from '../sections'
 
 /**
  * Help prose, rendered as React elements.
@@ -30,35 +29,48 @@ import { headingId, type HelpSection } from '../sections'
  * turned into the label beside the heading. Stripping every comment rather than
  * that one shape keeps the rule simple and the prose free of author notes.
  */
-const HTML_COMMENT_PATTERN = /<!--[\s\S]*?-->[ \t]*\r?\n?/g
+const HTML_COMMENT_PATTERN = /<!--[\s\S]*?-->/g
 
-/** Flattens a heading's rendered children back to the text they came from. */
-function headingText(node: ReactNode): string {
-  if (typeof node === 'string') return node
-  if (typeof node === 'number') return String(node)
-  if (Array.isArray(node)) return node.map(headingText).join('')
-  if (isValidElement(node)) {
-    const { children } = node.props as { children?: ReactNode }
-    return headingText(children)
-  }
-  return ''
+/**
+ * Blanks the comments out without removing a single line break.
+ *
+ * Line numbers are load-bearing: `helpSections` records the source line of each
+ * `##` and the `h2` renderer finds its section by the line Markdown parsing
+ * reports. Deleting a comment line here would shift every heading below it by
+ * one and detach every label from its task.
+ */
+function blankComments(body: string): string {
+  return body.replace(HTML_COMMENT_PATTERN, (comment) => comment.replace(/[^\n]/g, ''))
 }
 
+/*
+ * A heading's anchor and its role label come from `helpSections` and are never
+ * recomputed here. The `h2` finds its section by the source line Markdown
+ * parsing recorded, so the id on the element is by construction the id "On this
+ * page" links to, whatever the heading contains.
+ *
+ * Deriving a second slug from the rendered children instead would be two
+ * derivations from two different strings — the raw `## [Rentals](/help/rentals)`
+ * slugs differently from the text "Rentals" it renders as — and when the two
+ * disagree the role label silently vanishes. Counting rendered headings instead
+ * would be worse: StrictMode invokes a component's render function twice, so a
+ * cursor would be one section ahead by the second heading.
+ */
 function markdownComponents(sections: readonly HelpSection[]): Components {
-  const byId = new Map(sections.map((section) => [section.id, section]))
+  const byLine = new Map(sections.map((section) => [section.line, section]))
 
   return {
-    h2: ({ children }) => {
-      const id = headingId(headingText(children))
-      const roleLabel = byId.get(id)?.roleLabel ?? null
+    h2: ({ node, children }) => {
+      const line = node?.position?.start.line
+      const section = line === undefined ? undefined : byLine.get(line)
 
       return (
         <h2
-          id={id}
+          id={section?.id}
           className="text-ink mt-10 flex scroll-mt-24 flex-wrap items-center gap-x-3 gap-y-1 text-lg"
         >
           <span>{children}</span>
-          {roleLabel ? <Badge tone="neutral">{roleLabel}</Badge> : null}
+          {section?.roleLabel ? <Badge tone="neutral">{section.roleLabel}</Badge> : null}
         </h2>
       )
     },
@@ -131,7 +143,7 @@ export interface HelpMarkdownProps {
 export function HelpMarkdown({ body, sections }: HelpMarkdownProps) {
   return (
     <Markdown remarkPlugins={[remarkGfm]} components={markdownComponents(sections)}>
-      {body.replace(HTML_COMMENT_PATTERN, '')}
+      {blankComments(body)}
     </Markdown>
   )
 }

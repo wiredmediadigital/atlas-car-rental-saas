@@ -5,6 +5,7 @@ import { AppRouter } from '@/app/routes/AppRouter'
 import { getSupabaseClient } from '@/lib/supabase/client'
 
 import { HelpArticle } from './components/HelpArticle'
+import { OnThisPage } from './components/OnThisPage'
 import { helpSections } from './sections'
 import type { HelpPage } from './types'
 
@@ -139,5 +140,87 @@ describe('role labels beside task sections', () => {
 
     await screen.findByRole('heading', { level: 2, name: /Delete a rental/ })
     expect(document.body.textContent).not.toContain('permission:')
+  })
+})
+
+/*
+ * The anchor on a rendered heading and the anchor `helpSections` reported must
+ * be the same string, for every heading, without exception. They used to be
+ * computed twice from two different strings — the raw Markdown and the rendered
+ * text — and where those disagreed the jump link pointed at nothing and the
+ * role label vanished with no error at all.
+ *
+ * These render the headings that made the two disagree.
+ */
+describe('heading anchors and labels, for headings that are not plain text', () => {
+  function renderBody(body: string) {
+    const sections = helpSections(body)
+    const page: HelpPage = {
+      slug: 'rentals',
+      frontMatter: { title: 'Rentals', group: 'Operations', summary: 'Summary.' },
+      body,
+    }
+    render(
+      <>
+        <HelpArticle page={page} body={body} sections={sections} />
+        <OnThisPage sections={sections} />
+      </>,
+    )
+    return sections
+  }
+
+  it('anchors a heading that slugs to nothing, and still labels it', async () => {
+    const [section] = renderBody('## ?!\n<!-- permission: rentals.delete -->\n\nProse.\n')
+
+    const heading = await screen.findByRole('heading', { level: 2 })
+    expect(section?.id).toBe('section-1')
+    expect(heading).toHaveAttribute('id', 'section-1')
+    expect(heading).toHaveTextContent('Manager and above')
+  })
+
+  it('anchors a linked heading under its text, and still labels it', async () => {
+    const [section] = renderBody(
+      '## [Rentals](/help/rentals)\n<!-- permission: rentals.delete -->\n\nProse.\n',
+    )
+
+    const heading = await screen.findByRole('heading', { level: 2 })
+    expect(section?.id).toBe('rentals')
+    expect(heading).toHaveAttribute('id', 'rentals')
+    expect(heading).toHaveTextContent('Manager and above')
+  })
+
+  it('points every jump link at an element that is actually on the page', async () => {
+    renderBody(
+      [
+        '## Close a **rental**',
+        '<!-- permission: rentals.delete -->',
+        '',
+        'Prose.',
+        '',
+        '## ?!',
+        '',
+        'More prose.',
+      ].join('\n'),
+    )
+
+    const rail = await screen.findByRole('navigation', { name: 'On this page' })
+    const targets = within(rail)
+      .getAllByRole('link')
+      .map((link) => link.getAttribute('href')?.slice(1))
+
+    // The fallback is positional, so the second section is `section-2` — two
+    // unsluggable headings on one page still get two distinct anchors.
+    expect(targets).toEqual(['close-a-rental', 'section-2'])
+    for (const target of targets) {
+      expect(document.getElementById(target ?? '')).not.toBeNull()
+    }
+  })
+
+  it('prints the heading in the right rail the way the article prints it', async () => {
+    renderBody('## Close a **rental**\n\nProse.\n')
+
+    const rail = await screen.findByRole('navigation', { name: 'On this page' })
+    expect(within(rail).getByRole('link')).toHaveTextContent('Close a rental')
+    expect(rail.textContent).not.toContain('*')
   })
 })

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { headingId, helpSections } from './sections'
+import { helpSections } from './sections'
 
 /*
  * The hard part of the article page.
@@ -89,11 +89,50 @@ describe('helpSections', () => {
     expect(helpSections('## ?!\n').map((section) => section.id)).toEqual(['section-1'])
   })
 
+  it('records the source line of each heading, which is how the renderer finds it again', () => {
+    expect(helpSections(BODY).map((section) => section.line)).toEqual([5, 13, 18])
+  })
+
+  it('reports the heading as a reader sees it, not as the author typed it', () => {
+    // The right rail prints this string. Asterisks and link syntax in it would
+    // be a different heading from the one rendered above the prose.
+    const body = '## Close a **rental** and take `final` payment\n'
+
+    expect(helpSections(body)[0]?.heading).toBe('Close a rental and take final payment')
+  })
+
+  it('slugs a linked heading from its text, not its target', () => {
+    const body = '## [Rentals](/help/rentals)\n'
+
+    expect(helpSections(body)[0]).toMatchObject({ heading: 'Rentals', id: 'rentals' })
+  })
+
+  it('leaves an underscore alone, because a heading is likelier to name a key than to be italic', () => {
+    expect(helpSections('## About rentals_view\n')[0]?.heading).toBe('About rentals_view')
+  })
+
+  it('does not treat a heading inside a fenced code block as a task section', () => {
+    const body = [
+      '## A real task',
+      '',
+      '```markdown',
+      '## Not a task, a sample',
+      '```',
+      '',
+      '## Another real task',
+    ].join('\n')
+
+    expect(helpSections(body).map((section) => section.heading)).toEqual([
+      'A real task',
+      'Another real task',
+    ])
+  })
+
   it('ignores a permission key that is not in the matrix rather than throwing', () => {
     const body = '## Do a thing\n<!-- permission: rentals.teleport -->\n'
 
     expect(helpSections(body)).toEqual([
-      { heading: 'Do a thing', id: 'do-a-thing', roleLabel: null },
+      { heading: 'Do a thing', id: 'do-a-thing', roleLabel: null, line: 1 },
     ])
   })
 
@@ -102,12 +141,17 @@ describe('helpSections', () => {
   })
 })
 
-describe('headingId', () => {
+describe('anchor ids', () => {
+  // Asserted through `helpSections` rather than against the slugger, which is
+  // module-private: an exported slugger is how a second, divergent derivation
+  // of the same id gets written somewhere else.
   it('lowercases, strips punctuation and joins words with hyphens', () => {
-    expect(headingId('Extend, substitute — or cancel?')).toBe('extend-substitute-or-cancel')
+    expect(helpSections('## Extend, substitute — or cancel?\n')[0]?.id).toBe(
+      'extend-substitute-or-cancel',
+    )
   })
 
-  it('returns an empty string when a heading has nothing to slug', () => {
-    expect(headingId('—')).toBe('')
+  it('numbers the section when its heading has nothing to slug', () => {
+    expect(helpSections('## —\n')[0]?.id).toBe('section-1')
   })
 })
