@@ -33,8 +33,12 @@ export function HelpLayout({ sidebar, aside, children }: HelpLayoutProps) {
           >
             <Wordmark />
           </Link>
-          {/* Links back to the index arrive with it, in Task 5. */}
-          <p className="text-ink-subtle text-sm">Help centre</p>
+          <Link
+            to={paths.help}
+            className="text-ink-subtle hover:text-ink rounded-md text-sm transition-colors"
+          >
+            Help centre
+          </Link>
         </div>
       </header>
 

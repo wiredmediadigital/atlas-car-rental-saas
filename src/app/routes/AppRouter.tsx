@@ -185,6 +185,12 @@ const MarketingHomePage = lazy(() =>
  * authenticated shell, not a feature module, not the Supabase-backed providers
  * those pull in.
  */
+const HelpIndexPage = lazy(() =>
+  import('@/pages/help/HelpIndexPage').then((module) => ({
+    default: module.HelpIndexPage,
+  })),
+)
+
 const HelpArticlePage = lazy(() =>
   import('@/pages/help/HelpArticlePage').then((module) => ({
     default: module.HelpArticlePage,
@@ -244,9 +250,8 @@ export function AppRouter() {
            *
            * Nothing here reads data: help is Markdown compiled into the
            * bundle, so there is nothing for a missing session to be refused.
-           *
-           * `paths.help` — the index — is registered in Task 5.
            */}
+          <Route path={paths.help} element={<HelpIndexPage />} />
           <Route path={paths.helpArticle} element={<HelpArticlePage />} />
 
           {/* Authenticated — except `/`, which a signed-out visitor sees the
