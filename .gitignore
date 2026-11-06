@@ -47,3 +47,6 @@ supabase/.env
 
 # Claude Code per-machine permissions (the project skill in .claude/skills is shared)
 .claude/settings.local.json
+
+# Brainstorming mockups (local only)
+.superpowers/
