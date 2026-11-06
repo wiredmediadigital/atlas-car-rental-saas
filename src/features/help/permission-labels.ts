@@ -19,7 +19,7 @@ export function roleLabelFor(permission: PermissionKey): string | null {
 }
 
 /** Matches `<!-- permission: <key> -->`, the line after a `##` heading. */
-export const SECTION_PERMISSION_PATTERN = /<!--\s*permission:\s*([^\s>]+?)\s*-->/g
+const SECTION_PERMISSION_PATTERN = /<!--\s*permission:\s*([^\s>]+?)\s*-->/g
 
 /** Every section permission key in document order, validated or not. */
 export function sectionPermissions(body: string): readonly string[] {
