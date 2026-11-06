@@ -179,6 +179,18 @@ const MarketingHomePage = lazy(() =>
   })),
 )
 
+/**
+ * The Help Centre. Its own lazy chunk, for the same reason the marketing page
+ * is one: a signed-out reader must get the article and nothing else — not the
+ * authenticated shell, not a feature module, not the Supabase-backed providers
+ * those pull in.
+ */
+const HelpArticlePage = lazy(() =>
+  import('@/pages/help/HelpArticlePage').then((module) => ({
+    default: module.HelpArticlePage,
+  })),
+)
+
 /** The permission that gates each not-yet-open section, taken from the nav model. */
 const permissionForPath = new Map(
   navigationGroups.flatMap((group) => group.items.map((item) => [item.to, item.permission])),
@@ -213,6 +225,29 @@ export function AppRouter() {
            * nothing until the database has checked it.
            */}
           <Route path={paths.acceptInvite} element={<AcceptInvitePage />} />
+
+          {/*
+           * The Help Centre sits outside every guard, for the same kind of
+           * reason.
+           *
+           * The people who need help most are the ones a guard would turn
+           * away: an invitee who has not accepted yet, somebody who cannot
+           * get past the sign-in screen, a prospect reading before they buy.
+           * RequireAuth would send every one of them to sign in — including
+           * from `/help/nonsense`, which is why the unknown-slug case is
+           * answered inside the help layout rather than by the catch-all at
+           * the bottom of this file.
+           *
+           * It must resolve identically in both states, so it cannot live
+           * under `RequireAuth publicHome=...` either: that branch is for `/`
+           * alone and shows a *different* page to a signed-out visitor.
+           *
+           * Nothing here reads data: help is Markdown compiled into the
+           * bundle, so there is nothing for a missing session to be refused.
+           *
+           * `paths.help` — the index — is registered in Task 5.
+           */}
+          <Route path={paths.helpArticle} element={<HelpArticlePage />} />
 
           {/* Authenticated — except `/`, which a signed-out visitor sees the
               public marketing page for instead of being sent to sign in. */}

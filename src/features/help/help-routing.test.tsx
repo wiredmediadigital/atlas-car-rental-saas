@@ -1,0 +1,143 @@
+import { render, screen, within } from '@testing-library/react'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+
+import { AppRouter } from '@/app/routes/AppRouter'
+import { getSupabaseClient } from '@/lib/supabase/client'
+
+import { HelpArticle } from './components/HelpArticle'
+import { helpSections } from './sections'
+import type { HelpPage } from './types'
+
+/*
+ * Nothing provides a session here — no AppProviders, no AuthContext, no
+ * WorkspaceContext. That is the point.
+ *
+ * `AppRouter` is rendered whole rather than a hand-assembled `MemoryRouter`
+ * over the help route, because the guarantee under test is about where the
+ * route is *registered*, not about what the page component can do in
+ * isolation. Every guard in this router calls `useAuth` or `useWorkspace`,
+ * both of which throw without their provider. So if the help route is ever
+ * moved inside `RequireAuth`, `WithWorkspace` or `RequireOrganization`, these
+ * tests stop passing — which is exactly what should happen.
+ */
+
+vi.mock('@/lib/supabase/client', async (importOriginal) => ({
+  ...(await importOriginal<object>()),
+  getSupabaseClient: vi.fn(() => {
+    throw new Error('The Help Centre must not reach Supabase.')
+  }),
+}))
+
+function visit(path: string) {
+  window.history.pushState({}, '', path)
+  return render(<AppRouter />)
+}
+
+afterEach(() => {
+  window.history.pushState({}, '', '/')
+})
+
+describe('a signed-out visitor at /help/rentals', () => {
+  it('renders the Rentals article', async () => {
+    visit('/help/rentals')
+
+    expect(await screen.findByRole('heading', { level: 1, name: 'Rentals' })).toBeInTheDocument()
+    expect(screen.getByText('Create, track and close rentals.')).toBeInTheDocument()
+  })
+
+  it('makes no Supabase auth call while rendering a help article', async () => {
+    visit('/help/rentals')
+    await screen.findByRole('heading', { level: 1, name: 'Rentals' })
+
+    expect(getSupabaseClient).not.toHaveBeenCalled()
+  })
+
+  it('stays on the article instead of being sent to sign in', async () => {
+    visit('/help/rentals')
+    await screen.findByRole('heading', { level: 1, name: 'Rentals' })
+
+    expect(window.location.pathname).toBe('/help/rentals')
+    expect(screen.queryByLabelText(/password/i)).not.toBeInTheDocument()
+  })
+
+  it('renders the breadcrumb group and a link back into the help tree', async () => {
+    visit('/help/rentals')
+    await screen.findByRole('heading', { level: 1, name: 'Rentals' })
+
+    const breadcrumb = screen.getByRole('navigation', { name: 'Breadcrumb' })
+    expect(within(breadcrumb).getByText('Operations')).toBeInTheDocument()
+    expect(within(breadcrumb).getByText('Rentals')).toBeInTheDocument()
+
+    const tree = screen.getByRole('navigation', { name: 'Help pages' })
+    expect(within(tree).getByRole('link', { name: 'Rentals' })).toHaveAttribute(
+      'href',
+      '/help/rentals',
+    )
+  })
+})
+
+describe('a signed-out visitor at an unknown help slug', () => {
+  it('renders a help-shaped not found for /help/nonsense without redirecting', async () => {
+    visit('/help/nonsense')
+
+    expect(
+      await screen.findByRole('heading', { level: 1, name: /page does not exist/i }),
+    ).toBeInTheDocument()
+    // Inside the help layout, not the app's own not-found page: the sidebar is
+    // still there, so a reader who mistyped has somewhere to go.
+    expect(screen.getByRole('navigation', { name: 'Help pages' })).toBeInTheDocument()
+    expect(window.location.pathname).toBe('/help/nonsense')
+  })
+})
+
+/*
+ * Section role labels are asserted against a fabricated page rather than
+ * `rentals.md`, which is still the Task 1 placeholder and has no task sections.
+ * The real prose arrives in Task 10; the rule it has to obey is tested here.
+ */
+describe('role labels beside task sections', () => {
+  const body = [
+    '## Delete a rental',
+    '<!-- permission: rentals.delete -->',
+    '',
+    'Only some people may do this.',
+    '',
+    '## Look up a contract',
+    '<!-- permission: rentals.view -->',
+    '',
+    'Anybody may do this.',
+  ].join('\n')
+
+  const page: HelpPage = {
+    slug: 'rentals',
+    frontMatter: {
+      title: 'Rentals',
+      group: 'Operations',
+      permission: 'rentals.view',
+      summary: 'Create, track and close rentals.',
+    },
+    body,
+  }
+
+  it('labels the section whose permission is above staff', async () => {
+    render(<HelpArticle page={page} body={body} sections={helpSections(body)} />)
+
+    const heading = await screen.findByRole('heading', { level: 2, name: /Delete a rental/ })
+    expect(heading).toHaveTextContent('Manager and above')
+  })
+
+  it('leaves a staff-level section unlabelled', async () => {
+    render(<HelpArticle page={page} body={body} sections={helpSections(body)} />)
+
+    const heading = await screen.findByRole('heading', { level: 2, name: /Look up a contract/ })
+    expect(heading).toHaveTextContent('Look up a contract')
+    expect(heading.textContent).toBe('Look up a contract')
+  })
+
+  it('never renders the permission comment itself', async () => {
+    render(<HelpArticle page={page} body={body} sections={helpSections(body)} />)
+
+    await screen.findByRole('heading', { level: 2, name: /Delete a rental/ })
+    expect(document.body.textContent).not.toContain('permission:')
+  })
+})

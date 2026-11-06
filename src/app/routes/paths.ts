@@ -41,6 +41,11 @@ export const paths = {
   billingReturn: '/billing/return',
   settings: '/settings',
 
+  /** The Help Centre index. Public, like everything under `/help`. */
+  help: '/help',
+  /** A help article; build with `helpArticlePath(slug)`. */
+  helpArticle: '/help/:slug',
+
   signIn: '/sign-in',
   signUp: '/sign-up',
   forgotPassword: '/forgot-password',
@@ -76,4 +81,8 @@ export function financingDetailPath(agreementId: string): string {
 
 export function financingEditPath(agreementId: string): string {
   return `/financing/${agreementId}/edit`
+}
+
+export function helpArticlePath(slug: string): string {
+  return `/help/${slug}`
 }
