@@ -48,20 +48,28 @@ describe('HelpImage', () => {
     expect(screen.getByText(/screenshot not available/i)).toBeVisible()
   })
 
-  test.each([undefined, '', '   '])('throws when alt text is %j', (alt) => {
-    const { src } = firstManifestEntry()
+  test.each([undefined, '', '   '])(
+    'renders the image decoratively, without throwing, when alt text is %j',
+    (alt) => {
+      const { src, size } = firstManifestEntry()
+      const quiet = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+
+      const { container } = render(<HelpImage src={src} alt={alt} />)
+
+      const image = container.querySelector('img')
+      expect(image).toHaveAttribute('alt', '')
+      expect(image).toHaveAttribute('width', String(size.width))
+      expect(quiet).toHaveBeenCalledWith(expect.stringMatching(/no alt text/i))
+      quiet.mockRestore()
+    },
+  )
+
+  test('renders the gap, without throwing, for a missing image that also has no alt text', () => {
     const quiet = vi.spyOn(console, 'error').mockImplementation(() => undefined)
 
-    expect(() => render(<HelpImage src={src} alt={alt} />)).toThrow(/alt text/i)
+    render(<HelpImage src="/help/not-captured-yet.jpg" />)
 
-    quiet.mockRestore()
-  })
-
-  test('throws for a missing image without alt text too, so the defect cannot hide behind the gap', () => {
-    const quiet = vi.spyOn(console, 'error').mockImplementation(() => undefined)
-
-    expect(() => render(<HelpImage src="/help/not-captured-yet.jpg" />)).toThrow(/alt text/i)
-
+    expect(screen.getByText(/screenshot not available/i)).toBeVisible()
     quiet.mockRestore()
   })
 })
@@ -76,6 +84,26 @@ describe('images inside help prose', () => {
     expect(screen.getByText('Before the picture.')).toBeVisible()
     expect(screen.getByText('After the picture.')).toBeVisible()
     expect(screen.getByText(/screenshot not available/i)).toBeVisible()
+  })
+
+  test('an image with blank alt leaves the surrounding prose intact', () => {
+    const { src } = firstManifestEntry()
+    const quiet = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+
+    render(
+      <HelpMarkdown
+        body={`Before.
+
+![](${src})
+
+After.`}
+        sections={[]}
+      />,
+    )
+
+    expect(screen.getByText('Before.')).toBeVisible()
+    expect(screen.getByText('After.')).toBeVisible()
+    quiet.mockRestore()
   })
 
   test('a present image renders through the markdown pipeline with its dimensions', () => {

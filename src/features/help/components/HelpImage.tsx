@@ -8,19 +8,24 @@ export interface HelpImageProps {
 /**
  * A screenshot in help prose.
  *
- * Pages are written before every screenshot has arrived, so an image the
- * manifest does not know is an ordinary state, not an error: it renders a
- * visible gap that says what is missing and the prose around it carries on.
- * Failing the page for a missing picture would block the words that already
- * work.
+ * An image is never allowed to take the page down. Pages are written before
+ * every screenshot has arrived, so an image the manifest does not know is an
+ * ordinary state: it renders a visible gap and the prose around it carries on.
+ * Blank alt text is handled the same way. It renders as `alt=""`, which is
+ * valid decorative markup, rather than throwing, because the app's single
+ * top-level error boundary would turn one bad attribute into a "page stopped
+ * responding" card for the whole article, and reloading cannot fix an authoring
+ * error.
  *
- * Missing alt text is the opposite case. It cannot be fixed by waiting for a
- * file, and an image nobody can read is a defect, so it throws. The content
- * tests catch it long before a reader can.
+ * The authoring gate for alt text is `image-references.test.ts`, which fails
+ * the build when a page references an image without it. A development-only
+ * console error is the second line, for the page being written right now.
  */
 export function HelpImage({ src, alt }: HelpImageProps) {
-  if (alt === undefined || alt.trim() === '') {
-    throw new Error(`Help image ${src ?? '(no source)'} has no alt text. Alt text is mandatory.`)
+  const altText = alt?.trim() ?? ''
+
+  if (import.meta.env.DEV && altText === '') {
+    console.error(`Help image ${src ?? '(no source)'} has no alt text. Add it in the Markdown.`)
   }
 
   const size = src === undefined ? undefined : helpImageSize(src)
@@ -28,8 +33,7 @@ export function HelpImage({ src, alt }: HelpImageProps) {
   if (src === undefined || size === undefined) {
     return (
       <span
-        role="img"
-        aria-label={alt}
+        {...(altText === '' ? {} : { role: 'img', 'aria-label': altText })}
         className="border-line bg-surface-inset text-ink-subtle mt-4 flex aspect-video w-full items-center justify-center rounded-lg border border-dashed px-4 text-center text-xs"
       >
         Screenshot not available yet
@@ -40,7 +44,7 @@ export function HelpImage({ src, alt }: HelpImageProps) {
   return (
     <img
       src={src}
-      alt={alt}
+      alt={altText}
       width={size.width}
       height={size.height}
       loading="lazy"

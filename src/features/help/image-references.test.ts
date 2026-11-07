@@ -28,6 +28,46 @@ describe('image references in help pages', () => {
     ])
   })
 
+  test('the extractor finds reference-style images, including blank-alt ones', () => {
+    const found = extractImageReferences(
+      [
+        '![Full][shot]  ![][blank]  ![Collapsed][]  ![Shortcut]  ![Unresolved][nowhere]',
+        '',
+        '[shot]: /help/a.jpg',
+        '[BLANK]: </help/b.jpg> "Title"',
+        '[collapsed]: /help/c.jpg',
+        '[shortcut]: /help/d.jpg',
+      ].join('\n'),
+    )
+
+    expect(found).toEqual([
+      { alt: 'Full', src: '/help/a.jpg' },
+      { alt: '', src: '/help/b.jpg' },
+      { alt: 'Collapsed', src: '/help/c.jpg' },
+      { alt: 'Shortcut', src: '/help/d.jpg' },
+    ])
+  })
+
+  test('the extractor reads alt text that contains brackets', () => {
+    const found = extractImageReferences(
+      '![The [Pay] button](/help/a.jpg) and ![Escaped \\] bracket](/help/b.jpg) and ![](/help/c.jpg)',
+    )
+
+    expect(found).toEqual([
+      { alt: 'The [Pay] button', src: '/help/a.jpg' },
+      { alt: 'Escaped \\] bracket', src: '/help/b.jpg' },
+      { alt: '', src: '/help/c.jpg' },
+    ])
+  })
+
+  test('the alt gate catches a blank alt written in reference style', () => {
+    const blank = extractImageReferences('![][x]\n\n[x]: /help/a.jpg').filter(
+      (reference) => reference.alt.trim() === '',
+    )
+
+    expect(blank).toHaveLength(1)
+  })
+
   test('every image referenced by a help page exists in public/help', () => {
     const missing = references.filter((reference) => {
       const fileName = helpImageFileName(reference.src)

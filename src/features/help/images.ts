@@ -38,12 +38,44 @@ export interface HelpImageReference {
 }
 
 const HTML_COMMENT = /<!--[\s\S]*?-->/g
-const MARKDOWN_IMAGE = /!\[([^\]]*)\]\(\s*([^)\s]+)(?:\s+"[^"]*")?\s*\)/g
 
-/** Every `![alt](src)` in a page body, in order, ignoring commented-out ones. */
+/* Alt text may hold escapes and balanced brackets: ![the [Pay] button](...) */
+const ALT = String.raw`((?:\\.|[^\[\]\\]|\[(?:\\.|[^\[\]\\])*\])*)`
+const INLINE = String.raw`\(\s*(?:<([^>]*)>|([^)\s]+))(?:\s+(?:"[^"]*"|'[^']*'))?\s*\)`
+
+/** ![alt](src), ![alt][ref], ![alt][] and ![alt]: the forms Markdown renders as an image. */
+const MARKDOWN_IMAGE = new RegExp(String.raw`!\[${ALT}\](?:${INLINE}|\[([^\]]*)\])?`, 'g')
+
+/** `[label]: src` definitions, which reference-style images resolve against. */
+const DEFINITION = /^ {0,3}\[([^\]]+)\]:[ \t]*(?:<([^>]*)>|(\S+))/gm
+
+function normaliseLabel(label: string): string {
+  return label.trim().replace(/\s+/g, ' ').toLowerCase()
+}
+
+/**
+ * Every image in a page body, in order, ignoring commented-out ones.
+ *
+ * This is the authoring gate's view of the page, so it has to see what
+ * react-markdown will render: a reference-style image, or an alt containing a
+ * bracket, that this missed would reach readers unchecked. A reference with no
+ * matching definition renders as literal text, not an image, and is skipped.
+ */
 export function extractImageReferences(body: string): readonly HelpImageReference[] {
-  return [...body.replace(HTML_COMMENT, '').matchAll(MARKDOWN_IMAGE)].map((match) => ({
-    alt: match[1] ?? '',
-    src: match[2] ?? '',
-  }))
+  const text = body.replace(HTML_COMMENT, '')
+  const definitions = new Map<string, string>()
+  for (const match of text.matchAll(DEFINITION)) {
+    const label = normaliseLabel(match[1] ?? '')
+    if (!definitions.has(label)) definitions.set(label, match[2] ?? match[3] ?? '')
+  }
+
+  const references: HelpImageReference[] = []
+  for (const match of text.matchAll(MARKDOWN_IMAGE)) {
+    const alt = match[1] ?? ''
+    const isInline = match[2] !== undefined || match[3] !== undefined
+    const refLabel = match[4] === undefined || match[4] === '' ? alt : match[4]
+    const src = isInline ? (match[2] ?? match[3]) : definitions.get(normaliseLabel(refLabel))
+    if (src !== undefined) references.push({ alt, src })
+  }
+  return references
 }
