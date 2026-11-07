@@ -61,7 +61,9 @@ asking and say in one line where things stand:
 - An `origin` remote that is not the upstream repository, and `git ls-remote origin main` equals
   `git rev-parse HEAD` → D is done.
 - If D is done, ask once for the live address if you do not have it, then run
-  `npm run setup:site -- <address>` → E is done when it passes.
+  `npm run setup:site -- <address>` → E1-E2 are done when it passes.
+- `public/sitemap.xml` exists and `public/robots.txt` names it on their live address → E3 is done.
+  A robots.txt with no `Sitemap:` line means E3 has not run yet.
 - The Owner query in G returns their agency → setup is complete; go to H.
 
 Resuming in a folder already linked to the project chosen earlier: skip the B4 state check — users
@@ -181,6 +183,16 @@ straight to D.
    and that the build points at this project with its publishable key and no secret key. On a
    failure, give its one-line fix (usually a variable or the output directory, then **Redeploy**)
    and run it again when they say it is done. Deployment is complete only when it passes.
+3. **The Help Centre's sitemap** — it comes last because the live address is only known now.
+   `npm run help:sitemap -- <address>` writes `public/sitemap.xml` (the help index plus one URL
+   per page) and adds the `Sitemap:` line to `public/robots.txt`. Both are committed files; an
+   unconfigured checkout holds the honest empty state — no sitemap, and a robots.txt naming none —
+   so until this runs `/help` is served but never indexed. Then, without asking again (the same
+   repository and branch the user approved in D): `git add public/robots.txt public/sitemap.xml`,
+   `git commit -m "Point the Help Centre sitemap at the live address"`, `git push`. That push
+   redeploys Hostinger; when it finishes, `https://<address>/robots.txt` must name the sitemap and
+   `https://<address>/sitemap.xml` must load. Use the address the site will keep — on Hostinger's
+   free temporary domain, say in one line that moving to their own domain means running this again.
 
 ## F. Sign-in settings for the live address
 
@@ -213,6 +225,8 @@ Short summary, then stop — no QA, no branding interview:
 
 - Pevvy is live at `https://<their domain>`, connected to their own Supabase project; their first
   agency is set up with them as Owner.
+- The Help Centre is at `https://<their domain>/help` — public, no sign-in — and search engines
+  are pointed at it.
 - Their GitHub repository controls the site: every push to `main` redeploys on Hostinger.
 - They can ask Claude to customize Pevvy whenever they like.
 - **Before accepting real customer sign-ups:** set up their own email provider (Supabase →
@@ -240,3 +254,7 @@ logic while customizing; `npm run build` must pass, and a push to `main` publish
 
 Every push to `main` redeploys on Hostinger. A Pevvy update that adds a migration:
 `npx supabase db push --dry-run`, then apply it with the owner's approval.
+
+A Pevvy update that adds or removes Help Centre pages: rerun
+`npm run help:sitemap -- <their address>` and commit `public/sitemap.xml` and `public/robots.txt`
+with it, or the sitemap goes stale and `npm run verify` fails on `help-sitemap.test.ts`.
