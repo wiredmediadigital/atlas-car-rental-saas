@@ -150,13 +150,28 @@ Not caused by this work; confirmed against source. For the owner's backlog.
    grounding prose in this schema: **grep for later redefinitions before
    trusting a migration.**
 
-4. **Unverified, do not treat as confirmed:** the exclusion constraint is
-   `exclude using gist (vehicle_id with =, tstzrange(starts_at, ends_at,'[)')
-   with &&) where status in ('reserved','active')`, which does not overlap a
-   booking starting after a late hire's `ends_at` — so the database may permit
-   re-booking a vehicle that is still out. The booking RPC and the availability
-   picker were NOT checked, and given item 3 above, that gap matters. Verify
-   end to end before acting on it.
+4. **CONFIRMED end to end — a vehicle on an overdue, uncompleted hire is
+   offered for booking, and can be booked, for any period starting after its
+   scheduled return.** Traced with later-redefinition checks this time;
+   `vehicles_available_between`, the overlap constraint, `rental_confirm` and
+   `rental_check_out` are each defined once.
+   - The exclusion constraint is `exclude using gist (vehicle_id with =,
+     tstzrange(starts_at, ends_at,'[)') with &&) where status in
+     ('reserved','active')`, so a booking starting after a late hire's
+     `ends_at` does not overlap it.
+   - `rental_check_out` never touches `vehicles.status`.
+   - `vehicles_available_between` filters on `vehicles.status`, **not** on
+     `effective_status`.
+   - `rental_confirm` checks only draft status and a primary driver.
+
+   Mitigation that already exists: the fleet list and vehicle page show
+   **Rented** and withhold "Bookable now". The availability picker consults
+   neither. Note `20260825100000`'s header says availability search and the
+   constraint were left untouched deliberately — so this may be a known
+   trade-off rather than an oversight. Booking a car for next week while it is
+   out is ordinary business; the overdue case differs only in that there is no
+   evidence the car is coming back. **A schema decision for the owner, not a
+   help-centre one — deliberately NOT documented in the pages.**
 
 ## Also worth knowing
 
@@ -170,3 +185,12 @@ Not caused by this work; confirmed against source. For the owner's backlog.
   `src/features/help/help-test-support.ts`, or they flake on a cold chunk load.
 - Do not hard-code how many help pages exist in any assertion. Four tasks
   shipped count-dependent assertions that had to be fixed.
+- **Before grounding prose in a migration, list EVERY migration that defines
+  that view or function and read the LAST one.** `grep` returns them
+  oldest-first, so the first hit is the one most likely to be stale. This cost
+  a full fix round: two agents independently confirmed a "bug" from a
+  superseded `vehicle_fleet` definition. Task 11 covers Overview, Calendar,
+  Customers, Reports and GPS, all of which read from views that may have been
+  redefined the same way.
+- Lint runs before tests in `npm run verify`, so `npx vitest` can be green
+  while `verify` is red. Check lint separately when iterating.
