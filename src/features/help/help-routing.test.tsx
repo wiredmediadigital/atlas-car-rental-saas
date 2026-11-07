@@ -1,9 +1,10 @@
 import { render, screen, within } from '@testing-library/react'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 
 import { AppRouter } from '@/app/routes/AppRouter'
 import { getSupabaseClient } from '@/lib/supabase/client'
 
+import { warmHelpRoutes } from './help-test-support'
 import { HelpArticle } from './components/HelpArticle'
 import { OnThisPage } from './components/OnThisPage'
 import { helpSections } from './sections'
@@ -28,6 +29,8 @@ vi.mock('@/lib/supabase/client', async (importOriginal) => ({
     throw new Error('The Help Centre must not reach Supabase.')
   }),
 }))
+
+beforeAll(warmHelpRoutes)
 
 function visit(path: string) {
   window.history.pushState({}, '', path)
