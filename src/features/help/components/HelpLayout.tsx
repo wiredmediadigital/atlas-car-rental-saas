@@ -56,7 +56,12 @@ export function HelpLayout({ sidebar, aside, children }: HelpLayoutProps) {
 
       <div className="mx-auto flex max-w-[1220px] items-start gap-10 px-4 py-10 sm:px-6 lg:px-8">
         {sidebar ? <div className="hidden w-52 shrink-0 lg:block">{sidebar}</div> : null}
-        <main id="main" tabIndex={-1} className="min-w-0 flex-1 outline-none">
+        {/* `scroll-mt-24` clears the sticky header: without it the skip link
+            jumps to the top of the article and the header — `top-0`, with an
+            `h-16` row — covers the breadcrumb and half the `h1`. The same value
+            as the in-article headings in `HelpMarkdown`, so every jump on the
+            page lands the same distance down. */}
+        <main id="main" tabIndex={-1} className="min-w-0 flex-1 scroll-mt-24 outline-none">
           {children}
         </main>
         {aside ? <div className="hidden w-48 shrink-0 xl:block">{aside}</div> : null}

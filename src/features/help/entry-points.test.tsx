@@ -11,21 +11,20 @@ import { MarketingFooter } from '@/pages/marketing/components/MarketingFooter'
 import { AcceptInvitePage } from '@/pages/auth/AcceptInvitePage'
 import { ResetPasswordPage } from '@/pages/auth/ResetPasswordPage'
 
-import type { HelpPage } from './types'
-
 /*
  * Which help pages "exist" is controlled here rather than read from the real
  * content, because the gate is the thing under test and the real answer changes
  * as pages are written. A test that depended on the real set would either pass
  * vacuously or break every time a page landed. `route-topics.test.ts` covers
  * the real content.
+ *
+ * `slugs`, not `content`: the entry points ask only whether a page exists, and
+ * ask it of the module that answers without loading any page bodies.
  */
 const existing = vi.hoisted(() => new Set<string>())
 
-vi.mock('./content', () => ({
-  getHelpPage: (slug: string) =>
-    existing.has(slug) ? ({ slug, frontMatter: {}, body: '' } as unknown as HelpPage) : undefined,
-  loadHelpPages: () => [],
+vi.mock('./slugs', () => ({
+  helpPageExists: (slug: string) => existing.has(slug),
 }))
 
 vi.mock('@/features/workspace/workspace-context', () => ({

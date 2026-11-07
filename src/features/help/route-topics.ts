@@ -1,6 +1,6 @@
 import { paths } from '@/app/routes/paths'
 
-import { getHelpPage } from './content'
+import { helpPageExists } from './slugs'
 
 /** The first path segment, which is the module: `/rentals/abc` -> `rentals`. */
 function moduleSegment(path: string): string {
@@ -17,6 +17,10 @@ function moduleSegment(path: string): string {
  *
  * This lists the eventual slugs, including pages that do not exist yet. That is
  * safe only because `helpSlugForRoute` checks existence before returning one.
+ *
+ * Existence comes from `slugs.ts`, not `content.ts`: this module is reached
+ * from every module page through `PageHeader`, and the page bodies have no
+ * business in the application entry chunk.
  */
 const MODULE_HELP_SLUGS: ReadonlyMap<string, string> = new Map([
   [moduleSegment(paths.overview), 'overview'],
@@ -44,5 +48,5 @@ const MODULE_HELP_SLUGS: ReadonlyMap<string, string> = new Map([
 export function helpSlugForRoute(pathname: string): string | null {
   const slug = MODULE_HELP_SLUGS.get(moduleSegment(pathname))
   if (slug === undefined) return null
-  return getHelpPage(slug) ? slug : null
+  return helpPageExists(slug) ? slug : null
 }

@@ -156,6 +156,14 @@ describe('the skip link', () => {
     expect(first?.getAttribute('href')).toBe('#main')
     expect(screen.getByRole('main').id).toBe('main')
   })
+
+  it('leaves the landmark clear of the sticky header once it has jumped', () => {
+    // Without a scroll margin the header, `top-0` over an `h-16` row, covers
+    // the breadcrumb and part of the h1 the jump was meant to reach.
+    renderArticle(slugs[0] ?? '')
+
+    expect(screen.getByRole('main').className).toContain('scroll-mt-')
+  })
 })
 
 describe('the mobile navigation dialog', () => {

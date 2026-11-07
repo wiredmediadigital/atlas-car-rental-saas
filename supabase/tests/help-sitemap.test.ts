@@ -68,6 +68,15 @@ describe('help sitemap', () => {
     },
   )
 
+  // `url.origin` throws the path away. Accepting one would write a sitemap of
+  // URLs that 404 and a robots.txt naming the wrong host root, with no warning.
+  test.each(['https://rentals.example.org/app', 'https://rentals.example.org/app/'])(
+    'rejects %s rather than silently dropping the subpath',
+    (value) => {
+      expect(() => normaliseOrigin(value)).toThrow(/no path/i)
+    },
+  )
+
   test('robots.txt allows everything and points at the sitemap on the same origin', () => {
     const robots = buildRobots(ORIGIN)
 

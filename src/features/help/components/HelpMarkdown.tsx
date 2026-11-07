@@ -1,8 +1,10 @@
 import Markdown, { type Components } from 'react-markdown'
+import { Link } from 'react-router-dom'
 import remarkGfm from 'remark-gfm'
 
 import { Badge } from '@/components/ui'
 
+import { helpRouteTarget } from '../links'
 import type { HelpSection } from '../sections'
 
 import { HelpImage } from './HelpImage'
@@ -32,6 +34,9 @@ import { HelpImage } from './HelpImage'
  * that one shape keeps the rule simple and the prose free of author notes.
  */
 const HTML_COMMENT_PATTERN = /<!--[\s\S]*?-->/g
+
+/** Shared by both link renderers below, so the two are indistinguishable to a reader. */
+const LINK_CLASS = 'text-brand-700 underline underline-offset-2 hover:no-underline'
 
 /**
  * Blanks the comments out without removing a single line break.
@@ -106,12 +111,31 @@ function markdownComponents(sections: readonly HelpSection[]): Components {
     hr: () => <hr className="border-line mt-10" />,
     img: ({ src, alt }) => <HelpImage src={typeof src === 'string' ? src : undefined} alt={alt} />,
     a: ({ href, children }) => {
+      /*
+       * A link from one help page to another is in-app navigation, and the
+       * pages cross-link constantly. Left as a plain anchor it reloaded the
+       * document and re-ran the whole bootstrap — providers, auth — to show a
+       * page the router already had.
+       *
+       * Only `/help` routes are handed to the router. A `#` anchor is the
+       * browser's own job, `mailto:` is the mail client's, and an external site
+       * is nobody's business here, so those stay anchors.
+       */
+      const internal = href === undefined ? undefined : helpRouteTarget(href)
+      if (internal !== undefined) {
+        return (
+          <Link to={internal.href} className={LINK_CLASS}>
+            {children}
+          </Link>
+        )
+      }
+
       const isExternal = href?.startsWith('http') ?? false
 
       return (
         <a
           href={href}
-          className="text-brand-700 underline underline-offset-2 hover:no-underline"
+          className={LINK_CLASS}
           {...(isExternal ? { target: '_blank', rel: 'noopener noreferrer' } : {})}
         >
           {children}

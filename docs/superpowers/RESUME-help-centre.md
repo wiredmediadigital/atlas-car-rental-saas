@@ -121,8 +121,16 @@ Recorded because the owner delegated them and should be able to reverse any.
     owner.**
 13. **Reset-password screen links to `troubleshooting`**, not
     `accept-your-invitation`.
-14. **Role names allowed on the Team page and the "Who can do what" reference
-    page only** — the no-role-names rule stands everywhere else.
+14. **Role names allowed on `team`, `who-can-do-what` and `troubleshooting`
+    only** — the no-role-names rule stands everywhere else. The first two were
+    decided up front: one administers roles, the other is the reference for
+    them. `troubleshooting` was added later in the build and this entry was not
+    updated at the time, which left the record reading narrower than the rule
+    actually applied. Troubleshooting answers "I cannot do X" and the answer is
+    usually "ask whoever holds role Y"; a reader who does not know who to ask is
+    precisely the failure that page exists to prevent, so naming the role there
+    is the point of the page rather than an exception to a style rule. The prose
+    at `troubleshooting.md:90, :126, :136, :139` is correct and stays.
 
 ## Known product bugs found while writing the pages
 

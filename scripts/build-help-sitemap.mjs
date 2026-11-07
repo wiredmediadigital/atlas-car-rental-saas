@@ -44,6 +44,14 @@ export function normaliseOrigin(value) {
   if ((url.protocol !== 'https:' && url.protocol !== 'http:') || url.hostname === '') {
     throw new Error(`Invalid origin "${value}": it must be an http or https URL with a host`)
   }
+  // `url.origin` drops any path, so a site served from a subpath would silently
+  // get a sitemap of URLs that 404 and a robots.txt pointing at the wrong host
+  // root. Say so instead of guessing.
+  if (url.pathname !== '/') {
+    throw new Error(
+      `Invalid origin "${value}": it must have no path. The Help Centre is served from the site root, so a sitemap for "${url.origin}" would not describe "${value}".`,
+    )
+  }
   return url.origin
 }
 

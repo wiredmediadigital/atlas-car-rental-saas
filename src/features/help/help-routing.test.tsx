@@ -1,7 +1,9 @@
 import { render, screen, within } from '@testing-library/react'
+import { MemoryRouter } from 'react-router-dom'
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 
 import { AppRouter } from '@/app/routes/AppRouter'
+import { helpArticlePath } from '@/app/routes/paths'
 import { ORG_ROLES, PERMISSIONS, ROLE_DESCRIPTIONS, ROLE_LABELS } from '@/lib/authz/permissions'
 import { getSupabaseClient } from '@/lib/supabase/client'
 
@@ -356,11 +358,14 @@ describe('heading anchors and labels, for headings that are not plain text', () 
       frontMatter: { title: 'Rentals', group: 'Operations', summary: 'Summary.' },
       body,
     }
+    // Inside a router: a `/help/...` link in the prose is rendered by
+    // react-router now rather than as a plain anchor, and one of these bodies
+    // is a heading that is itself such a link.
     render(
-      <>
+      <MemoryRouter initialEntries={[helpArticlePath('rentals')]}>
         <HelpArticle page={page} body={body} sections={sections} />
         <OnThisPage sections={sections} />
-      </>,
+      </MemoryRouter>,
     )
     return sections
   }
