@@ -119,8 +119,8 @@ no part of the product behaves as though it were.
 account connected, or this agency has no billing account with the provider yet
 — which is the case before the first checkout.
 
-**A colleague cannot see this page.** This page needs `billing.manage`, which
-sits in the narrowest tier the product has — on screen and on the server
+**A colleague cannot see this page.** The badge under the title says who can,
+and it is the narrowest access the product grants — on screen and on the server
 alike. There is no setting that widens it.
 
 **Everything has gone read-only.** The subscription is not live. The banner

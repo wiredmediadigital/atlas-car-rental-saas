@@ -100,9 +100,10 @@ saved. Reissue it and the new version carries them.
 **Times are an hour out.** Check the time zone in Settings before anything
 else.
 
-**Everything in Settings is greyed out.** Settings are readable by everyone and
-editable with `organization.update`. Knowing the agency's currency and time
-zone matters to whoever is writing contracts, even if they cannot change them.
+**Everything in Settings is greyed out.** Everyone in the agency may read the
+settings; changing them takes more access, and a banner at the top of the page
+says so. Knowing the agency's currency and time zone matters to whoever is
+writing contracts, even if they cannot change them.
 
 **I cannot find where to set the expiry-warning window or the tracking
 freshness windows.** They are agency settings, but there is no screen to change

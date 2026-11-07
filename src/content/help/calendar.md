@@ -138,8 +138,10 @@ ones have to be asked for.
 ceiling for one window, and the rest are not drawn. That is a filter problem
 rather than a drawing problem: narrow the span, or filter by make.
 
-**I cannot drag a block.** It is out with a customer, or already closed, or you
-do not hold `rentals.update`. Extend the hire or record the return instead.
+**I cannot drag a block.** It is out with a customer, or already closed.
+Extend the hire or record the return instead. If no booking on the board can be
+moved at all, the agency's records are read-only — see
+[Billing](/help/billing).
 
 **The move was refused and nothing changed.** Something else is booked on that
 vehicle inside the new window. Nothing was half-applied; the booking still has

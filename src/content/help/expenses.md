@@ -73,8 +73,9 @@ fail.
 <!-- permission: expenseVendors.manage -->
 
 **Categories and suppliers** holds both lists. A supplier is operational:
-whoever records a repair has to be able to add the garage they just used, which
-is why `expenseVendors.manage` sits a level below `expenseCategories.manage`.
+whoever records a repair has to be able to add the garage they just used, so
+adding one takes less access than renaming a category. The two headings here
+say how much each needs.
 
 Retiring an entry keeps it on the costs that already use it and takes it out of
 the picker. Two suppliers cannot share a tax or business identifier.

@@ -7,7 +7,8 @@ permission: organization.view
 
 > **In short** — everything on this page belongs to the agency, not to you,
 > with one exception: the notification preferences are yours alone. Everyone
-> can read these settings; changing them needs `organization.update`.
+> can read these settings; changing them takes more access, and every section
+> that needs it says so beside its own heading.
 
 ![The general section of Settings](/help/settings-01-general.jpg)
 
@@ -95,10 +96,9 @@ way to answer "which build is this" when something is being looked into.
 
 ## If it goes wrong
 
-**Everything is greyed out.** The page says so in a banner at the top: you hold
-`organization.view` but not `organization.update`. The values are shown to
-everyone, because knowing the agency's currency and time zone matters to
-whoever is writing contracts.
+**Everything is greyed out.** A banner at the top says why: you may read these
+settings but not change them. The values are shown to everyone, because knowing
+the agency's currency and time zone matters to whoever is writing contracts.
 
 **I changed the currency and the old figures look wrong.** They are not wrong.
 Every existing record keeps the currency it was written in, and nothing is

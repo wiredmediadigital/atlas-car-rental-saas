@@ -123,7 +123,7 @@ completed hire can quite correctly still read as unpaid; money is never
 deleted, only voided. [Rentals](/help/rentals) covers all three.
 
 **If it is about the agency's own subscription:** that is
-[Billing](/help/billing), which needs `billing.manage`.
+[Billing](/help/billing), and it is the owner's to manage.
 
 ## Still stuck
 
@@ -136,8 +136,8 @@ It is not the route to:
 - **access or permissions** — ask an administrator or the owner of your own
   agency;
 - **a deposit, a charge or a refund** — ask the agency you hired from;
-- **your agency's subscription** — that is Billing, and it needs
-  `billing.manage`.
+- **your agency's subscription** — that is Billing, and only the owner of
+  your agency can act on it.
 
 When you do write, say which page you were on, what you expected and what
 happened instead. Never send a password, an access token or a link from an
