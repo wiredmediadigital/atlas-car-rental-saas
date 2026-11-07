@@ -124,9 +124,23 @@ Not caused by this work; confirmed against source. For the owner's backlog.
    `includeArchived: true`, while `20260813090300_fleet.sql:75-83` makes the
    plate/VIN unique indexes partial on `archived_at is null` — so it misses
    duplicates past 100 and falsely flags retired plates.
-3. `effective_status` reads Rented only while
-   `status='active' AND starts_at<=now() AND ends_at>now()`, so an **overdue**
-   hire shows the vehicle as **Available** while it is still out.
+3. ~~`effective_status` shows an overdue hire's vehicle as Available.~~
+   **RETRACTED — this is not a bug.** Two agents confirmed it by reading
+   `20260814100100_vehicle_fleet_model.sql`, but that view is redefined by
+   `20260825100000_fleet_occupancy_follows_lifecycle.sql`, which exists
+   specifically to fix it. The current `current_rental` join selects any
+   rental with `status='active'` and **no time bounds**, so an overdue hire
+   reads **Rented** until the contract is completed. Lesson for anyone
+   grounding prose in this schema: **grep for later redefinitions before
+   trusting a migration.**
+
+4. **Unverified, do not treat as confirmed:** the exclusion constraint is
+   `exclude using gist (vehicle_id with =, tstzrange(starts_at, ends_at,'[)')
+   with &&) where status in ('reserved','active')`, which does not overlap a
+   booking starting after a late hire's `ends_at` — so the database may permit
+   re-booking a vehicle that is still out. The booking RPC and the availability
+   picker were NOT checked, and given item 3 above, that gap matters. Verify
+   end to end before acting on it.
 
 ## Also worth knowing
 
