@@ -7,8 +7,12 @@ import { OnThisPage } from '@/features/help/components/OnThisPage'
 import { getHelpPage } from '@/features/help/content'
 import { helpSections } from '@/features/help/sections'
 import { resolveTokens } from '@/features/help/tokens'
+import { useDocumentMeta } from '@/features/help/useDocumentMeta'
 
 import { HelpNotFound } from './HelpNotFound'
+
+const NOT_FOUND_TITLE = 'Page not found'
+const NOT_FOUND_DESCRIPTION = 'This help page does not exist. Browse the help centre for a topic.'
 
 /**
  * One help article, at `/help/<slug>`.
@@ -26,6 +30,11 @@ export function HelpArticlePage() {
   const page = slug === undefined ? undefined : getHelpPage(slug)
   const body = page ? resolveTokens(page.body) : ''
   const sections = helpSections(body)
+
+  useDocumentMeta(
+    page ? resolveTokens(page.frontMatter.title) : NOT_FOUND_TITLE,
+    page ? resolveTokens(page.frontMatter.summary) : NOT_FOUND_DESCRIPTION,
+  )
 
   return (
     <HelpLayout

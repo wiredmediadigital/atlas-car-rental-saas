@@ -2,6 +2,8 @@ import { HelpGroupCard } from '@/features/help/components/HelpGroupCard'
 import { HelpLayout } from '@/features/help/components/HelpLayout'
 import { getHelpPage } from '@/features/help/content'
 import { HELP_NAVIGATION } from '@/features/help/navigation'
+import { useDocumentMeta } from '@/features/help/useDocumentMeta'
+import { getAppName } from '@/lib/config/env'
 
 /**
  * The Help Centre front door, at `/help`: one card per navigation group.
@@ -12,6 +14,8 @@ import { HELP_NAVIGATION } from '@/features/help/navigation'
  * the index never shows a placeholder.
  */
 export function HelpIndexPage() {
+  useDocumentMeta('Help centre', `Guides and how-tos for using ${getAppName()}, grouped by topic.`)
+
   const cards = HELP_NAVIGATION.map((entry) => ({
     group: entry.group,
     pages: entry.slugs.flatMap((slug) => {
