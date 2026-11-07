@@ -11,9 +11,13 @@ permission: organization.view
 
 ![The general section of Settings](/help/settings-01-general.jpg)
 
-Settings is six unrelated forms rather than one long one, so it shows a section
+Settings is six unrelated sections rather than one long page, so it shows one
 at a time. A half-finished edit survives a look at another section, and the
 rail marks any section still holding one.
+
+General and Regional are one form and save together — they are one record, and
+splitting the save would mean two round trips to change an address and a
+currency. The other sections save on their own.
 
 ## Record the agency's own details
 <!-- permission: organization.update -->

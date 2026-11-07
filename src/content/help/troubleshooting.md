@@ -87,9 +87,10 @@ If you belong to more than one agency, check which one you are in. The switcher
 is at the top of the sidebar, and access in one agency says nothing about
 another.
 
-To be given access, ask inside your own agency: whoever manages its team can
-change it immediately. {{supportEmail}} cannot grant anybody access to anything
-— a support address has no business being able to.
+To be given access, ask inside your own agency. An administrator or the owner
+can change it immediately, and the change takes effect without anybody signing
+out and back in. {{supportEmail}} cannot grant anybody access to anything — a
+support address has no business being able to.
 
 ## Everything has gone read-only
 
@@ -132,7 +133,8 @@ documentation does not cover.
 
 It is not the route to:
 
-- **access or permissions** — ask inside your agency;
+- **access or permissions** — ask an administrator or the owner of your own
+  agency;
 - **a deposit, a charge or a refund** — ask the agency you hired from;
 - **your agency's subscription** — that is Billing, and it needs
   `billing.manage`.

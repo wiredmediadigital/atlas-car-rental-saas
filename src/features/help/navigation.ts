@@ -31,7 +31,7 @@ export const HELP_NAVIGATION: readonly HelpNavigationGroup[] = [
   {
     group: 'Getting started',
     slugs: [
-      'how-pevvy-is-organised',
+      'how-it-fits-together',
       'accept-your-invitation',
       'set-up-your-agency',
       'first-vehicle-first-rental',

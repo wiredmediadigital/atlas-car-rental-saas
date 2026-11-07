@@ -2,14 +2,14 @@ import { render, screen, within } from '@testing-library/react'
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 
 import { AppRouter } from '@/app/routes/AppRouter'
-import { ORG_ROLES, ROLE_DESCRIPTIONS, ROLE_LABELS } from '@/lib/authz/permissions'
+import { ORG_ROLES, PERMISSIONS, ROLE_DESCRIPTIONS, ROLE_LABELS } from '@/lib/authz/permissions'
 import { getSupabaseClient } from '@/lib/supabase/client'
 
 import { getHelpPage } from './content'
 import { warmHelpRoutes } from './help-test-support'
 import { HelpArticle } from './components/HelpArticle'
 import { OnThisPage } from './components/OnThisPage'
-import { roleLabelFor } from './permission-labels'
+import { isPermissionKey, roleLabelFor } from './permission-labels'
 import { helpSections } from './sections'
 import { resolveTokens } from './tokens'
 import type { HelpPage } from './types'
@@ -245,6 +245,59 @@ describe('the role table a page can embed', () => {
 
     expect(gated).toHaveTextContent(roleLabelFor('rentals.delete') as string)
     expect(ungated.textContent).toBe('Look up a contract')
+  })
+})
+
+/*
+ * `{{permissionMatrix}}` gets the same treatment as the role table above, for
+ * the same reason and one more. It expands to sixty-odd lines on a page anyone
+ * can read, so a malformed table would put a wall of pipe characters in front
+ * of every reader without failing anything. And unlike the role table it is
+ * the answer to "may I do this" — a row that failed to parse would take a real
+ * answer off a reference page with no error anywhere.
+ *
+ * Expectations are built from PERMISSIONS and `roleLabelFor`. Naming a key and
+ * a role here would be the copy of the matrix the token exists to prevent.
+ */
+describe('the permission matrix a page can embed', () => {
+  const matrixPage: HelpPage = {
+    slug: 'who-can-do-what',
+    frontMatter: {
+      title: 'Who can do what',
+      group: 'Reference',
+      summary: 'Every action and the role it needs.',
+    },
+    body: '{{permissionMatrix}}',
+  }
+
+  function renderMatrix() {
+    const body = resolveTokens(matrixPage.body)
+    return render(<HelpArticle page={matrixPage} body={body} sections={helpSections(body)} />)
+  }
+
+  it('renders one row per permission, each answering who may do it', async () => {
+    renderMatrix()
+
+    const table = await screen.findByRole('table')
+    const keys = Object.keys(PERMISSIONS)
+    // Header row plus one per permission.
+    expect(within(table).getAllByRole('row')).toHaveLength(keys.length + 1)
+
+    for (const key of keys) {
+      const row = within(table).getByRole('cell', { name: key }).closest('tr')
+      expect(row).not.toBeNull()
+      const answer = isPermissionKey(key) ? roleLabelFor(key) : null
+      // A staff minimum yields no badge label, so the matrix says it in words.
+      expect(row).toHaveTextContent(answer ?? 'Everyone in the agency')
+    }
+  })
+
+  it('leaves no raw token or pipe characters on the page', async () => {
+    renderMatrix()
+
+    await screen.findByRole('table')
+    expect(document.body.textContent).not.toContain('{{')
+    expect(document.body.textContent).not.toContain('|')
   })
 })
 

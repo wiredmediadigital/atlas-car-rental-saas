@@ -20,8 +20,10 @@ symbol is not a valid invitation — which is the single commonest reason one
 does not work.
 
 The screen that opens names the agency you have been invited to, the access the
-invitation grants, who invited you, and the address it was sent to. Check that
-address against your own before going further.
+invitation grants, who invited you, and the address it was sent to — partly
+masked, deliberately, because holding a link is not a reason to be told
+somebody's address. Enough of it shows to check it is yours before you go
+further.
 
 ## Join when you already have an account
 
@@ -58,7 +60,7 @@ before you joined. What that reaches is listed on
 [Who can do what](/help/who-can-do-what), and every page in this help centre
 labels its tasks with what they need.
 
-[How it all fits together](/help/how-pevvy-is-organised) is the five-minute
+[How it all fits together](/help/how-it-fits-together) is the five-minute
 tour: agencies, the sidebar, and where each kind of record lives.
 
 ## If it goes wrong
@@ -98,7 +100,7 @@ which covers password resets and the traps in them.
 
 ## Where to go next
 
-- [How it all fits together](/help/how-pevvy-is-organised) — agencies, the
+- [How it all fits together](/help/how-it-fits-together) — agencies, the
   sidebar and where things live.
 - [Who can do what](/help/who-can-do-what) — what your access reaches.
 - [Troubleshooting](/help/troubleshooting) — sign-in and reset problems.

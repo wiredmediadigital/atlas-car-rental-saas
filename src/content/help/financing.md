@@ -74,8 +74,9 @@ Four optional figures are worth understanding:
 - **Amount financed** is what makes a principal balance derivable. Without it
   there is nothing to derive one from.
 
-The wizard refuses terms that do not repay the loan, and a balloon larger than
-the debt, rather than generating a schedule nobody could follow.
+The wizard refuses terms that do not repay the loan, and a final payment as
+large as the amount financed or larger, rather than generating a schedule
+nobody could follow.
 
 The day of the month the first payment falls on anchors the whole schedule.
 
@@ -105,8 +106,9 @@ and not the lender's: if the statement says something else, type what the
 statement says.
 
 A payment can be recorded against an agreement that has already ended. A final
-settlement arriving after the desk has filed the agreement away is ordinary; a
-draft is the one state with nothing to settle.
+settlement arriving after the desk has filed the agreement away is ordinary.
+Two states have nothing to settle: a draft, which has no obligations yet, and a
+cancelled agreement, which never came into effect. The page says which.
 
 ## Void a payment entered wrongly
 <!-- permission: financingPayments.void -->
@@ -169,6 +171,11 @@ Recording a lender payment here does not add a row there.
 **It will not let me mark it paid off.** The page lists the reason: still a
 draft, no schedule, payments outstanding, or principal still showing under the
 agreement's own figures.
+
+**Activating an agreement is refused and the message mentions a
+subscription.** An agency whose subscription has lapsed is read-only, and
+starting a schedule is new work rather than a correction. Everything already
+recorded stays readable and exportable. See [Billing](/help/billing).
 
 **The totals show a number of currencies instead of an amount.** The agency has
 agreements in more than one currency, and nothing in {{productName}} converts

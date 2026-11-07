@@ -33,7 +33,8 @@ agency's calendar says so, not when a clock somewhere else does.
 | Today | Today, in the agency's time zone |
 | Fleet status, Active contracts, Upcoming pick-ups | Now |
 | Outstanding, Deposits held | Now, across every contract |
-| Customers, Contracts | Everything on file |
+| Customers | Everyone on file who has not been archived |
+| Contracts | Every contract ever written |
 
 Changing the period cannot change a figure in the second half of that table,
 and it is worth knowing which half you are looking at before quoting a number
