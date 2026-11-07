@@ -12,8 +12,8 @@ summary: What the bell is telling you, what you can put away, and what it will n
 ![The notifications list](/help/notifications-01-list.jpg)
 
 The bell sits in the sidebar, beside the agency's name, and carries the number
-of unread items. Opening it gives the same list in a panel; **Notifications**
-at the foot of that panel opens the full inbox.
+of unread items. Opening it gives the same list in a panel, and
+**View all notifications** at the foot of that panel opens the full inbox.
 
 ### The six categories
 

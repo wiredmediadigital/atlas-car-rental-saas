@@ -91,9 +91,10 @@ way to answer "which build is this" when something is being looked into.
 
 ## If it goes wrong
 
-**Everything is greyed out.** You hold `organization.view` but not
-`organization.update`. The values are shown to everyone, because knowing the
-agency's currency and time zone matters to whoever is writing contracts.
+**Everything is greyed out.** The page says so in a banner at the top: you hold
+`organization.view` but not `organization.update`. The values are shown to
+everyone, because knowing the agency's currency and time zone matters to
+whoever is writing contracts.
 
 **I changed the currency and the old figures look wrong.** They are not wrong.
 Every existing record keeps the currency it was written in, and nothing is
