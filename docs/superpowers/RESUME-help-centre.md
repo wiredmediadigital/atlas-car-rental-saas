@@ -53,41 +53,41 @@ whole-branch review at the end.
 Then: whole-branch review on the most capable model, one fix wave, then
 superpowers:finishing-a-development-branch.
 
-### Task 10 — COMPLETE
+## COMPLETE — all twelve tasks plus the final fix wave
 
-Owner gate cleared, task review **Approved**, three fix rounds, all reviewed
-clean. Final commit `5f40d44`. `npm run verify` green at 2264 tests.
+Every task implemented, reviewed, fixed and re-reviewed. Whole-branch review on
+the most capable model returned **no Critical findings**; its five Important
+findings were fixed in one wave (`0a2e092`) and re-reviewed clean.
 
-Rentals, Vehicles and Team are written and accurate. Their house style is
-approved for the remaining sixteen pages, with three adjustments the reviewer
-asked for:
-1. Do not explain mechanisms a clerk cannot see (no database tables, no
-   SQL-ish wording).
-2. When a status is derived, read the view before describing when it changes.
-3. Keep leaving out behaviour you cannot verify, and report the product gap
-   instead — that is how all the findings below were found.
+`npm run verify` green: 99 files, 2408 tests, plus format, lint, typecheck and
+build.
 
-## Resume here: Task 11
+**Merge readiness: Ready with parked residuals** (listed at the end).
 
-Write the remaining sixteen pages. Brief at
-`.superpowers/sdd/2026-11-06-pevvy-help-centre/task-11-brief.md`.
+### What the whole-branch review verified, by inspecting the build
 
-Then Task 12 (accessibility pass), then the whole-branch review on the most
-capable model, then superpowers:finishing-a-development-branch.
+- **Public access** holds *structurally*, not by assertion: the tests render
+  `AppRouter` with no providers, and every guard calls `useAuth`/`useWorkspace`,
+  which throw without one — so moving a help route under a guard cannot pass.
+- **No raw HTML path.** `rehype-raw` is absent from the entire lockfile tree;
+  the only `dangerouslySetInnerHTML` match in the repo is a comment explaining
+  why there is none.
+- **Screenshot privacy.** All nineteen JPEGs decode to a 16-byte JFIF header and
+  nothing else — no EXIF, no GPS, no original filename, no author.
+- **Derived role labels** hold end to end, guarded where the pairing is actually
+  decided, by a test verified through mutation.
+- **Neither known product bug** is described anywhere as a working feature.
 
-**Carry these into the Task 11 dispatch:**
-- **Grep for later redefinitions before grounding prose in a migration.** This
-  cost a whole fix round. Task 11 covers Overview, Calendar, Customers, Reports
-  and GPS, all reading from views that may have been redefined.
-- Role names are allowed on the "Who can do what" reference page only, derived
-  from `ROLE_LABELS`/`ROLE_DESCRIPTIONS` (a `{{roleTable}}` token exists).
-- The reset-password screen links to `troubleshooting`; that page must exist.
-- `accept-your-invitation` must read correctly for someone not signed in.
-- Cross-links on the three existing pages point only at each other and need
-  widening.
-- Do not put Markdown image syntax inside a fenced code block — the extractor
-  is not fence-aware and the build will fail.
-- Do not hard-code how many help pages exist in any assertion.
+### The finding no per-task review could have had
+
+The entire help corpus was shipping in the **application entry chunk** — a
+signed-out visitor at the sign-in screen downloaded all nineteen pages
+(215 kB raw) before first paint, via
+`AppRouter → ModulePage → components/ui → PageHeader → features/help/content.ts`
+(`eager: true`). Task 9 added the import, Tasks 10-11 added the payload, and
+nothing measured the two together. Fixed with a non-eager slug set
+(`src/features/help/slugs.ts`); **≈44 kB gzipped came off first paint of every
+route**, with the layering decision left intact.
 
 ---
 
