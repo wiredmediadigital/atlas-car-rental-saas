@@ -20,7 +20,9 @@ export interface PageHeaderProps {
  *
  * It also carries the link to that module's help page, which is why no module
  * page mentions help: one place knows the route, so one place reaches them all.
- * The link exists only where `helpSlugForRoute` finds a written page.
+ * The link exists only where `helpSlugForRoute` finds a written page. A shared
+ * `components/ui` file importing from `features/help` is deliberate: it is the
+ * one place that reaches every module.
  */
 export function PageHeader(props: PageHeaderProps) {
   // Headers are rendered in isolation by some tests and previews; `useLocation`

@@ -204,6 +204,7 @@ export function Sidebar({ isCollapsed, onToggleCollapsed, onNavigate, className 
           to={paths.help}
           onClick={onNavigate}
           aria-label="Help centre"
+          title={isCollapsed ? 'Help centre' : undefined}
           className={cn(
             'text-ink-muted hover:bg-surface-inset hover:text-ink flex w-full items-center gap-2.5 rounded-md p-1.5 text-[0.8125rem] font-medium transition-colors',
             isCollapsed && 'justify-center',

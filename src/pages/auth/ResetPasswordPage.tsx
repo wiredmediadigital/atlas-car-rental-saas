@@ -13,11 +13,11 @@ import { type ResetPasswordInput, resetPasswordSchema } from '@/features/auth/sc
 import { toErrorMessage } from '@/lib/supabase/errors'
 
 /**
- * Both auth screens that a person reaches from an email point at the same page,
- * the one written for a reader with no membership. It does not exist until the
- * Getting started pages land; `AuthLayout` renders the link only once it does.
+ * Someone here is mid-way through a failed or expired reset, so the page that
+ * helps is the one covering sign-in and reset problems. It does not exist until
+ * the Reference pages land; `AuthLayout` renders the link only once it does.
  */
-const RESET_HELP_SLUG = 'accept-your-invitation'
+const RESET_HELP_SLUG = 'troubleshooting'
 
 /**
  * Completes a password reset.

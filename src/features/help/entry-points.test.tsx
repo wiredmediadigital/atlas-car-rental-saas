@@ -73,6 +73,7 @@ describe('the sidebar footer', () => {
     const link = screen.getByRole('link', { name: 'Help centre' })
     expect(link).toHaveAttribute('href', paths.help)
     expect(link).not.toHaveTextContent('Help centre')
+    expect(link).toHaveAttribute('title', 'Help centre')
   })
 })
 
@@ -136,6 +137,7 @@ describe('the marketing footer', () => {
 
 describe('the invitation and reset screens', () => {
   const slug = 'accept-your-invitation'
+  const resetSlug = 'troubleshooting'
 
   it('link to the invitation help page when it exists', () => {
     existing.add(slug)
@@ -151,15 +153,22 @@ describe('the invitation and reset screens', () => {
     expect(screen.queryByRole('link', { name: /help/i })).toBeNull()
   })
 
-  it('give the reset screen the same link when the page exists, and none when not', () => {
+  it('give the reset screen the troubleshooting page, and only that page', () => {
     const first = inRouter(<ResetPasswordPage />)
     expect(screen.queryByRole('link', { name: /help/i })).toBeNull()
     first.unmount()
+
+    // The invitation page existing is not enough: it is the wrong page here.
     existing.add(slug)
+    const second = inRouter(<ResetPasswordPage />)
+    expect(screen.queryByRole('link', { name: /help/i })).toBeNull()
+    second.unmount()
+
+    existing.add(resetSlug)
     inRouter(<ResetPasswordPage />)
     expect(screen.getByRole('link', { name: /help/i })).toHaveAttribute(
       'href',
-      helpArticlePath(slug),
+      helpArticlePath(resetSlug),
     )
   })
 
