@@ -23,7 +23,6 @@ License: MIT — see [LICENSE](./LICENSE).
 | Edge Functions                  | `supabase functions deploy <name>`        | `team-invitations`, `gps-provider`, `billing`, `billing-webhook`.                                                                            |
 | Auth redirect URLs              | Supabase → Auth → URL Configuration       | The application origin, plus `/auth/callback`, `/accept-invite`, `/auth/reset-password` and `/confirm-email`.                                |
 | Application base URL            | Wherever the static build is served       | `dist/` is a static SPA; `public/.htaccess` supplies the Apache/LiteSpeed rewrite.                                                           |
-| Help Centre sitemap             | `public/`, committed before the build     | `npm run help:sitemap -- https://your-domain` after deploying, and again after upgrading, because new help pages change it.                  |
 
 `VITE_APP_NAME` is optional and only names the product in the tab and the shell.
 
@@ -84,6 +83,14 @@ nothing.
 `VITE_MAP_STYLE_URL` and `VITE_MAP_ATTRIBUTION`. Map tiles are a metered commercial
 service and this product ships no endpoint of its own. Unset, the fleet map still
 plots every vehicle; it simply draws no basemap and says so.
+
+### Help Centre sitemap
+
+Search-engine output only; nothing breaks without it, and the first build does not need
+it. After the site is live, run `npm run help:sitemap -- https://your-domain` and commit
+the result, so `robots.txt` and `sitemap.xml` name your domain. Rerun it after upgrading,
+because new help pages change the file. Without it, `robots.txt` allows crawling and names
+no sitemap.
 
 ---
 

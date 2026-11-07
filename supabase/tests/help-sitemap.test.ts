@@ -12,6 +12,16 @@ import {
 
 const ORIGIN = 'https://rentals.example.org'
 
+const RESERVED_HOSTS = ['example.com', 'example.org', 'example.net']
+
+/** Hostnames in the text that are, or are subdomains of, an RFC 2606 documentation domain. */
+function placeholderHosts(text: string): string[] {
+  const hosts = [...text.matchAll(/https?:\/\/([^\s/<"]+)/g)].map((match) => match[1] ?? '')
+  return hosts.filter((host) =>
+    RESERVED_HOSTS.some((reserved) => host === reserved || host.endsWith(`.${reserved}`)),
+  )
+}
+
 function locs(xml: string): string[] {
   return [...xml.matchAll(/<loc>([^<]*)<\/loc>/g)].map((match) => match[1] ?? '')
 }
@@ -92,12 +102,25 @@ describe('help sitemap', () => {
     }
   })
 
-  test('the committed files never point crawlers at a placeholder host', () => {
+  test('the committed files never point crawlers at a reserved placeholder host', () => {
     const committed = [ROBOTS_PATH, SITEMAP_PATH]
       .filter((path) => existsSync(path))
       .map((path) => readFileSync(path, 'utf8'))
       .join('\n')
 
-    expect(committed).not.toMatch(/example\.(com|org|net)/)
+    expect(placeholderHosts(committed)).toEqual([])
+  })
+
+  test('the placeholder guard flags the reserved hosts and nothing that merely contains them', () => {
+    expect(placeholderHosts(buildRobots('https://example.com'))).toEqual(['example.com'])
+    expect(placeholderHosts(buildSitemap('https://www.example.org', ['a']))).toEqual([
+      'www.example.org',
+      'www.example.org',
+    ])
+    for (const domain of ['myexample.org', 'example.company', 'rentals.example.network']) {
+      const origin = `https://${domain}`
+      expect(placeholderHosts(buildRobots(origin))).toEqual([])
+      expect(placeholderHosts(buildSitemap(origin, ['a']))).toEqual([])
+    }
   })
 })
