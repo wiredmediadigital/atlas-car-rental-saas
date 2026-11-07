@@ -4,8 +4,12 @@ import { Link } from 'react-router-dom'
 import { paths } from '@/app/routes/paths'
 import { Wordmark } from '@/components/brand/Wordmark'
 
+import { HelpMobileNav } from './HelpMobileNav'
+import { HelpSearch } from './HelpSearch'
+import { HelpSidebar } from './HelpSidebar'
+
 export interface HelpLayoutProps {
-  /** The page tree. Omitted on surfaces that are their own index. */
+  /** The page tree. Omitted on the index, which lists the pages itself. */
   sidebar?: ReactNode
   /** The right rail — "On this page" on an article. */
   aside?: ReactNode
@@ -33,12 +37,14 @@ export function HelpLayout({ sidebar, aside, children }: HelpLayoutProps) {
           >
             <Wordmark />
           </Link>
+          <HelpSearch />
           <Link
             to={paths.help}
-            className="text-ink-subtle hover:text-ink rounded-md text-sm transition-colors"
+            className="text-ink-subtle hover:text-ink hidden shrink-0 rounded-md text-sm transition-colors sm:block"
           >
             Help centre
           </Link>
+          <HelpMobileNav>{sidebar ?? <HelpSidebar />}</HelpMobileNav>
         </div>
       </header>
 
