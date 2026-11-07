@@ -219,8 +219,12 @@ const CONSTRAINT_MESSAGES: ReadonlyArray<readonly [RegExp, string, AppErrorKind]
     'validation',
   ],
   [
-    /is still held\. refund or retain it/i,
-    'A deposit is still being held on this contract. Refund or retain it before completing the rental.',
+    // Matches both phrasings on purpose. 20261107100100 dropped "or retain it"
+    // because no retain action exists, but a browser can be talking to a
+    // project that has not had that migration applied yet, and an unmatched
+    // pattern here would put the raw SQL text in front of the user.
+    /is still held\. refund/i,
+    'A deposit is still being held on this contract. Refund it before completing the rental.',
     'validation',
   ],
   [

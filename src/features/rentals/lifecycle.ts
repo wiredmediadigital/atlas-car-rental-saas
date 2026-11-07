@@ -139,7 +139,7 @@ export function actionState(action: RentalAction, rental: RentalSnapshot): Renta
     case 'complete':
       if (rental.status !== 'active') return no('Only a rental that is out can be completed.')
       if (rental.returnedAt === null) return no('Record the return first.')
-      if (rental.depositHeldMinor > 0) return no('Refund or retain the deposit first.')
+      if (rental.depositHeldMinor > 0) return no('Refund the deposit first.')
       return ok
 
     case 'cancel':

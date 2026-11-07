@@ -73,4 +73,24 @@ describe('toAppError — Auth', () => {
     expect(error.message).toMatch(/Billing/)
     expect(error.message).not.toBe('You do not have permission to do that.')
   })
+
+  // A browser can be talking to a project that has not had 20261107100100
+  // applied, so both wordings have to reach the same friendly sentence. If the
+  // pattern ever stops covering the older one, the raw SQL message goes in
+  // front of the user instead.
+  it('explains a held deposit whether or not the database has been migrated', () => {
+    for (const raw of [
+      'A deposit of 20000 is still held. Refund it before completing the rental.',
+      'A deposit of 20000 is still held. Refund or retain it before completing the rental.',
+    ]) {
+      const error = toAppError({ code: '23514', message: raw })
+
+      expect(error.kind).toBe('validation')
+      expect(error.message).toBe(
+        'A deposit is still being held on this contract. Refund it before completing the rental.',
+      )
+      // The action named has to be one that exists.
+      expect(error.message).not.toMatch(/retain/i)
+    }
+  })
 })

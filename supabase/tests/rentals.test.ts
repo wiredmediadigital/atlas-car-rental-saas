@@ -784,6 +784,26 @@ describe('deposits and revenue', () => {
     expect((await readRental(id)).status).toBe('completed')
   })
 
+  // The block used to say "Refund or retain it". Nothing retains a deposit:
+  // deposit_held_minor is the net of 'deposit' payments and no client may write
+  // it, so an outbound one is the only way back to zero. A message naming a
+  // button that was never built leaves staff stuck on a contract they cannot
+  // close.
+  it('tells the user to refund, the only thing that clears a held deposit', async () => {
+    const id = await createRental({ depositMinor: 20000 })
+    await addPrimaryDriver(id)
+    await db.sql(`select public.rental_confirm($1)`, [id])
+    await db.sql(`select public.rental_record_payment($1, 20000, 'inbound', 'deposit')`, [id])
+    await db.sql(`select public.rental_check_out($1, $2)`, [id, nextOdometer()])
+    await db.sql(`select public.rental_check_in($1, $2)`, [id, nextOdometer()])
+
+    const message = await db.expectRejection(
+      () => db.sql(`select public.rental_complete($1)`, [id]),
+      /refund it before completing the rental/i,
+    )
+    expect(message).not.toMatch(/retain/i)
+  })
+
   it('counts rental charges as revenue and deposits as neither', async () => {
     const overview = async () => {
       return db.asUser(ownerId, async (session) => {
