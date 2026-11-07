@@ -2,6 +2,7 @@ import { render, screen, within } from '@testing-library/react'
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 
 import { AppRouter } from '@/app/routes/AppRouter'
+import { ORG_ROLES, ROLE_DESCRIPTIONS, ROLE_LABELS } from '@/lib/authz/permissions'
 import { getSupabaseClient } from '@/lib/supabase/client'
 
 import { getHelpPage } from './content'
@@ -9,6 +10,7 @@ import { warmHelpRoutes } from './help-test-support'
 import { HelpArticle } from './components/HelpArticle'
 import { OnThisPage } from './components/OnThisPage'
 import { helpSections } from './sections'
+import { resolveTokens } from './tokens'
 import type { HelpPage } from './types'
 
 /*
@@ -149,6 +151,56 @@ describe('role labels beside task sections', () => {
 
     await screen.findByRole('heading', { level: 2, name: /Delete a rental/ })
     expect(document.body.textContent).not.toContain('permission:')
+  })
+})
+
+/*
+ * `{{roleTable}}` is the one token that expands to several lines of Markdown
+ * rather than a word, and the Team page publishes the result on a public URL.
+ * A token that resolved but failed to parse would put a row of pipe characters
+ * in front of every reader without failing anything, so the assertion is that
+ * it reaches the DOM as a table — not merely that the text came out.
+ *
+ * Expectations come from PERMISSIONS' own constants. Typing "Administrator"
+ * here would recreate the second copy of the matrix that the token exists to
+ * prevent, and it would agree with itself while disagreeing with the product.
+ */
+describe('the role table a page can embed', () => {
+  const tablePage: HelpPage = {
+    slug: 'team',
+    frontMatter: {
+      title: 'Team',
+      group: 'Agency',
+      permission: 'team.view',
+      summary: 'Who can do what.',
+    },
+    body: '{{roleTable}}',
+  }
+
+  function renderTable() {
+    const body = resolveTokens(tablePage.body)
+    return render(<HelpArticle page={tablePage} body={body} sections={helpSections(body)} />)
+  }
+
+  it('renders one row per role, with the matrix label and description', async () => {
+    renderTable()
+
+    const table = await screen.findByRole('table')
+    // Header row plus one per role.
+    expect(within(table).getAllByRole('row')).toHaveLength(ORG_ROLES.length + 1)
+
+    for (const role of ORG_ROLES) {
+      expect(within(table).getByRole('cell', { name: ROLE_LABELS[role] })).toBeInTheDocument()
+      expect(within(table).getByRole('cell', { name: ROLE_DESCRIPTIONS[role] })).toBeInTheDocument()
+    }
+  })
+
+  it('leaves no raw token or pipe characters on the page', async () => {
+    renderTable()
+
+    await screen.findByRole('table')
+    expect(document.body.textContent).not.toContain('{{')
+    expect(document.body.textContent).not.toContain('|')
   })
 })
 

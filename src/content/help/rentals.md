@@ -38,6 +38,11 @@ The first is where the hire is in its life:
 There is no way back along that line. Handing a vehicle over cannot un-happen,
 so a contract that is **Out** is returned and completed, never cancelled.
 
+A hire stays **Out** until you complete it, however late it runs. The vehicle
+does not wait with it: once the return time passes, the fleet shows that
+vehicle as available again even though nobody has brought it back. That is why
+closing a late contract promptly matters — see [Vehicles](/help/vehicles).
+
 The second state is the money: **Unpaid**, **Part paid**, **Paid** or
 **Overpaid**. It is worked out from the payments recorded against the contract
 and nothing else, so the two states move independently. Closing a hire does not
@@ -101,15 +106,22 @@ version and marks the previous one superseded. Nothing is ever edited in place.
 
 **Sign** records the name as the person gives it at the counter, an optional
 signature drawn on the screen, and an optional countersignature from whoever is
-at the desk. It records that the person was present and agreed to the document
-as it stands — it does not alter the document, and it is not a qualified
-electronic signature. Plenty of agencies print and sign on paper instead; that
-is fine, the drawn signature is optional throughout.
+at the desk. The dialog states what that amounts to, and it is worth reading
+before you rely on it: it records that the person was at the counter and agreed
+to the document as it stands, and it does not alter the document. Plenty of
+agencies print and sign on paper instead; that is fine, the drawn signature is
+optional throughout.
 
 A contract cannot be issued against a draft or a cancelled booking.
 
 ## Hand the vehicle over
 <!-- permission: rentals.update -->
+
+Issue the contract and take the signature first — that is the section above,
+and its panel sits on the right of the contract screen. The document freezes
+whatever has been recorded at the moment it is issued, so one issued before the
+hand-over carries no odometer and no condition notes. Reissue afterwards if you
+want those on the paperwork.
 
 **Check out** captures when the vehicle went out, the odometer, the fuel level
 and the condition. The odometer is required, because every later question about
@@ -230,10 +242,9 @@ nothing booked across the whole period, and only ones that are in service. A
 vehicle marked as in maintenance, taken off the road or retired is not offered
 at all, whatever its diary looks like.
 
-**It says the vehicle is no longer free.** Somebody booked it between the moment
-the screen was drawn and the moment you saved. Availability is answered as of
-now; the booking itself is what settles it. Choose another vehicle or change the
-dates.
+**It says the vehicle is no longer free.** Somebody else booked it while you
+were on this screen. The list of free vehicles was correct when it loaded and
+is not refreshed as you work. Choose another vehicle, or change the dates.
 
 **I cannot confirm the reservation.** No primary driver is named. Add one on the
 People card.

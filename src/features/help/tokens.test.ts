@@ -1,3 +1,4 @@
+import { ORG_ROLES, ROLE_DESCRIPTIONS, ROLE_LABELS } from '@/lib/authz/permissions'
 import { resetEnvironmentCache } from '@/lib/config/env'
 
 import { SUPPORT_EMAIL } from './constants'
@@ -71,6 +72,46 @@ describe('resolveTokens', () => {
 
     expect(result).toBe('Welcome to Pevvy.')
     expect(result).not.toContain('{{')
+  })
+})
+
+describe('{{roleTable}}', () => {
+  /*
+   * Expectations are built from PERMISSIONS' own constants rather than typed
+   * out. A test that hard-codes "Administrator" would be the second copy of the
+   * matrix that this token exists to avoid, and it would pass while the help
+   * page said something the product no longer does.
+   */
+  test('renders one row per role, in ORG_ROLES order, from the matrix itself', () => {
+    useValidEnvironment('Acme Fleet')
+
+    const rows = resolveTokens('{{roleTable}}')
+      .split('\n')
+      .filter((line) => line.startsWith('|'))
+      .slice(2)
+
+    expect(rows).toEqual(
+      ORG_ROLES.map((role) => `| ${ROLE_LABELS[role]} | ${ROLE_DESCRIPTIONS[role]} |`),
+    )
+  })
+
+  test('renders a table GitHub-flavoured Markdown will parse', () => {
+    useValidEnvironment('Acme Fleet')
+
+    const lines = resolveTokens('{{roleTable}}').split('\n')
+
+    expect(lines[0]).toMatch(/^\|.+\|.+\|$/)
+    expect(lines[1]).toBe('| --- | --- |')
+    expect(lines).toHaveLength(ORG_ROLES.length + 2)
+  })
+
+  test('leaves no cell empty, so no role reaches a reader undescribed', () => {
+    useValidEnvironment('Acme Fleet')
+
+    for (const role of ORG_ROLES) {
+      expect(ROLE_LABELS[role].trim()).not.toBe('')
+      expect(ROLE_DESCRIPTIONS[role].trim()).not.toBe('')
+    }
   })
 })
 

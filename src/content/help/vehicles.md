@@ -35,6 +35,15 @@ first one **In service** rather than Available. **Rented** and **Reserved** are
 read from the contracts against the vehicle, so they appear and disappear on
 their own as hires start and finish.
 
+That last word matters. **Rented** is read from the contract the vehicle is out
+on *between its collection and return times*, and it clears when that hire ends
+— when the return time passes, not when you record the vehicle back. A hire
+that runs late therefore leaves the vehicle reading **Available** while it is
+still with the customer, and free to be booked for dates after that return
+time. Recording the return and completing the contract is what keeps the fleet
+honest; until then, the rentals list is the one that knows, under **Past return
+time**.
+
 A vehicle is offered to a new booking only when it is in service, not retired,
 and free for the whole period requested.
 
@@ -71,7 +80,13 @@ from a dropdown.
 
 Nothing is written until you have seen the preview. Every row is put through
 the same checks the add-vehicle form uses, and the preview names the rows that
-would fail and why — including plates that already exist in the fleet.
+would fail and why.
+
+The preview also tries to flag plates you already have, but treat that as a
+help rather than a guarantee: on a large fleet it does not check every existing
+vehicle, so a duplicate can reach the import and be refused there instead. The
+refusal is safe — nothing is overwritten — and the row is reported with its
+line number like any other.
 
 A part-successful import is a real outcome, not a failure: the rows that passed
 are added, and the ones that did not are listed with their line numbers so you
@@ -171,9 +186,15 @@ and cannot be undone.
 another contract across some part of that period, or it is in maintenance, off
 the road, or retired. Its own page says which.
 
-**It says Rented and I did not set that.** You cannot. That status is read from
-the contract the vehicle is out on, and it clears itself when the hire is
-completed.
+**It says Rented and I did not set that.** You cannot set it. It is read from
+the contract the vehicle is out on, and it clears when that hire ends.
+
+**It says Available but the vehicle is still out.** The hire has run past its
+return time and nobody has recorded the vehicle back. **Rented** only covers
+the period between collection and return, so once the return time passes the
+vehicle reads **Available** again and can be booked for later dates. Find the
+contract under **Past return time** on the rentals list, record the return, and
+complete it.
 
 **It says In maintenance even though it is out with a customer.** A status you
 set by hand takes precedence in the badge. The contract is unaffected — but it
@@ -189,9 +210,9 @@ recorded. If the last one was wrong, the correction has to go in as a reading
 that is at least as high.
 
 **Rows were skipped during an import.** The preview lists each one with its line
-number and the reason. Nothing stops you fixing those rows in the spreadsheet
-and importing the file again — rows that are already in the fleet are flagged as
-duplicate plates rather than added twice.
+number and the reason. Fix those rows in the spreadsheet and import the file
+again; the rows that already went in are refused as duplicate plates rather
+than added twice.
 
 **The compliance warning is not appearing when I expect it.** The window is an
 agency setting, shown in the panel's own heading. A document with no date

@@ -6,8 +6,8 @@ permission: team.view
 ---
 
 > **In short** — everyone in the agency can see who else is in it. Changing who
-> is in it, and what they can reach, is a smaller group's job, and handing the
-> agency itself to somebody else is one person's. Each heading below says which.
+> is in it, and what each of them can reach, is an administrator's job, and
+> handing the agency itself to somebody else is the owner's alone.
 
 ![The team page, listing the people with access](/help/team-01-members.jpg)
 
@@ -19,32 +19,38 @@ what has changed.
 The lower two are not shown to everyone, because both of them name people who
 are not members of the agency — not yet, or not any more.
 
-### How access works here
+### The four roles
 
-Access comes in four levels, from the front desk upwards. Nothing in
-{{productName}} asks you to learn them by name: wherever you pick one, the
-screen prints a line describing what that level actually covers in this
-product, and that line is the thing to read.
+Everyone in the agency holds exactly one of these, and it decides what they can
+reach everywhere in {{productName}} — not just on this page.
 
-Two points are worth knowing before you start:
+{{roleTable}}
 
-- A level is granted for **this agency only**. It changes nothing else about
+Each role includes everything the one below it can do. An administrator can do
+anything a manager can, and more; the owner can do anything an administrator
+can, plus hand the agency on.
+
+Three things are worth knowing before you start:
+
+- A role is held in **this agency only**. It changes nothing else about
   somebody's account, and nothing in any other agency they belong to.
 - A change takes effect immediately, everywhere. Nobody has to sign out and
   back in.
+- Nobody can give somebody a role above their own, and nobody can change their
+  own.
 
-Each task below is labelled with who may do it, wherever that is narrower than
-everybody. Those labels are read from the same table the database enforces, so
-they cannot quietly go out of date.
+Each task below is labelled with the role it needs, wherever that is more than
+everybody has.
 
 ## Invite somebody to the agency
 <!-- permission: team.invite -->
 
-**Invite member** asks for an email address and a level of access, and sends
-them a link. The link is good for seven days. Until they use it, they appear
-under Invitations rather than on the roster.
+**Invite member** asks for an email address and a role, and sends them a link.
+The link is good for seven days. Until they use it, they appear under
+Invitations rather than on the roster.
 
-You can only grant a level at or below your own.
+You can only grant a role at or below your own, and the owner's role is not on
+the list at all — an invitation cannot grant it.
 
 Two badges on the Invitations list mean different things and are easy to run
 together. The one beside the address is the state of the invitation — waiting,
@@ -63,7 +69,7 @@ the provider refused — you are handed a one-time link in a dialog instead, for
 you to pass on yourself. It appears straight after inviting somebody, and
 **Send again** produces a fresh one later.
 
-Treat that link as a key. Whoever opens it joins the agency at the level the
+Treat that link as a key. Whoever opens it joins the agency in the role the
 invitation names. It is shown once and nowhere else: not in an email, not in
 the list, not afterwards. If you lose it, send again and pass on the new one.
 
@@ -77,12 +83,12 @@ agency may issue in an hour.
 ## Change what somebody can reach
 <!-- permission: team.update -->
 
-**Change role** is on the row's menu. The dialog describes each level as you
-select it.
+**Change role** is on the row's menu. The dialog describes each role as you
+select it, in the same words as the table above.
 
-You cannot change your own, and you cannot act on somebody above you — on those
-rows the action is simply not offered. For the person who owns the agency there
-is nothing to change at all: moving that is a transfer, below.
+You cannot change your own role, and you cannot act on somebody above you — on
+those rows the action is simply not offered. The owner's role is not on the
+list at all, because it does not move this way: it moves by transfer, below.
 
 The change applies immediately, everywhere.
 
@@ -105,8 +111,8 @@ Your own row offers **Leave this agency**. You lose access immediately; your
 account and your work stay as they are, and somebody would have to invite you
 back.
 
-An agency always has somebody who owns it, so if that is you, you cannot leave
-until you have handed it on. The dialog says so rather than letting you try.
+An agency always has an owner, so if that is you, you cannot leave until you
+have transferred ownership. The dialog says so rather than letting you try.
 
 ## Hand the agency on to somebody else
 <!-- permission: team.transferOwnership -->
@@ -114,10 +120,10 @@ until you have handed it on. The dialog says so rather than letting you try.
 **Transfer ownership** is the only way an agency changes hands. It is not
 something an invitation can grant, and it is not reachable from **Change role**.
 
-Pick the person, and pick what you keep for yourself afterwards. Both changes
-happen together, so the agency is never without somebody at the top.
+Pick the person, and pick the role you keep for yourself afterwards. Both
+changes happen together, so the agency is never without an owner.
 
-Afterwards, only the new holder can transfer it again — including back to you.
+Afterwards, only the new owner can transfer it again — including back to you.
 Nothing else moves: no contract, cost or customer record is touched.
 
 ## Check what has changed
@@ -152,11 +158,11 @@ Issue a fresh one.
 dialog says so. They are on the roster; search it by name or address.
 
 **The row has no menu, or the action I want is missing.** You can act on people
-at or below your own level only, and never on yourself, apart from leaving. The
+at or below your own role only, and never on yourself, apart from leaving. The
 roster shows everyone regardless; what is missing is the action, not the person.
 
-**I cannot leave the agency.** You are the one who owns it. Transfer ownership
-first, choosing what you keep, and then leave.
+**I cannot leave the agency.** You are the owner. Transfer ownership first,
+choosing the role you keep, and then leave.
 
 **I removed somebody and their work has gone from my screen.** It has not. A
 removal ends access and nothing else; every contract, customer and cost they
