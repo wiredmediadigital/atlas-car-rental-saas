@@ -4,6 +4,7 @@ import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 import { AppRouter } from '@/app/routes/AppRouter'
 import { getSupabaseClient } from '@/lib/supabase/client'
 
+import { getHelpPage } from './content'
 import { warmHelpRoutes } from './help-test-support'
 import { HelpArticle } from './components/HelpArticle'
 import { OnThisPage } from './components/OnThisPage'
@@ -46,7 +47,12 @@ describe('a signed-out visitor at /help/rentals', () => {
     visit('/help/rentals')
 
     expect(await screen.findByRole('heading', { level: 1, name: 'Rentals' })).toBeInTheDocument()
-    expect(screen.getByText('Create, track and close rentals.')).toBeInTheDocument()
+    // Read from the page rather than quoted here: what matters is that the
+    // article's own summary reaches the screen, not which sentence it is this
+    // month. A literal made this assertion a second, silent owner of the prose.
+    const summary = getHelpPage('rentals')?.frontMatter.summary ?? ''
+    expect(summary).not.toBe('')
+    expect(screen.getByText(summary)).toBeInTheDocument()
   })
 
   it('makes no Supabase auth call while rendering a help article', async () => {
