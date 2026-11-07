@@ -452,6 +452,78 @@ describe('derived availability', () => {
     expect(afterwards.map((row) => row.vehicles_available_between)).toContain(id)
   })
 
+  // An overdue hire is the one case where a later period cannot be promised:
+  // the contract is active, the car is still with the customer, and its real
+  // end date is unknown. vehicle_fleet already calls that 'rented'; the booking
+  // helper has to agree, or the picker offers a car the fleet page is showing
+  // as out at the same moment.
+  it('does not offer a vehicle whose active hire is overdue and unreturned', async () => {
+    const id = await createVehicle(agencyA.organizationId, 'OVERDUE-1')
+    await db.sql(
+      `insert into public.rentals
+         (organization_id, vehicle_id, customer_id, starts_at, ends_at, currency, status,
+          picked_up_at, pickup_odometer)
+       values ($1, $2, $3, now() - interval '5 days', now() - interval '1 day', 'EUR', 'active',
+               now() - interval '5 days', 1000)`,
+      [agencyA.organizationId, id, customerA],
+    )
+
+    expect(await effectiveStatus(id)).toBe('rented')
+
+    const later = await db.asUser(agencyA.userId, (session) =>
+      session.sql<{ vehicles_available_between: string }>(
+        `select * from public.vehicles_available_between($1, now() + interval '7 days', now() + interval '9 days')`,
+        [agencyA.organizationId],
+      ),
+    )
+    expect(later.map((row) => row.vehicles_available_between)).not.toContain(id)
+  })
+
+  // The guard is about overdue hires only. Booking a car for after a hire that
+  // is running to schedule is ordinary business, and the fleet timeline exists
+  // to support exactly that.
+  it('still offers a vehicle for after a hire that is running to schedule', async () => {
+    const id = await createVehicle(agencyA.organizationId, 'ONTIME-1')
+    await db.sql(
+      `insert into public.rentals
+         (organization_id, vehicle_id, customer_id, starts_at, ends_at, currency, status,
+          picked_up_at, pickup_odometer)
+       values ($1, $2, $3, now() - interval '1 day', now() + interval '2 days', 'EUR', 'active',
+               now() - interval '1 day', 1000)`,
+      [agencyA.organizationId, id, customerA],
+    )
+
+    const later = await db.asUser(agencyA.userId, (session) =>
+      session.sql<{ vehicles_available_between: string }>(
+        `select * from public.vehicles_available_between($1, now() + interval '7 days', now() + interval '9 days')`,
+        [agencyA.organizationId],
+      ),
+    )
+    expect(later.map((row) => row.vehicles_available_between)).toContain(id)
+  })
+
+  // Back but not yet closed: the car is physically on the forecourt, so a later
+  // period can be promised even though the contract is still open and overdue.
+  it('offers a vehicle returned late but not yet completed', async () => {
+    const id = await createVehicle(agencyA.organizationId, 'BACKLATE-1')
+    await db.sql(
+      `insert into public.rentals
+         (organization_id, vehicle_id, customer_id, starts_at, ends_at, currency, status,
+          picked_up_at, pickup_odometer, returned_at, return_odometer)
+       values ($1, $2, $3, now() - interval '5 days', now() - interval '1 day', 'EUR', 'active',
+               now() - interval '5 days', 1000, now() - interval '1 hour', 1200)`,
+      [agencyA.organizationId, id, customerA],
+    )
+
+    const later = await db.asUser(agencyA.userId, (session) =>
+      session.sql<{ vehicles_available_between: string }>(
+        `select * from public.vehicles_available_between($1, now() + interval '7 days', now() + interval '9 days')`,
+        [agencyA.organizationId],
+      ),
+    )
+    expect(later.map((row) => row.vehicles_available_between)).toContain(id)
+  })
+
   it('agrees with the exclusion constraint that ultimately decides', async () => {
     const id = await createVehicle(agencyA.organizationId, 'AGREES-1')
     await db.sql(
