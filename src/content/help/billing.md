@@ -16,7 +16,7 @@ Billing is account administration inside a working product, not a pricing page.
 There are no savings claims and no upgrade nudges here — somebody came to check
 a date or fix a payment method.
 
-### What the status badge is telling you
+## What the status badge is telling you
 
 The badge says precisely what is known and no more, because several of these
 pairs look alike and are acted on differently:

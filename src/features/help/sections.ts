@@ -84,6 +84,22 @@ function headingId(heading: string): string {
 }
 
 /**
+ * Makes an anchor unique within its page, and records it as taken.
+ *
+ * Two sections may share a heading — "Add a charge" under two different
+ * tasks — and duplicate ids are invalid HTML, besides sending both "On this
+ * page" links to whichever heading comes first. The first keeps the plain slug,
+ * so an existing link to it still works; later ones take `-2`, `-3`. The loop
+ * also steps past a suffixed id that a real heading already claimed.
+ */
+function uniqueId(base: string, taken: Set<string>): string {
+  let candidate = base
+  for (let suffix = 2; taken.has(candidate); suffix += 1) candidate = `${base}-${suffix}`
+  taken.add(candidate)
+  return candidate
+}
+
+/**
  * Pairs each task section with its own permission.
  *
  * `sectionPermissions` returns a page's keys in document order and says nothing
@@ -134,13 +150,15 @@ export function helpSections(body: string): readonly HelpSection[] {
     }
   })
 
+  const takenIds = new Set<string>()
+
   return found.map((entry, position) => {
     const sectionEnd = found[position + 1]?.index ?? lines.length
     const [permission] = sectionPermissions(lines.slice(entry.index + 1, sectionEnd).join('\n'))
 
     return {
       heading: entry.heading,
-      id: headingId(entry.heading) || `section-${position + 1}`,
+      id: uniqueId(headingId(entry.heading) || `section-${position + 1}`, takenIds),
       roleLabel:
         permission !== undefined && isPermissionKey(permission) ? roleLabelFor(permission) : null,
       line: entry.index + 1,

@@ -187,3 +187,25 @@ describe('anchor ids', () => {
     expect(helpSections('## —\n')[0]?.id).toBe('section-1')
   })
 })
+
+describe('helpSections with repeated headings', () => {
+  const REPEATED = ['## Add a charge', '', '## Add a charge', '', '## Add a charge'].join('\n')
+
+  it('gives every section its own id, keeping the first one plain', () => {
+    const ids = helpSections(REPEATED).map((section) => section.id)
+
+    expect(ids).toEqual(['add-a-charge', 'add-a-charge-2', 'add-a-charge-3'])
+  })
+
+  it('does not hand out an id a later heading already owns', () => {
+    const body = ['## Notes', '', '## Notes', '', '## Notes 2'].join('\n')
+
+    const ids = helpSections(body).map((section) => section.id)
+
+    expect(new Set(ids).size).toBe(3)
+  })
+
+  it('keeps each repeated heading on its own source line', () => {
+    expect(helpSections(REPEATED).map((section) => section.line)).toEqual([1, 3, 5])
+  })
+})

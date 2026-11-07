@@ -19,7 +19,7 @@ is the half with a deadline.
 A new agency sees zeros, because it has zeros. There is no sample fleet and no
 illustrative revenue anywhere in {{productName}}.
 
-### Which figures move with the period
+## Which figures move with the period
 
 The selector offers this month, last month, the last three months and this
 year. Month and year boundaries are the agency's own — a month begins when the

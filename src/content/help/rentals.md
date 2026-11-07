@@ -23,7 +23,7 @@ Everything the toolbar does ends up in the address bar, so a view you have set
 up can be bookmarked, reloaded or sent to a colleague and it comes back the
 same.
 
-### The two states every contract has
+## The two states every contract has
 
 The first is where the hire is in its life:
 

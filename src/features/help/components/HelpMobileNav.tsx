@@ -1,10 +1,13 @@
 import * as Dialog from '@radix-ui/react-dialog'
 import { Menu, X } from 'lucide-react'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { MouseEvent, ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 
 import { paths } from '@/app/routes/paths'
+
+/** Where the sidebar takes over from this dialog — Tailwind's `lg`. */
+const DESKTOP_QUERY = '(min-width: 1024px)'
 
 export interface HelpMobileNavProps {
   /** The page tree, shown in the dialog. */
@@ -20,6 +23,24 @@ export interface HelpMobileNavProps {
  */
 export function HelpMobileNav({ children }: HelpMobileNavProps) {
   const [isOpen, setIsOpen] = useState(false)
+
+  /*
+   * Hiding the dialog with `lg:hidden` is not closing it. Radix keeps its body
+   * scroll-lock and focus trap for as long as the dialog is open, so a reader
+   * who opened the menu and then widened the window would be left with a page
+   * that will not scroll and focus held inside `display: none` content. Close
+   * it for real once the sidebar is on screen. `matchMedia` is absent in some
+   * environments, in which case there is nothing to listen to.
+   */
+  useEffect(() => {
+    if (typeof window.matchMedia !== 'function') return
+    const query = window.matchMedia(DESKTOP_QUERY)
+    const handleChange = (event: MediaQueryListEvent) => {
+      if (event.matches) setIsOpen(false)
+    }
+    query.addEventListener('change', handleChange)
+    return () => query.removeEventListener('change', handleChange)
+  }, [])
 
   // Choosing any link in the tree navigates; the dialog must not stay over it.
   function handleContentClick(event: MouseEvent<HTMLDivElement>) {

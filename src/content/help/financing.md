@@ -15,7 +15,7 @@ permission: financing.view
 A vehicle bought outright needs nothing here. Financing exists for the cars
 somebody is still paying for.
 
-### Three figures, and why they are three
+## Three figures, and why they are three
 
 **Paid to lenders** is every unit of currency that went to the lender,
 whatever it was for. It is what the bank account felt. It is not a cost.

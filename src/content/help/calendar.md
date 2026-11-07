@@ -22,7 +22,7 @@ filters, so a board you have set up can be bookmarked or sent to a colleague.
 The search box is deliberately left out of the address bar: people type
 customer names into it.
 
-### The four spans
+## The four spans
 
 **Day** is the counter's own day at hour resolution. **Week** is where most
 scheduling questions are asked. **2 weeks** is long enough to see turnarounds.
