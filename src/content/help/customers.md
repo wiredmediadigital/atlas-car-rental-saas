@@ -24,8 +24,8 @@ colleague.
 ### What the search looks at
 
 Name, email and both phone numbers. It also matches identification numbers:
-type a passport number with or without spaces and it finds its owner, as long
-as you give it at least four characters. Below that a document search matches
+type a passport number with or without spaces and it finds the customer it
+belongs to, as long as you give it at least four characters. Below that a document search matches
 most of the agency's paperwork and is not what anybody meant.
 
 Identification numbers are never put in the address bar. Names are not secret;

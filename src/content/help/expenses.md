@@ -45,9 +45,9 @@ because one consistent basis cannot double count.
 | A vehicle | Tyres, a service, this car's insurance. |
 | A rental | A delivery, a toll, cleaning that one hire caused. |
 
-They are mutually exclusive and the database enforces it. A cost attached to a
-contract carries no vehicle of its own: the car is whichever one the contract
-is for.
+They are mutually exclusive, and a cost that tried to be two of them is
+refused. A cost attached to a contract carries no vehicle of its own: the car
+is whichever one the contract is for.
 
 ## Record a cost
 <!-- permission: expenses.create -->
@@ -72,8 +72,9 @@ fail.
 ## Keep the categories and suppliers in order
 <!-- permission: expenseVendors.manage -->
 
-**Categories and suppliers** holds both lists. A supplier is operational — the
-manager who records a repair needs to be able to add the garage they just used.
+**Categories and suppliers** holds both lists. A supplier is operational:
+whoever records a repair has to be able to add the garage they just used, which
+is why `expenseVendors.manage` sits a level below `expenseCategories.manage`.
 
 Retiring an entry keeps it on the costs that already use it and takes it out of
 the picker. Two suppliers cannot share a tax or business identifier.

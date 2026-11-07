@@ -19,8 +19,8 @@ there is.
 
 The span and the date live in the address bar, along with the status and make
 filters, so a board you have set up can be bookmarked or sent to a colleague.
-The search box is deliberately left out of the address bar: staff type customer
-names into it.
+The search box is deliberately left out of the address bar: people type
+customer names into it.
 
 ### The four spans
 

@@ -1,5 +1,6 @@
 import {
   ORG_ROLES,
+  PERMISSIONS,
   ROLE_DESCRIPTIONS,
   ROLE_LABELS,
   roleRank,
@@ -9,6 +10,7 @@ import type * as PermissionsModule from '@/lib/authz/permissions'
 import { resetEnvironmentCache } from '@/lib/config/env'
 
 import { SUPPORT_EMAIL } from './constants'
+import { isPermissionKey, roleLabelFor } from './permission-labels'
 import { resolveTokens } from './tokens'
 
 /**
@@ -200,6 +202,71 @@ describe('{{roleTable}} with a pipe in the matrix', () => {
     expect(staffRow).toContain('Books \\| takes payments.')
     // ...and the row still has exactly the two cells every other row has.
     expect(staffRow?.split(/(?<!\\)\|/).filter((part) => part.trim() !== '')).toHaveLength(2)
+  })
+})
+
+/*
+ * The permission matrix the "Who can do what" reference renders.
+ *
+ * Expectations are built from PERMISSIONS and from `roleLabelFor`, never typed
+ * out. A test naming `rentals.create` and "Everyone in the agency" would be the
+ * third copy of the matrix, and it would go on passing while the page told a
+ * reader they may do something the database refuses.
+ */
+describe('{{permissionMatrix}}', () => {
+  test('gives every permission in the matrix exactly one row, in its declared order', () => {
+    useValidEnvironment('Acme Fleet')
+
+    const { rows } = parseTable(resolveTokens('{{permissionMatrix}}'))
+
+    expect(rows.map((row) => row[0])).toEqual(Object.keys(PERMISSIONS).map((key) => `\`${key}\``))
+  })
+
+  test('states the derived role label, and says so in words where everyone holds it', () => {
+    useValidEnvironment('Acme Fleet')
+
+    const { rows } = parseTable(resolveTokens('{{permissionMatrix}}'))
+
+    const expected = Object.keys(PERMISSIONS).map((key) =>
+      isPermissionKey(key) ? roleLabelFor(key) : null,
+    )
+    rows.forEach((row, index) => {
+      const label = expected[index]
+      if (label === null) expect(row[1]).toBe('Everyone in the agency')
+      else expect(row[1]).toBe(label)
+    })
+  })
+
+  test('leaves no cell empty, so no permission reaches a reader unanswered', () => {
+    useValidEnvironment('Acme Fleet')
+
+    const { rows } = parseTable(resolveTokens('{{permissionMatrix}}'))
+
+    for (const row of rows) {
+      expect(row).toHaveLength(2)
+      for (const cell of row) expect(cell).not.toBe('')
+    }
+  })
+
+  test('renders a table GitHub-flavoured Markdown will parse', () => {
+    useValidEnvironment('Acme Fleet')
+
+    const lines = resolveTokens('{{permissionMatrix}}').split('\n')
+    const { header } = parseTable(resolveTokens('{{permissionMatrix}}'))
+
+    expect(header).toHaveLength(2)
+    expect(lines[1]).toBe('| --- | --- |')
+    expect(lines).toHaveLength(Object.keys(PERMISSIONS).length + 2)
+  })
+
+  test('replaces every occurrence, and leaves surrounding prose alone', () => {
+    useValidEnvironment('Acme Fleet')
+
+    const result = resolveTokens('Before\n\n{{permissionMatrix}}\n\nAfter')
+
+    expect(result).not.toContain('{{')
+    expect(result.startsWith('Before\n\n|')).toBe(true)
+    expect(result.endsWith('|\n\nAfter')).toBe(true)
   })
 })
 

@@ -113,9 +113,11 @@ out of the document entirely.
 
 **The logo was refused.** PNG, JPEG and WebP up to 2 MB.
 
-**I cannot find the compliance warning window or the GPS freshness windows.**
-They are agency settings, but there is no screen to change them in this build.
-The panels that use them state the window they are using.
+**I cannot find the compliance warning window or the tracking freshness
+windows.** They are agency settings, but there is no screen to change them in
+this build. The vehicle compliance panel names the window it is using — thirty
+days unless the agency's stored setting says otherwise — and the tracking
+badges describe theirs in words, starting from ten minutes and two hours.
 
 ## Where to go next
 

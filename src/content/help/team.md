@@ -171,7 +171,13 @@ check its filters.
 
 ## Where to go next
 
-- [Rentals](/help/rentals) — the actions the front desk uses every day, each
-  labelled with who may do it.
-- [Vehicles](/help/vehicles) — the same, for the fleet.
+- [Who can do what](/help/who-can-do-what) — every action in the product and
+  the role it needs.
+- [Accept your invitation](/help/accept-your-invitation) — what the person at
+  the other end of an invitation sees.
+- [Settings](/help/settings) — the agency details and contract wording an
+  administrator also owns.
+- [Billing](/help/billing) — the subscription, which is the owner's alone.
+- [Troubleshooting](/help/troubleshooting) — invitations that do not arrive and
+  links that do not work.
 - [Help centre](/help) — every other page.

@@ -74,7 +74,7 @@ included, because gross is what left the agency.
 **Operating result** is the first less the second. The page says plainly that
 this is not profit, and it is worth repeating here: financing, depreciation,
 salaries nobody entered and the agency's own tax position are all outside it.
-An owner who treats it as profit will be wrong by whatever was never recorded.
+Anyone who treats it as profit will be wrong by whatever was never recorded.
 
 **Outstanding** is money owed on contracts that are reserved, out or completed.
 It is a balance as at now and does not move with the period.

@@ -1,9 +1,10 @@
 import { render, screen, within } from '@testing-library/react'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 
 import { AppRouter } from '@/app/routes/AppRouter'
 import { helpArticlePath } from '@/app/routes/paths'
 import { getHelpPage } from '@/features/help/content'
+import { warmHelpRoutes } from '@/features/help/help-test-support'
 import { HELP_NAVIGATION } from '@/features/help/navigation'
 import { getSupabaseClient } from '@/lib/supabase/client'
 
@@ -11,7 +12,7 @@ import { getSupabaseClient } from '@/lib/supabase/client'
  * Rendered through the real `AppRouter` with no providers, like
  * `help-routing.test.tsx`: if `/help` is ever registered inside a guard, the
  * guard's `useAuth` throws and these fail. Assertions read `HELP_NAVIGATION`
- * rather than a literal count, so they hold as Tasks 10 and 11 add pages.
+ * rather than a literal count, so they hold as the content grows.
  */
 
 vi.mock('@/lib/supabase/client', async (importOriginal) => ({
@@ -20,6 +21,9 @@ vi.mock('@/lib/supabase/client', async (importOriginal) => ({
     throw new Error('The Help Centre must not reach Supabase.')
   }),
 }))
+
+// The help routes are lazy; this file visits one on every test.
+beforeAll(warmHelpRoutes)
 
 async function visitIndex() {
   window.history.pushState({}, '', '/help')

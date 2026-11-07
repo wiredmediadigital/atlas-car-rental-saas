@@ -275,7 +275,13 @@ changes.
 
 ## Where to go next
 
+- [Calendar](/help/calendar) — the same contracts as a board, and moving one
+  that has not been collected.
 - [Vehicles](/help/vehicles) — what makes a vehicle bookable, and why one might
   not be offered.
-- [Team](/help/team) — who in the agency can do each of the things above.
+- [Customers](/help/customers) — the renter and driver records a contract draws
+  on.
+- [Reports](/help/reports) — what the contracts came to, over a period.
+- [Who can do what](/help/who-can-do-what) — the full list of who may do each
+  of the things above.
 - [Help centre](/help) — every other page.

@@ -225,5 +225,12 @@ recorded never warns, because there is nothing to warn about.
 
 - [Rentals](/help/rentals) — booking a vehicle out, and what happens to its
   odometer when you do.
-- [Team](/help/team) — who in the agency can add, edit and retire vehicles.
+- [Calendar](/help/calendar) — what each vehicle is committed to, week by week.
+- [Expenses](/help/expenses) — attaching a cost to a vehicle, which is what
+  makes its running cost mean anything.
+- [Financing](/help/financing) — the loan or lease behind a car.
+- [GPS tracking](/help/gps-tracking) — fitting a tracker to one of these
+  records.
+- [Who can do what](/help/who-can-do-what) — who may add, edit and retire
+  vehicles.
 - [Help centre](/help) — every other page.

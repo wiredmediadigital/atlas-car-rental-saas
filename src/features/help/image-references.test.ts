@@ -1,5 +1,6 @@
 import { loadHelpPages } from './content'
 import { extractImageReferences, HELP_IMAGE_MANIFEST, helpImageFileName } from './images'
+import { HELP_GROUPS } from './types'
 
 /*
  * The files in public/help, by name. A lazy glob is used only for its keys, so
@@ -97,16 +98,32 @@ describe('image references in help pages', () => {
   })
 
   /*
-   * Scoped to the pages that exist today. This grows with the content on its
-   * own: a page added to src/content/help is held to it from the moment it
-   * lands. Task 11 completes the page set, and from there the rule reads as the
-   * design states it — every page outside Reference carries one.
+   * EXEMPT ON PURPOSE — do not "tidy" these two groups back in.
+   *
+   * An orientation image shows a module as the reader first meets it, so the
+   * rule only means anything for a page that describes a module. `Getting
+   * started` and `Reference` describe none: they are cross-cutting guides, and
+   * the screens three of them are about — sign-in, the invitation screen and
+   * creating an agency — were never captured. The shot list records that
+   * (docs/superpowers/specs/2026-11-06-help-screenshot-shot-list.md), and
+   * `public/help` holds images for the thirteen modules and nothing else.
+   *
+   * They may still carry an image where one genuinely helps; what they are not
+   * is required to.
    */
-  test('every existing page outside the Reference group carries an orientation image', () => {
+  const EXEMPT_FROM_ORIENTATION_IMAGE: readonly string[] = ['Getting started', 'Reference']
+
+  test('every page describing a module carries an orientation image', () => {
     const bare = pages
-      .filter((page) => page.frontMatter.group !== 'Reference')
+      .filter((page) => !EXEMPT_FROM_ORIENTATION_IMAGE.includes(page.frontMatter.group))
       .filter((page) => extractImageReferences(page.body).length === 0)
 
     expect(bare.map((page) => page.slug)).toEqual([])
+  })
+
+  test('the exemption covers only those two groups, so a new module group is held to the rule', () => {
+    const held = HELP_GROUPS.filter((group) => !EXEMPT_FROM_ORIENTATION_IMAGE.includes(group))
+
+    expect(held).toEqual(['Overview', 'Operations', 'Fleet', 'Finance', 'Agency'])
   })
 })

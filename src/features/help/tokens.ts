@@ -1,7 +1,8 @@
-import { ORG_ROLES, ROLE_DESCRIPTIONS, ROLE_LABELS } from '@/lib/authz/permissions'
+import { ORG_ROLES, PERMISSIONS, ROLE_DESCRIPTIONS, ROLE_LABELS } from '@/lib/authz/permissions'
 import { getAppName } from '@/lib/config/env'
 
 import { SUPPORT_EMAIL } from './constants'
+import { isPermissionKey, roleLabelFor } from './permission-labels'
 
 /**
  * Help prose never writes the product name or support address literally. It
@@ -19,7 +20,15 @@ import { SUPPORT_EMAIL } from './constants'
  * a role or reword what it covers, and the help text follows without anybody
  * remembering to edit Markdown.
  *
- * Only these three tokens are replaced. Any other `{{...}}` sequence is left
+ * `{{permissionMatrix}}` is the same argument carried to its end. The "Who can
+ * do what" page exists to answer "may I do this", and the only honest answer
+ * is the whole of `PERMISSIONS`. Typed into Markdown that would be sixty rows
+ * free to drift from the matrix they claim to describe, and the first drift
+ * would tell somebody they may do something the database refuses. Generated,
+ * it cannot drift, and a permission added to the matrix appears on the page the
+ * same day.
+ *
+ * Only these four tokens are replaced. Any other `{{...}}` sequence is left
  * as written so a typo such as `{{productname}}` stays visible in the rendered
  * page and is caught in review, rather than silently vanishing.
  *
@@ -30,6 +39,12 @@ export function resolveTokens(markdown: string): string {
     .replaceAll('{{productName}}', () => getAppName())
     .replaceAll('{{supportEmail}}', () => SUPPORT_EMAIL)
     .replaceAll('{{roleTable}}', () => roleTable())
+    .replaceAll('{{permissionMatrix}}', () => permissionMatrix())
+}
+
+/** A pipe inside a cell would end it early and shift every column after it. */
+function cell(text: string): string {
+  return text.replaceAll('|', '\\|')
 }
 
 /**
@@ -48,11 +63,37 @@ export function resolveTokens(markdown: string): string {
  * the role labels are counted against the text that is actually rendered.
  */
 function roleTable(): string {
-  const cell = (text: string): string => text.replaceAll('|', '\\|')
-
   return [
     '| Role | What it covers |',
     '| --- | --- |',
     ...ORG_ROLES.map((role) => `| ${cell(ROLE_LABELS[role])} | ${cell(ROLE_DESCRIPTIONS[role])} |`),
+  ].join('\n')
+}
+
+/**
+ * What a `staff` minimum reads as in this table.
+ *
+ * `roleLabelFor` returns null there, because beside a task heading every member
+ * holds it and a badge would be noise. A blank cell in a matrix says "unknown"
+ * rather than "anyone", so here it is said in words.
+ */
+const HELD_BY_EVERY_MEMBER = 'Everyone in the agency'
+
+/**
+ * Every gated action in `PERMISSIONS`, with the role label each one derives.
+ *
+ * Rows keep the matrix's own declaration order, which already groups by
+ * resource and reads organization → team → fleet → customers → contracts →
+ * money → tracking → reports → billing. Re-sorting here would be this module
+ * deciding an order the matrix did not.
+ */
+function permissionMatrix(): string {
+  return [
+    '| Permission | Who can do it |',
+    '| --- | --- |',
+    ...Object.keys(PERMISSIONS).map((key) => {
+      const label = isPermissionKey(key) ? roleLabelFor(key) : null
+      return `| \`${cell(key)}\` | ${cell(label ?? HELD_BY_EVERY_MEMBER)} |`
+    }),
   ].join('\n')
 }

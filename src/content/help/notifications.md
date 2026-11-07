@@ -45,10 +45,11 @@ offered on some rows and not others.
 ## Read the four views
 <!-- permission: organization.view -->
 
-**All** is what currently needs attention. **Unread** is what you have not
-looked at. **Needs attention** is the urgent end — overdue returns, expired
-documents, late lender payments. **History** includes what has been dismissed,
-so putting something away is recoverable rather than final.
+**All** is everything currently live: nothing dismissed and nothing snoozed.
+**Unread** is what you have not looked at. **Needs attention** is the urgent
+end of it — overdue returns, expired documents, late lender payments.
+**History** includes what has been dismissed, so putting something away is
+recoverable rather than final.
 
 There is no search, no faceting and no date range here. An inbox that needs a
 query builder is an inbox nobody reads.
@@ -101,8 +102,8 @@ That notification is about the connection to the provider, not about any
 vehicle. It does not claim a car is offline and it does not say for how long.
 
 **A subscription notification is vague about the money.** Deliberately. The
-detail belongs on the Billing page, behind the owner check, not in an inbox
-several people can read.
+detail belongs on the Billing page, behind that page's own permission, not in
+an inbox several people can read.
 
 **The list is showing a bare category name with a short line under it.** That
 is a kind of notification this build does not have words for yet, usually

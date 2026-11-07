@@ -100,7 +100,7 @@ While restricted:
   or have their access changed, and the agency can still be handed on. Each of
   those is a route back out, and a restriction nobody can undo from inside is a
   trap rather than a restriction.
-- Inviting new people is refused, because taking on staff is growth.
+- Inviting new people is refused, because taking on people is growth.
 
 Starting a subscription restores normal working immediately.
 
@@ -119,8 +119,9 @@ no part of the product behaves as though it were.
 account connected, or this agency has no billing account with the provider yet
 — which is the case before the first checkout.
 
-**A colleague cannot see this page.** Billing is the owner's alone, in the
-interface and in the database. There is no setting that widens it.
+**A colleague cannot see this page.** This page needs `billing.manage`, which
+sits in the narrowest tier the product has — on screen and on the server
+alike. There is no setting that widens it.
 
 **Everything has gone read-only.** The subscription is not live. The banner
 names it, and this page says which of the states above applies.

@@ -28,9 +28,19 @@ export interface HelpNavigationGroup {
  * page inventory, which for the module groups is the sidebar's own order.
  */
 export const HELP_NAVIGATION: readonly HelpNavigationGroup[] = [
+  {
+    group: 'Getting started',
+    slugs: [
+      'how-pevvy-is-organised',
+      'accept-your-invitation',
+      'set-up-your-agency',
+      'first-vehicle-first-rental',
+    ],
+  },
   { group: 'Overview', slugs: ['overview'] },
   { group: 'Operations', slugs: ['rentals', 'calendar', 'customers'] },
   { group: 'Fleet', slugs: ['vehicles', 'gps-tracking'] },
   { group: 'Finance', slugs: ['expenses', 'financing', 'reports'] },
   { group: 'Agency', slugs: ['team', 'billing', 'settings', 'notifications'] },
+  { group: 'Reference', slugs: ['who-can-do-what', 'troubleshooting'] },
 ]
