@@ -53,47 +53,41 @@ whole-branch review at the end.
 Then: whole-branch review on the most capable model, one fix wave, then
 superpowers:finishing-a-development-branch.
 
-### Task 10 — exact state
+### Task 10 — COMPLETE
 
-Owner gate **cleared**. Task review returned **Approved**.
+Owner gate cleared, task review **Approved**, three fix rounds, all reviewed
+clean. Final commit `5f40d44`. `npm run verify` green at 2264 tests.
 
-**Fix round 1 is committed** at `554faf1` ("docs(help): name the roles on Team,
-and fix the late-hire vehicle status"). It applied five of six items and added
-a `{{roleTable}}` token to `tokens.ts` that builds the role table from
-`ORG_ROLES`/`ROLE_LABELS`/`ROLE_DESCRIPTIONS`. The re-review judged that
-machinery sound and **verified its safety claim directly**: `HelpArticlePage`
-resolves tokens *before* calling `helpSections`, so line numbers are counted
-against the expanded text and a multi-line table cannot detach the role labels
-that are looked up by source line.
+Rentals, Vehicles and Team are written and accurate. Their house style is
+approved for the remaining sixteen pages, with three adjustments the reviewer
+asked for:
+1. Do not explain mechanisms a clerk cannot see (no database tables, no
+   SQL-ish wording).
+2. When a status is derived, read the view before describing when it changes.
+3. Keep leaving out behaviour you cannot verify, and report the product gap
+   instead — that is how all the findings below were found.
 
-**Fix round 2 may be UNCOMMITTED in the working tree.** If `git status` shows
-`src/content/help/{rentals,vehicles}.md` and
-`src/features/help/{tokens.test.ts,help-routing.test.tsx}` modified, that is it.
+## Resume here: Task 11
 
-Round 2 exists because fix round 1's FIX 1 was grounded on a **superseded
-migration** and introduced false statements in three places (see retracted bug
-3 below). Round 2 rewrites them against
-`20260825100000_fleet_occupancy_follows_lifecycle.sql` and adds the missing
-test that a section label *after* the `{{roleTable}}` still attaches to the
-correct heading.
+Write the remaining sixteen pages. Brief at
+`.superpowers/sdd/2026-11-06-pevvy-help-centre/task-11-brief.md`.
 
-**I inspected the uncommitted working tree and believe it is correct:**
-- `vehicles.md` now says statuses "follow the contract, not the clock" —
-  Rented from check-out until the contract is completed, covering early
-  handover, overdue, and returned-but-not-closed.
-- The false troubleshooting entry "It says Available but the vehicle is still
-  out" has been **deleted**; only "It says Rented and I did not set that"
-  remains.
-- `rentals.md` now says a hire stays **Out** until completed, and draws the
-  real consequence: a contract left open keeps its vehicle occupied.
+Then Task 12 (accessibility pass), then the whole-branch review on the most
+capable model, then superpowers:finishing-a-development-branch.
 
-**To resume:** run `npm run verify`; if green, commit the working tree as fix
-round 2 and dispatch a scoped re-review of `554faf1..HEAD`. If it is red or the
-tree looks incoherent, `git checkout -- .` and re-dispatch round 2 from the
-description above. `554faf1` is a safe state; `9df144c` is safe but contains
-the false statements.
-
-**Do not start Task 11 until round 2 is reviewed clean.**
+**Carry these into the Task 11 dispatch:**
+- **Grep for later redefinitions before grounding prose in a migration.** This
+  cost a whole fix round. Task 11 covers Overview, Calendar, Customers, Reports
+  and GPS, all reading from views that may have been redefined.
+- Role names are allowed on the "Who can do what" reference page only, derived
+  from `ROLE_LABELS`/`ROLE_DESCRIPTIONS` (a `{{roleTable}}` token exists).
+- The reset-password screen links to `troubleshooting`; that page must exist.
+- `accept-your-invitation` must read correctly for someone not signed in.
+- Cross-links on the three existing pages point only at each other and need
+  widening.
+- Do not put Markdown image syntax inside a fenced code block — the extractor
+  is not fence-aware and the build will fail.
+- Do not hard-code how many help pages exist in any assertion.
 
 ---
 
