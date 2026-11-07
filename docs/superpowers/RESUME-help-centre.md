@@ -55,29 +55,45 @@ superpowers:finishing-a-development-branch.
 
 ### Task 10 — exact state
 
-Committed at `9df144c` ("docs(help): add Rentals, Vehicles and Team pages").
-The owner gate is **cleared** and the task review returned **Approved**.
+Owner gate **cleared**. Task review returned **Approved**.
 
-A fix round was dispatched and may be **uncommitted in the working tree** when
-you resume. If `git status` shows modified files under `src/content/help/` and
-`src/features/help/`, that is the partial fix round. Its scope was:
+**Fix round 1 is committed** at `554faf1` ("docs(help): name the roles on Team,
+and fix the late-hire vehicle status"). It applied five of six items and added
+a `{{roleTable}}` token to `tokens.ts` that builds the role table from
+`ORG_ROLES`/`ROLE_LABELS`/`ROLE_DESCRIPTIONS`. The re-review judged that
+machinery sound and **verified its safety claim directly**: `HelpArticlePage`
+resolves tokens *before* calling `helpSections`, so line numbers are counted
+against the expanded text and a multi-line table cannot detach the role labels
+that are looked up by source line.
 
-1. Team page may now name the four roles (ruling below), sourced from
-   `ROLE_LABELS` / `ROLE_DESCRIPTIONS`, not retyped.
-2. `vehicles.md`: "clears itself when the hire is completed" is false for an
-   overdue hire — reword.
-3. Cut developer-flavoured sentences (`team.md` "read from the same table the
-   database enforces"; `rentals.md` "Availability is answered as of now").
-4. `vehicles.md`: soften the import duplicate-plate claim.
-5. `rentals.md`: bridge the handover section to the contract/signature section.
-6. `rentals.md`: ground or remove "not a qualified electronic signature".
+**Fix round 2 may be UNCOMMITTED in the working tree.** If `git status` shows
+`src/content/help/{rentals,vehicles}.md` and
+`src/features/help/{tokens.test.ts,help-routing.test.tsx}` modified, that is it.
 
-It was also seen modifying `src/features/help/tokens.ts` and its test, which is
-machinery rather than prose — likely rendering role names from the permission
-constants. **That needs review attention; it was not an explicit instruction.**
+Round 2 exists because fix round 1's FIX 1 was grounded on a **superseded
+migration** and introduced false statements in three places (see retracted bug
+3 below). Round 2 rewrites them against
+`20260825100000_fleet_occupancy_follows_lifecycle.sql` and adds the missing
+test that a section label *after* the `{{roleTable}}` still attaches to the
+correct heading.
 
-Either finish that round and review it, or `git checkout -- .` to drop it and
-re-dispatch. `9df144c` is a good state.
+**I inspected the uncommitted working tree and believe it is correct:**
+- `vehicles.md` now says statuses "follow the contract, not the clock" —
+  Rented from check-out until the contract is completed, covering early
+  handover, overdue, and returned-but-not-closed.
+- The false troubleshooting entry "It says Available but the vehicle is still
+  out" has been **deleted**; only "It says Rented and I did not set that"
+  remains.
+- `rentals.md` now says a hire stays **Out** until completed, and draws the
+  real consequence: a contract left open keeps its vehicle occupied.
+
+**To resume:** run `npm run verify`; if green, commit the working tree as fix
+round 2 and dispatch a scoped re-review of `554faf1..HEAD`. If it is red or the
+tree looks incoherent, `git checkout -- .` and re-dispatch round 2 from the
+description above. `554faf1` is a safe state; `9df144c` is safe but contains
+the false statements.
+
+**Do not start Task 11 until round 2 is reviewed clean.**
 
 ---
 
