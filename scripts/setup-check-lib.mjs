@@ -299,6 +299,7 @@ export const SITE_ROUTES = [
   '/accept-invite',
   '/auth/reset-password',
   '/settings',
+  '/help',
 ]
 
 function isLocalHost(hostname) {

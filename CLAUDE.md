@@ -1,7 +1,7 @@
 # Pevvy — notes for Claude
 
 Pevvy is a multi-tenant car rental SaaS: Vite + React 19 + TypeScript in `src/`, a Supabase
-backend in `supabase/` (54 ordered migrations, four Edge Functions), deployed as a static
+backend in `supabase/` (61 ordered migrations, four Edge Functions), deployed as a static
 build from `dist/`.
 
 ## Setting Pevvy up

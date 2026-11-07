@@ -92,7 +92,8 @@ and files there are the owner's own.
 2. Find the ref in `npx supabase projects list -o json`. Not there → they are signed in to another
    account: say so and stop. Otherwise **user moment 2 — one message:** show the project's name,
    region and creation date and ask: "Install Pevvy into this project? I'll connect this folder to
-   it, make sure it is empty, create the Pevvy database (54 steps) and install its 4 background
+   it, make sure it is empty, create the Pevvy database (every migration in
+   `supabase/migrations/`) and install its 4 background
    services. If it is not empty, or anything differs from that plan, I'll stop and change
    nothing." A yes approves exactly that.
 3. Then, without asking again:
@@ -106,8 +107,10 @@ and files there are the owner's own.
      stopped**: say so and continue (the push applies only what is missing).
    - Anything else → **in use**: stop, change nothing, run `npx supabase unlink`, and explain that
      Pevvy goes into a new, empty project. A live Pevvy with users is never touched by setup.
-5. `npx supabase db push --dry-run` → exactly the Pevvy migrations not yet applied (all 54 on an
-   empty project). Any other file or count is unexpected: stop.
+5. `npx supabase db push --dry-run` → exactly the Pevvy migrations not yet applied. On an empty
+   project that is every file in `supabase/migrations/`; count them rather than trusting a number
+   written here, which goes stale each time Pevvy ships a migration. Any file that is not one of
+   them is unexpected: stop.
 6. `npx supabase db push --yes` (a few minutes; a Docker warning is harmless). Verify:
    - `npx supabase migration list --linked` shows every local migration remotely;
    - with `npx supabase db query --linked "<sql>"`:

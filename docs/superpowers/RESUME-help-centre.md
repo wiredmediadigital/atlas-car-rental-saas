@@ -134,7 +134,10 @@ Recorded because the owner delegated them and should be able to reverse any.
 
 ## Known product bugs found while writing the pages
 
-Not caused by this work; confirmed against source. For the owner's backlog.
+Not caused by this work; confirmed against source. **Both live ones were fixed on
+2026-11-07** by `20261107100000_availability_excludes_overdue_hires.sql` and
+`20261107100100_deposit_block_names_a_real_action.sql`, each with database tests. Kept
+here because the reasoning is the record of why they were found.
 
 1. `lifecycle.ts` tells the user to "refund or **retain** the deposit" — no
    retain action exists (`RentalAction` has only `refund-deposit`).

@@ -314,6 +314,14 @@ describe('checking the deployed site', () => {
     }
   })
 
+  // The Help Centre is served to signed-out visitors from the same build, so a
+  // deployment that gets it wrong is a deployment the verifier should fail.
+  // Checking the sitemap files without ever fetching a page they point at
+  // would prove only that the XML is well formed.
+  it('checks the public Help Centre, not just the sitemap that advertises it', () => {
+    expect(SITE_ROUTES).toContain('/help')
+  })
+
   it('finds the application script and its preloaded chunks, on this site only', () => {
     const html = `
       <script type="module" crossorigin src="/assets/index-abc.js"></script>
