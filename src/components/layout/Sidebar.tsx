@@ -1,6 +1,7 @@
-import { Check, ChevronsUpDown, PanelLeftClose, PanelLeftOpen } from 'lucide-react'
-import { NavLink } from 'react-router-dom'
+import { Check, ChevronsUpDown, CircleHelp, PanelLeftClose, PanelLeftOpen } from 'lucide-react'
+import { Link, NavLink } from 'react-router-dom'
 
+import { paths } from '@/app/routes/paths'
 import { NotificationBell } from '@/features/notifications/components/NotificationBell'
 import { useWorkspace } from '@/features/workspace/workspace-context'
 import { ROLE_LABELS, can } from '@/lib/authz/permissions'
@@ -192,6 +193,25 @@ export function Sidebar({ isCollapsed, onToggleCollapsed, onNavigate, className 
             <PanelLeftOpen className="size-4" aria-hidden="true" />
           </button>
         ) : null}
+
+        {/*
+          Help lives here, with the other things that belong to the person
+          rather than to a module, because the desktop layout has no top bar to
+          hold it. It leaves the app shell for the public Help Centre, so it is
+          a plain link and the drawer is told to close behind it.
+        */}
+        <Link
+          to={paths.help}
+          onClick={onNavigate}
+          aria-label="Help centre"
+          className={cn(
+            'text-ink-muted hover:bg-surface-inset hover:text-ink flex w-full items-center gap-2.5 rounded-md p-1.5 text-[0.8125rem] font-medium transition-colors',
+            isCollapsed && 'justify-center',
+          )}
+        >
+          <CircleHelp className="size-4 shrink-0" aria-hidden="true" />
+          {!isCollapsed && <span>Help centre</span>}
+        </Link>
 
         <UserMenu isCollapsed={isCollapsed} />
       </div>

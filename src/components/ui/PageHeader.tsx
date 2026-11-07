@@ -1,5 +1,9 @@
+import { CircleHelp } from 'lucide-react'
 import type { ReactNode } from 'react'
+import { useInRouterContext, useLocation } from 'react-router-dom'
 
+import { HelpArticleLink } from '@/features/help/components/HelpArticleLink'
+import { helpSlugForRoute } from '@/features/help/route-topics'
 import { cn } from '@/lib/utils/cn'
 
 export interface PageHeaderProps {
@@ -11,7 +15,32 @@ export interface PageHeaderProps {
   className?: string
 }
 
-export function PageHeader({ title, description, eyebrow, actions, className }: PageHeaderProps) {
+/**
+ * The header every module page opens with.
+ *
+ * It also carries the link to that module's help page, which is why no module
+ * page mentions help: one place knows the route, so one place reaches them all.
+ * The link exists only where `helpSlugForRoute` finds a written page.
+ */
+export function PageHeader(props: PageHeaderProps) {
+  // Headers are rendered in isolation by some tests and previews; `useLocation`
+  // throws outside a router, so there the header simply has no help link.
+  return useInRouterContext() ? <RoutedPageHeader {...props} /> : <PageHeaderView {...props} />
+}
+
+function RoutedPageHeader(props: PageHeaderProps) {
+  const { pathname } = useLocation()
+  return <PageHeaderView {...props} helpSlug={helpSlugForRoute(pathname)} />
+}
+
+function PageHeaderView({
+  title,
+  description,
+  eyebrow,
+  actions,
+  className,
+  helpSlug = null,
+}: PageHeaderProps & { helpSlug?: string | null }) {
   return (
     <header className={cn('flex flex-wrap items-start justify-between gap-4', className)}>
       <div className="min-w-0 space-y-1">
@@ -24,8 +53,19 @@ export function PageHeader({ title, description, eyebrow, actions, className }: 
       {/* Wraps rather than pushing the page sideways. A header with three
           actions is 495px wide on a phone, and `shrink-0` turned that into a
           horizontally scrolling page instead of a second line of buttons. */}
-      {actions ? (
-        <div className="flex flex-wrap items-center justify-end gap-2">{actions}</div>
+      {actions || helpSlug ? (
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          {actions}
+          {helpSlug ? (
+            <HelpArticleLink
+              slug={helpSlug}
+              className="text-ink-muted hover:text-ink hover:bg-surface-inset inline-flex items-center gap-1.5 rounded-md px-2 py-1.5 text-[0.8125rem] font-medium transition-colors"
+            >
+              <CircleHelp className="size-4" aria-hidden="true" />
+              Help with this page
+            </HelpArticleLink>
+          ) : null}
+        </div>
       ) : null}
     </header>
   )

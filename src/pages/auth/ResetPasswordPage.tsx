@@ -13,6 +13,13 @@ import { type ResetPasswordInput, resetPasswordSchema } from '@/features/auth/sc
 import { toErrorMessage } from '@/lib/supabase/errors'
 
 /**
+ * Both auth screens that a person reaches from an email point at the same page,
+ * the one written for a reader with no membership. It does not exist until the
+ * Getting started pages land; `AuthLayout` renders the link only once it does.
+ */
+const RESET_HELP_SLUG = 'accept-your-invitation'
+
+/**
  * Completes a password reset.
  *
  * The recovery link carries a code that the Supabase client exchanges for a
@@ -54,6 +61,7 @@ export function ResetPasswordPage() {
   if (status === 'unauthenticated') {
     return (
       <AuthLayout
+        helpSlug={RESET_HELP_SLUG}
         title="This link is no longer valid"
         description="Reset links expire after an hour and can only be used once."
         footer={
@@ -80,7 +88,11 @@ export function ResetPasswordPage() {
   }
 
   return (
-    <AuthLayout title="Choose a new password" description="You are signed in while you set it.">
+    <AuthLayout
+      title="Choose a new password"
+      description="You are signed in while you set it."
+      helpSlug={RESET_HELP_SLUG}
+    >
       <form onSubmit={(event) => void onSubmit(event)} className="space-y-4" noValidate>
         {formError ? <Alert tone="critical">{formError}</Alert> : null}
 

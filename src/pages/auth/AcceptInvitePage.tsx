@@ -47,6 +47,9 @@ import { toErrorMessage } from '@/lib/supabase/errors'
  * cannot end up owning an empty agency they never asked for.
  */
 
+/** The page for someone arriving on this screen. It does not exist until the Getting started pages land; `AuthLayout` renders the link only once it does. */
+const INVITATION_HELP_SLUG = 'accept-your-invitation'
+
 const signInSchema = z.object({
   email: z.string().trim().min(1, 'Enter your email address.').email('Enter a valid address.'),
   password: z.string().min(1, 'Enter your password.'),
@@ -122,6 +125,7 @@ export function AcceptInvitePage() {
   if (!token) {
     return (
       <AuthLayout
+        helpSlug={INVITATION_HELP_SLUG}
         title="This link is incomplete"
         description="An invitation link carries a code that is missing here."
         footer={
@@ -145,6 +149,7 @@ export function AcceptInvitePage() {
   if (preview.isError) {
     return (
       <AuthLayout
+        helpSlug={INVITATION_HELP_SLUG}
         title="This invitation is not valid"
         description="It may have been withdrawn, already used, or replaced by a newer one."
         footer={
@@ -193,6 +198,7 @@ export function AcceptInvitePage() {
   if (settled) {
     return (
       <AuthLayout
+        helpSlug={INVITATION_HELP_SLUG}
         title="This invitation is no longer open"
         description={
           invitation.state === 'accepted'
@@ -232,6 +238,7 @@ export function AcceptInvitePage() {
 
     return (
       <AuthLayout
+        helpSlug={INVITATION_HELP_SLUG}
         title="Join this agency"
         description="Your account keeps everything it already has."
         footer={
@@ -266,6 +273,7 @@ export function AcceptInvitePage() {
   if (awaitingConfirmation) {
     return (
       <AuthLayout
+        helpSlug={INVITATION_HELP_SLUG}
         title="Confirm your email"
         description="One step before you can join."
         footer={
@@ -340,6 +348,7 @@ export function AcceptInvitePage() {
 
   return (
     <AuthLayout
+      helpSlug={INVITATION_HELP_SLUG}
       title={mode === 'sign-in' ? 'Sign in to join' : 'Create your account'}
       description={`You have been invited to ${invitation.organizationName}.`}
       footer={

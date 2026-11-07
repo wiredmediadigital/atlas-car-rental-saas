@@ -25,7 +25,13 @@ export function MarketingFooter() {
             </p>
           </div>
 
-          <nav aria-label="Account" className="flex items-center gap-5">
+          <nav aria-label="Footer" className="flex flex-wrap items-center gap-x-5 gap-y-2">
+            <Link
+              to={paths.help}
+              className="text-ink-muted hover:text-ink text-[0.8125rem] font-medium transition-colors"
+            >
+              Help centre
+            </Link>
             <Link
               to={paths.signIn}
               className="text-ink-muted hover:text-ink text-[0.8125rem] font-medium transition-colors"

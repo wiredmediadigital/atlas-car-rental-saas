@@ -2,6 +2,7 @@ import type { ReactNode } from 'react'
 
 import { Wordmark } from '@/components/brand/Wordmark'
 import { CreatorCredit } from '@/components/brand/CreatorCredit'
+import { HelpArticleLink } from '@/features/help/components/HelpArticleLink'
 import { PRODUCT_BRAND } from '@/lib/config/brand'
 
 export interface AuthLayoutProps {
@@ -10,6 +11,11 @@ export interface AuthLayoutProps {
   children: ReactNode
   /** Secondary line beneath the card: "Already have an account?" and similar. */
   footer?: ReactNode
+  /**
+   * Slug of a help page worth offering here. Rendered only once that page exists,
+   * so a screen can name its page before the page is written.
+   */
+  helpSlug?: string
 }
 
 /**
@@ -19,7 +25,7 @@ export interface AuthLayoutProps {
  * have to be invented, and inventing an interface to sell the interface is the
  * kind of thing that makes a product feel like a template.
  */
-export function AuthLayout({ title, description, children, footer }: AuthLayoutProps) {
+export function AuthLayout({ title, description, children, footer, helpSlug }: AuthLayoutProps) {
   return (
     <div className="bg-canvas min-h-dvh lg:grid lg:grid-cols-[minmax(0,44%)_minmax(0,56%)]">
       <aside className="bg-brand-900 hidden flex-col justify-between p-10 lg:flex">
@@ -72,6 +78,15 @@ export function AuthLayout({ title, description, children, footer }: AuthLayoutP
 
           {footer ? (
             <div className="text-ink-muted mt-6 text-center text-[0.8125rem]">{footer}</div>
+          ) : null}
+
+          {helpSlug ? (
+            <HelpArticleLink
+              slug={helpSlug}
+              className="text-brand-700 mt-3 block text-center text-[0.8125rem] font-medium hover:underline"
+            >
+              Need help? Read the guide
+            </HelpArticleLink>
           ) : null}
 
           {/* Below `lg` the brand panel is not rendered, so the credit appears
