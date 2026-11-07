@@ -35,14 +35,18 @@ first one **In service** rather than Available. **Rented** and **Reserved** are
 read from the contracts against the vehicle, so they appear and disappear on
 their own as hires start and finish.
 
-That last word matters. **Rented** is read from the contract the vehicle is out
-on *between its collection and return times*, and it clears when that hire ends
-— when the return time passes, not when you record the vehicle back. A hire
-that runs late therefore leaves the vehicle reading **Available** while it is
-still with the customer, and free to be booked for dates after that return
-time. Recording the return and completing the contract is what keeps the fleet
-honest; until then, the rentals list is the one that knows, under **Past return
-time**.
+They follow the contract, not the clock. **Rented** starts when you check the
+vehicle out and lasts until you complete the contract — whatever the booking
+said was supposed to happen. Hand a vehicle over early and it reads **Rented**
+early. Let a hire run past its return time and it keeps reading **Rented**.
+Record the vehicle back and it *still* reads **Rented**, because the contract
+is not closed yet.
+
+That last one catches people out, and it is deliberate: a vehicle nobody has
+closed out is a vehicle nobody has actually finished with. **Reserved** works
+the other way round and is the one clock-driven state — it appears when a
+confirmed booking's collection time has arrived and the vehicle has not been
+checked out yet.
 
 A vehicle is offered to a new booking only when it is in service, not retired,
 and free for the whole period requested.
@@ -187,14 +191,13 @@ another contract across some part of that period, or it is in maintenance, off
 the road, or retired. Its own page says which.
 
 **It says Rented and I did not set that.** You cannot set it. It is read from
-the contract the vehicle is out on, and it clears when that hire ends.
+the contract the vehicle was checked out on, and it clears when that contract
+is completed.
 
-**It says Available but the vehicle is still out.** The hire has run past its
-return time and nobody has recorded the vehicle back. **Rented** only covers
-the period between collection and return, so once the return time passes the
-vehicle reads **Available** again and can be booked for later dates. Find the
-contract under **Past return time** on the rentals list, record the return, and
-complete it.
+**It still says Rented and the vehicle is back on the lot.** Recording the
+return is not the same as closing the contract. The vehicle stays **Rented**
+until the rental is completed, which is the step that also settles the deposit.
+Open the contract and complete it, and the vehicle rejoins the fleet.
 
 **It says In maintenance even though it is out with a customer.** A status you
 set by hand takes precedence in the badge. The contract is unaffected — but it

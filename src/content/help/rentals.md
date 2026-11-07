@@ -38,10 +38,12 @@ The first is where the hire is in its life:
 There is no way back along that line. Handing a vehicle over cannot un-happen,
 so a contract that is **Out** is returned and completed, never cancelled.
 
-A hire stays **Out** until you complete it, however late it runs. The vehicle
-does not wait with it: once the return time passes, the fleet shows that
-vehicle as available again even though nobody has brought it back. That is why
-closing a late contract promptly matters — see [Vehicles](/help/vehicles).
+A hire stays **Out** until you complete it — not until its return time passes,
+and not when you record the vehicle back. Both of those are things that happen
+*to* an open contract. The fleet agrees: the vehicle reads as rented for
+exactly as long, so a contract left open keeps its vehicle occupied. Contracts
+past their return time are gathered under **Past return time** at the top of
+this page.
 
 The second state is the money: **Unpaid**, **Part paid**, **Paid** or
 **Overpaid**. It is worked out from the payments recorded against the contract

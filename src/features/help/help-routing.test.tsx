@@ -202,6 +202,49 @@ describe('the role table a page can embed', () => {
     expect(document.body.textContent).not.toContain('{{')
     expect(document.body.textContent).not.toContain('|')
   })
+
+  /*
+   * The invariant that makes a multi-line token safe at all.
+   *
+   * `helpSections` records the source line of every `##`, and the `h2` renderer
+   * finds its section by the line Markdown parsing reports. That only agrees
+   * when sections are read from the SAME text that is rendered — which
+   * `HelpArticlePage` does, resolving tokens before calling `helpSections`.
+   *
+   * `{{roleTable}}` is the first token that expands to more than one line, so
+   * it is the first that could break the agreement. Were sections ever read
+   * from the raw body again, every label below the table would silently shift
+   * to the wrong heading or vanish, with nothing failing. Reasoning said this
+   * is correct by construction; this is the test that keeps it correct.
+   */
+  it('still attaches a role label to the right heading below the table', async () => {
+    const raw = [
+      '{{roleTable}}',
+      '',
+      '## Delete a rental',
+      '<!-- permission: rentals.delete -->',
+      '',
+      'Only some people may do this.',
+      '',
+      '## Look up a contract',
+      '<!-- permission: rentals.view -->',
+      '',
+      'Anybody may do this.',
+    ].join('\n')
+    const body = resolveTokens(raw)
+
+    // The token really did push the headings down the file.
+    expect(body.split('\n').length).toBeGreaterThan(raw.split('\n').length)
+
+    render(<HelpArticle page={tablePage} body={body} sections={helpSections(body)} />)
+
+    await screen.findByRole('table')
+    const gated = screen.getByRole('heading', { level: 2, name: /Delete a rental/ })
+    const ungated = screen.getByRole('heading', { level: 2, name: /Look up a contract/ })
+
+    expect(gated).toHaveTextContent('Manager and above')
+    expect(ungated.textContent).toBe('Look up a contract')
+  })
 })
 
 /*
