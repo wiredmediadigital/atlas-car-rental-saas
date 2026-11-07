@@ -26,7 +26,8 @@
     "setup:site": "node scripts/setup-site.mjs",
     "smoke:live": "node scripts/live-smoke-test.mjs",
     "email:build": "node scripts/build-email-templates.mjs",
-    "email:push": "node scripts/push-auth-emails.mjs"
+    "email:push": "node scripts/push-auth-emails.mjs",
+    "help:images": "node scripts/build-help-image-manifest.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.7.1",

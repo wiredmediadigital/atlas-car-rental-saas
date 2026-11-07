@@ -5,6 +5,8 @@ import { Badge } from '@/components/ui'
 
 import type { HelpSection } from '../sections'
 
+import { HelpImage } from './HelpImage'
+
 /**
  * Help prose, rendered as React elements.
  *
@@ -102,6 +104,7 @@ function markdownComponents(sections: readonly HelpSection[]): Components {
       </blockquote>
     ),
     hr: () => <hr className="border-line mt-10" />,
+    img: ({ src, alt }) => <HelpImage src={typeof src === 'string' ? src : undefined} alt={alt} />,
     a: ({ href, children }) => {
       const isExternal = href?.startsWith('http') ?? false
 
