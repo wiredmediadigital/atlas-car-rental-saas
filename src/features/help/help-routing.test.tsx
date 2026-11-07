@@ -9,6 +9,7 @@ import { getHelpPage } from './content'
 import { warmHelpRoutes } from './help-test-support'
 import { HelpArticle } from './components/HelpArticle'
 import { OnThisPage } from './components/OnThisPage'
+import { roleLabelFor } from './permission-labels'
 import { helpSections } from './sections'
 import { resolveTokens } from './tokens'
 import type { HelpPage } from './types'
@@ -204,20 +205,20 @@ describe('the role table a page can embed', () => {
   })
 
   /*
-   * The invariant that makes a multi-line token safe at all.
+   * Half of the invariant, and only half — say so rather than let the next
+   * reader assume otherwise.
    *
    * `helpSections` records the source line of every `##`, and the `h2` renderer
-   * finds its section by the line Markdown parsing reports. That only agrees
-   * when sections are read from the SAME text that is rendered — which
-   * `HelpArticlePage` does, resolving tokens before calling `helpSections`.
+   * finds its section by the line Markdown parsing reports. This asserts that
+   * `HelpArticle` honours that agreement across a token which expands to six
+   * lines: given a body and the sections of that same body, the label still
+   * lands on the heading it belongs to rather than one six lines away.
    *
-   * `{{roleTable}}` is the first token that expands to more than one line, so
-   * it is the first that could break the agreement. Were sections ever read
-   * from the raw body again, every label below the table would silently shift
-   * to the wrong heading or vanish, with nothing failing. Reasoning said this
-   * is correct by construction; this is the test that keeps it correct.
+   * What it does NOT check is that anything pairs those two arguments
+   * correctly, because it pairs them itself. The caller that actually decides
+   * is `HelpArticlePage`, and the test below this one is the one that holds it.
    */
-  it('still attaches a role label to the right heading below the table', async () => {
+  it('keeps a label on its own heading when the body is sectioned as rendered', async () => {
     const raw = [
       '{{roleTable}}',
       '',
@@ -242,8 +243,46 @@ describe('the role table a page can embed', () => {
     const gated = screen.getByRole('heading', { level: 2, name: /Delete a rental/ })
     const ungated = screen.getByRole('heading', { level: 2, name: /Look up a contract/ })
 
-    expect(gated).toHaveTextContent('Manager and above')
+    expect(gated).toHaveTextContent(roleLabelFor('rentals.delete') as string)
     expect(ungated.textContent).toBe('Look up a contract')
+  })
+})
+
+/*
+ * The invariant itself, held where it is actually decided.
+ *
+ * `HelpArticlePage` resolves tokens and then sections the *resolved* body. If
+ * it ever sectioned `page.body` instead, every role label below a multi-line
+ * token would shift to the wrong heading or vanish, and nothing would throw —
+ * the page would simply be quietly wrong about who may do what, on a public
+ * URL.
+ *
+ * So this goes through `AppRouter` to a real page: `team.md` puts
+ * `{{roleTable}}` six lines ahead of a gated `##`, which is exactly the shape
+ * that breaks under the wrong pairing. Rendering `HelpArticle` directly cannot
+ * catch it, because the caller under test is the thing that pairs the
+ * arguments.
+ *
+ * Verified by mutation: pointing `HelpArticlePage` at `helpSections(page.body)`
+ * fails this test and no other.
+ */
+describe('a page whose role table precedes its gated sections', () => {
+  it('labels the heading from the resolved body, not the raw one', async () => {
+    const team = getHelpPage('team')
+    // Guard the premise. If Team ever loses the token, or the heading stops
+    // being gated above staff, this test would pass by vacancy.
+    expect(team?.body).toContain('{{roleTable}}')
+    const expected = roleLabelFor('team.invite')
+    expect(expected).not.toBeNull()
+
+    visit('/help/team')
+
+    expect(await screen.findByRole('heading', { level: 1, name: 'Team' })).toBeInTheDocument()
+    // The token expanded: the table is on the page, above the heading.
+    expect(screen.getByRole('table')).toBeInTheDocument()
+
+    const invite = screen.getByRole('heading', { level: 2, name: /Invite somebody to the agency/ })
+    expect(invite).toHaveTextContent(expected as string)
   })
 })
 
