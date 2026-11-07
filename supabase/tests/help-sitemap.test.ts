@@ -1,10 +1,9 @@
-import { readdirSync, readFileSync } from 'node:fs'
+import { existsSync, readdirSync, readFileSync } from 'node:fs'
 
 import {
   buildRobots,
   buildSitemap,
   CONTENT_DIR,
-  DEFAULT_ORIGIN,
   listHelpSlugs,
   normaliseOrigin,
   ROBOTS_PATH,
@@ -47,8 +46,9 @@ describe('help sitemap', () => {
     expect(normaliseOrigin('http://localhost:5173')).toBe('http://localhost:5173')
   })
 
-  test('falls back to the documented default when no origin is given', () => {
-    expect(normaliseOrigin(undefined)).toBe(DEFAULT_ORIGIN)
+  test('returns no origin when none is given, rather than inventing one', () => {
+    expect(normaliseOrigin(undefined)).toBeNull()
+    expect(normaliseOrigin('')).toBeNull()
   })
 
   test.each(['rentals.example.org', 'ftp://example.org', 'https://', 'not a url'])(
@@ -66,12 +66,38 @@ describe('help sitemap', () => {
     expect(robots).toContain(`Sitemap: ${ORIGIN}/sitemap.xml`)
   })
 
-  test('the committed robots.txt and sitemap.xml match the content folder', () => {
+  test('robots.txt names no sitemap when there is no origin', () => {
+    const robots = buildRobots(null)
+
+    expect(robots).toMatch(/^User-agent: \*$/m)
+    expect(robots).toMatch(/^Allow: \/$/m)
+    expect(robots).not.toMatch(/sitemap/i)
+    expect(robots).not.toContain('example.com')
+  })
+
+  test('the committed robots.txt matches the builder, whatever origin it was generated for', () => {
+    const robots = readFileSync(ROBOTS_PATH, 'utf8')
+    const origin = /^Sitemap: (.+)\/sitemap\.xml$/m.exec(robots)?.[1] ?? null
+
+    expect(robots).toBe(buildRobots(origin))
+  })
+
+  test('the committed sitemap.xml exists exactly when robots.txt names it, and matches the content folder', () => {
     const robots = readFileSync(ROBOTS_PATH, 'utf8')
     const origin = /^Sitemap: (.+)\/sitemap\.xml$/m.exec(robots)?.[1]
 
-    expect(origin).toBeDefined()
-    expect(robots).toBe(buildRobots(origin as string))
-    expect(readFileSync(SITEMAP_PATH, 'utf8')).toBe(buildSitemap(origin as string, listHelpSlugs()))
+    expect(existsSync(SITEMAP_PATH)).toBe(origin !== undefined)
+    if (origin !== undefined) {
+      expect(readFileSync(SITEMAP_PATH, 'utf8')).toBe(buildSitemap(origin, listHelpSlugs()))
+    }
+  })
+
+  test('the committed files never point crawlers at a placeholder host', () => {
+    const committed = [ROBOTS_PATH, SITEMAP_PATH]
+      .filter((path) => existsSync(path))
+      .map((path) => readFileSync(path, 'utf8'))
+      .join('\n')
+
+    expect(committed).not.toMatch(/example\.(com|org|net)/)
   })
 })

@@ -23,6 +23,7 @@ License: MIT — see [LICENSE](./LICENSE).
 | Edge Functions                  | `supabase functions deploy <name>`        | `team-invitations`, `gps-provider`, `billing`, `billing-webhook`.                                                                            |
 | Auth redirect URLs              | Supabase → Auth → URL Configuration       | The application origin, plus `/auth/callback`, `/accept-invite`, `/auth/reset-password` and `/confirm-email`.                                |
 | Application base URL            | Wherever the static build is served       | `dist/` is a static SPA; `public/.htaccess` supplies the Apache/LiteSpeed rewrite.                                                           |
+| Help Centre sitemap             | `public/`, committed before the build     | `npm run help:sitemap -- https://your-domain` after deploying, and again after upgrading, because new help pages change it.                  |
 
 `VITE_APP_NAME` is optional and only names the product in the tab and the shell.
 

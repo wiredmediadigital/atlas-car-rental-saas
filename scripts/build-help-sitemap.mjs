@@ -11,16 +11,19 @@
  *
  *   npm run help:sitemap -- https://rentals.example.com
  *
- * With no argument it uses DEFAULT_ORIGIN, a placeholder. Run it with your real
- * domain before deploying; a sitemap that names another host is ignored by
- * crawlers. robots.txt is written by the same run because its Sitemap line must
- * be an absolute URL and has to agree with the sitemap's origin.
+ * With no argument there is no origin to name, so robots.txt is written without
+ * a Sitemap line and any sitemap.xml is removed. That is the honest state of an
+ * unconfigured checkout: a robots.txt that points crawlers at a placeholder host
+ * would be wrong and silent about it. Run it with your real domain, commit the
+ * result, and rerun it after upgrading, because new help pages change the file.
+ * robots.txt is written by the same run because its Sitemap line must be an
+ * absolute URL and has to agree with the sitemap's origin.
  *
  * supabase/tests/help-sitemap.test.ts fails when the committed files have
  * drifted from the content folder.
  */
 
-import { readdirSync, writeFileSync } from 'node:fs'
+import { readdirSync, rmSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -28,11 +31,10 @@ const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 export const CONTENT_DIR = join(ROOT, 'src', 'content', 'help')
 export const SITEMAP_PATH = join(ROOT, 'public', 'sitemap.xml')
 export const ROBOTS_PATH = join(ROOT, 'public', 'robots.txt')
-export const DEFAULT_ORIGIN = 'https://example.com'
 
-/** Validates an origin argument and returns it without a trailing slash. */
+/** Validates an origin argument and returns it without a trailing slash, or null when none was given. */
 export function normaliseOrigin(value) {
-  if (value === undefined || value === '') return DEFAULT_ORIGIN
+  if (value === undefined || value === '') return null
   let url
   try {
     url = new URL(value)
@@ -74,17 +76,29 @@ export function buildSitemap(origin, slugs) {
   ].join('\n')
 }
 
+/** Allows everything; names the sitemap only when the origin is known. */
 export function buildRobots(origin) {
-  return `User-agent: *\nAllow: /\n\nSitemap: ${origin}/sitemap.xml\n`
+  const rules = 'User-agent: *\nAllow: /\n'
+  return origin ? `${rules}\nSitemap: ${origin}/sitemap.xml\n` : rules
 }
 
 if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
   try {
     const origin = normaliseOrigin(process.argv[2])
-    const slugs = listHelpSlugs()
-    writeFileSync(SITEMAP_PATH, buildSitemap(origin, slugs))
     writeFileSync(ROBOTS_PATH, buildRobots(origin))
-    console.log(`Wrote ${slugs.length + 1} URLs for ${origin} to ${SITEMAP_PATH} and ${ROBOTS_PATH}`)
+    if (origin === null) {
+      rmSync(SITEMAP_PATH, { force: true })
+      console.log(
+        `No origin given: wrote ${ROBOTS_PATH} without a Sitemap line and removed any sitemap.xml.`,
+      )
+      console.log('Run: npm run help:sitemap -- https://your-domain')
+    } else {
+      const slugs = listHelpSlugs()
+      writeFileSync(SITEMAP_PATH, buildSitemap(origin, slugs))
+      console.log(
+        `Wrote ${slugs.length + 1} URLs for ${origin} to ${SITEMAP_PATH} and ${ROBOTS_PATH}`,
+      )
+    }
   } catch (error) {
     console.error(error.message)
     process.exitCode = 1

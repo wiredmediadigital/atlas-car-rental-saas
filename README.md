@@ -97,6 +97,7 @@ the missing variables. That is deliberate — see [Configuration](#configuration
 | `npm run setup:check`            | Read-only checklist of tools, configuration and Git remotes      |
 | `npm run setup:env -- <ref>`     | Write `.env.local` for a Supabase project (publishable key only) |
 | `npm run setup:site -- <domain>` | Read-only check of a deployed site: pages, Supabase project, key |
+| `npm run help:sitemap -- <url>`  | Help Centre sitemap and robots.txt for your domain               |
 | `npm run smoke:live`             | Live checks against the linked Supabase project (see below)      |
 
 ---
@@ -360,6 +361,8 @@ deployed from your own GitHub repository, which rebuilds on every push:
    at your Supabase project. Then add the live address to Supabase → Authentication → URL
    Configuration: Site URL `https://<domain>` plus `/auth/callback`, `/accept-invite`,
    `/auth/reset-password` and `/confirm-email` as Redirect URLs.
+   Also run `npm run help:sitemap -- https://<domain>` and commit the result so the Help Centre has a
+   sitemap on your domain (rerun it after upgrading, as new help pages change it).
 5. Open `https://<domain>/sign-up` and create your agency — that account is its Owner.
 
 `public/.htaccess` is copied into the build and handles the three things a static SPA
