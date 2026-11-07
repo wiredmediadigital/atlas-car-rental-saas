@@ -23,7 +23,7 @@ and each figure is also a filter.
 agency whose subscription has lapsed, because that is the day a ledger is
 needed most.
 
-## Gross, and the tax inside it
+### Gross, and the tax inside it
 
 **Amount paid** is the total that left the agency, tax included. The tax field
 says how much of that total was tax; the difference is the figure before tax.

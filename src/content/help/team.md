@@ -19,7 +19,7 @@ what has changed.
 The lower two are not shown to everyone, because both of them name people who
 are not members of the agency — not yet, or not any more.
 
-## The four roles
+### The four roles
 
 Everyone in the agency holds exactly one of these, and it decides what they can
 reach everywhere in {{productName}} — not just on this page.

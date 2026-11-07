@@ -16,7 +16,7 @@ Until a provider is linked, this page says so and offers nothing else. That is
 the state most agencies open it in, and it is the honest one — there is no
 sample fleet moving around a map.
 
-## Three facts, kept separate
+### Three facts, kept separate
 
 Telematics screens usually collapse everything into one green dot, which is how
 a screen comes to say "online" while the integration is broken. Here they are

@@ -21,7 +21,7 @@ colleague.
 
 **Export** takes whatever the filters select, not just the page on screen.
 
-## What the search looks at
+### What the search looks at
 
 Name, email and both phone numbers. It also matches identification numbers:
 type a passport number with or without spaces and it finds the customer it

@@ -83,6 +83,9 @@ function headingId(heading: string): string {
     .replace(/^-+|-+$/g, '')
 }
 
+/** Ids the page chrome owns, which no heading may be given. */
+const RESERVED_IDS: readonly string[] = ['main']
+
 /**
  * Makes an anchor unique within its page, and records it as taken.
  *
@@ -150,7 +153,8 @@ export function helpSections(body: string): readonly HelpSection[] {
     }
   })
 
-  const takenIds = new Set<string>()
+  // `main` is the skip link's target; a heading called "Main" must not take it.
+  const takenIds = new Set<string>(RESERVED_IDS)
 
   return found.map((entry, position) => {
     const sectionEnd = found[position + 1]?.index ?? lines.length

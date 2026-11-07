@@ -16,7 +16,7 @@ Reports is one workspace with seven sections rather than seven products. The
 section, the period, the currency and the comparison all live in the address
 bar, so a view you have set up is something you can send to somebody.
 
-## Two words this product will not use loosely
+### Two words this product will not use loosely
 
 **Profit.** Nothing here computes one. There is no depreciation model, no
 allocation of overhead onto a vehicle and no accounting period. What exists is

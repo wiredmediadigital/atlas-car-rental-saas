@@ -20,7 +20,7 @@ As on the rentals list, the view you build ends up in the address bar, so it
 can be bookmarked and shared. **Export** takes whatever is on screen out as a
 spreadsheet — the file always contains the same rows the page is showing.
 
-## What a vehicle's status means
+### What a vehicle's status means
 
 | Status | What it means |
 |---|---|

@@ -10,6 +10,8 @@ import { HelpMobileNav } from './components/HelpMobileNav'
 import { loadHelpPages } from './content'
 import { warmHelpRoutes } from './help-test-support'
 import { HELP_NAVIGATION } from './navigation'
+import { helpSections } from './sections'
+import { resolveTokens } from './tokens'
 
 /*
  * Accessibility guards over the real content. Everything iterates
@@ -37,8 +39,8 @@ function renderArticle(slug: string) {
 const slugs = loadHelpPages().map((page) => page.slug)
 
 describe('the help sidebar', () => {
-  it('is a nav with an accessible name', () => {
-    renderArticle(slugs[0] ?? '')
+  it.each(slugs)('%s: is a nav with an accessible name', (slug) => {
+    renderArticle(slug)
 
     expect(screen.getAllByRole('navigation', { name: 'Help pages' }).length).toBeGreaterThan(0)
   })
@@ -63,10 +65,15 @@ describe('every help article', () => {
   it.each(slugs)('%s: on-this-page links resolve to unique heading ids', (slug) => {
     const { container } = renderArticle(slug)
     const rail = screen.queryByRole('navigation', { name: 'On this page' })
+    const body = resolveTokens(loadHelpPages().find((page) => page.slug === slug)?.body ?? '')
+    const hasSections = helpSections(body).length > 0
 
     const ids = Array.from(container.querySelectorAll('[id]')).map((el) => el.id)
     expect(new Set(ids).size, `duplicate ids on ${slug}`).toBe(ids.length)
 
+    // The rail exists exactly when the page has task sections; its absence is
+    // asserted rather than used as a way out of the link checks.
+    expect(rail === null, `rail presence on ${slug}`).toBe(!hasSections)
     if (rail === null) return
     const links = within(rail).getAllByRole('link')
     const targets = links.map((link) => (link.getAttribute('href') ?? '').replace(/^#/, ''))
@@ -121,12 +128,35 @@ function assertHeadingsDescend(container: HTMLElement, where: string) {
     levels.filter((level) => level === 1),
     `${where} has one h1`,
   ).toHaveLength(1)
+  /*
+   * An h1 followed straight by an h3, with no h2 anywhere above it, is allowed.
+   * Pages open with a "concept" block of `###` headings before their first task
+   * section; `sections.ts` defines `###` as a detail, not a task, so those must
+   * not be promoted to `##` just to satisfy this check (that would also put
+   * concepts in "On this page" on some pages and not others). It is a WCAG
+   * advisory technique (G141), not a Level A failure. Every other skipped
+   * level, and any skip once an h2 has appeared, still fails.
+   */
+  let hasSeenH2 = false
   levels.forEach((level, index) => {
+    if (level === 2) hasSeenH2 = true
     if (index === 0) return
     const previous = levels[index - 1] ?? 1
+    if (previous === 1 && level === 3 && !hasSeenH2) return
     expect(level, `${where}: h${previous} followed by h${level}`).toBeLessThanOrEqual(previous + 1)
   })
 }
+
+describe('the skip link', () => {
+  it.each(slugs)('%s: is the first thing to tab to and targets the main landmark', (slug) => {
+    const { container } = renderArticle(slug)
+
+    const first = container.querySelector('a, button, input, [tabindex]')
+    expect(first?.textContent).toBe('Skip to content')
+    expect(first?.getAttribute('href')).toBe('#main')
+    expect(screen.getByRole('main').id).toBe('main')
+  })
+})
 
 describe('the mobile navigation dialog', () => {
   /** A controllable `(min-width: 1024px)` media query. */

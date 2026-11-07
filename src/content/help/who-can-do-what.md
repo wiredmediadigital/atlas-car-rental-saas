@@ -10,7 +10,7 @@ summary: The four roles, and every action in the product with the role it needs.
 > there. This page is the list of what *is* there, which is how you find out
 > who to ask.
 
-## The four roles
+### The four roles
 
 {{roleTable}}
 

@@ -15,7 +15,7 @@ The bell sits in the sidebar, beside the agency's name, and carries the number
 of unread items. Opening it gives the same list in a panel, and
 **View all notifications** at the foot of that panel opens the full inbox.
 
-## The six categories
+### The six categories
 
 | Category | What it tells you about |
 |---|---|

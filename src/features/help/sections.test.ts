@@ -205,6 +205,13 @@ describe('helpSections with repeated headings', () => {
     expect(new Set(ids).size).toBe(3)
   })
 
+  it('never gives a heading the id the skip link targets', () => {
+    const ids = helpSections(['## Main', '', '## Main'].join('\n')).map((section) => section.id)
+
+    expect(ids).not.toContain('main')
+    expect(new Set(ids).size).toBe(2)
+  })
+
   it('keeps each repeated heading on its own source line', () => {
     expect(helpSections(REPEATED).map((section) => section.line)).toEqual([1, 3, 5])
   })

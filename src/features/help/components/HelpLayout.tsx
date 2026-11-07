@@ -28,6 +28,12 @@ export interface HelpLayoutProps {
 export function HelpLayout({ sidebar, aside, children }: HelpLayoutProps) {
   return (
     <div className="bg-canvas min-h-dvh">
+      <a
+        href="#main"
+        className="bg-canvas text-ink border-line sr-only z-50 rounded-md border px-3 py-2 text-sm focus:not-sr-only focus:fixed focus:start-4 focus:top-4"
+      >
+        Skip to content
+      </a>
       <header className="border-line bg-canvas/85 sticky top-0 z-40 border-b backdrop-blur">
         <div className="mx-auto flex h-16 max-w-[1220px] items-center justify-between gap-4 px-4 sm:px-6 lg:px-8">
           <Link
@@ -50,7 +56,7 @@ export function HelpLayout({ sidebar, aside, children }: HelpLayoutProps) {
 
       <div className="mx-auto flex max-w-[1220px] items-start gap-10 px-4 py-10 sm:px-6 lg:px-8">
         {sidebar ? <div className="hidden w-52 shrink-0 lg:block">{sidebar}</div> : null}
-        <main id="main" className="min-w-0 flex-1">
+        <main id="main" tabIndex={-1} className="min-w-0 flex-1 outline-none">
           {children}
         </main>
         {aside ? <div className="hidden w-48 shrink-0 xl:block">{aside}</div> : null}
