@@ -199,3 +199,8 @@ here because the reasoning is the record of why they were found.
   redefined the same way.
 - Lint runs before tests in `npm run verify`, so `npx vitest` can be green
   while `verify` is red. Check lint separately when iterating.
+- Around fifty small things were noticed during the build and deliberately left
+  alone — test gaps, redundant assertions, wording slips. They are listed in
+  `help-centre-deferred-minors.md` beside this file. None is a correctness or
+  security defect, and the list has not been re-audited since it was written, so
+  check an item still applies before acting on it.
