@@ -18,12 +18,29 @@ export interface CustomerPickerProps {
   emptyHint?: string
 }
 
+/** Below this, a term narrows nothing: "J" returns the first eight of hundreds. */
+const MIN_SEARCH_LENGTH = 2
+
+/** What the query will return at most, and so what the count notice compares against. */
+const RESULT_LIMIT = 8
+
 /**
  * Finding a person by typing their name.
  *
  * The list is the customer directory, which already carries licence validity, so
  * a driver whose licence has expired is visible as such at the moment they are
  * chosen rather than at the moment the contract is refused.
+ *
+ * Nothing is listed until a term is typed, and the rows name a phone number
+ * rather than a city. Both exist to stop the wrong person being put on a
+ * contract. A list standing open before anybody has typed is the first eight
+ * customers alphabetically — not an answer, but shaped like one, and one click
+ * from a contract in somebody else's name. A city cannot tell two John Smiths
+ * apart; the phone the desk just asked for can.
+ *
+ * The query returns at most RESULT_LIMIT rows however many match, so a search
+ * that found more says so. Without that, eight of twenty-three Johns look like
+ * all of the Johns, and the desk picks the nearest of the eight.
  *
  * The search term is component state and never reaches the URL: a customer's
  * name in a shareable link is personal data in a place it should not be.
@@ -43,8 +60,16 @@ export function CustomerPicker({
     return () => clearTimeout(timer)
   }, [draft])
 
-  const query = useCustomerList({ search, sort: 'name', pageSize: 8 })
-  const customers = query.data?.rows ?? []
+  const term = search.trim()
+  const isSearching = term.length >= MIN_SEARCH_LENGTH
+
+  const query = useCustomerList(
+    { search: term, sort: 'name', pageSize: RESULT_LIMIT },
+    { enabled: isSearching },
+  )
+  const customers = isSearching ? (query.data?.rows ?? []) : []
+  const total = query.data?.total ?? 0
+  const hiddenMatches = isSearching && total > customers.length
 
   return (
     <div className="space-y-2">
@@ -64,7 +89,11 @@ export function CustomerPicker({
       </div>
 
       <div className="border-line max-h-64 overflow-y-auto rounded-md border">
-        {query.isPending ? (
+        {!isSearching ? (
+          <p className="text-ink-subtle px-3 py-6 text-center text-[0.8125rem]">
+            Start typing a name, phone or email.
+          </p>
+        ) : query.isPending ? (
           <ul className="divide-line divide-y">
             {Array.from({ length: 3 }).map((_, index) => (
               <li key={index} className="px-3 py-2.5">
@@ -96,8 +125,9 @@ export function CustomerPicker({
                         {customer.display_name}
                       </span>
                       <span className="text-ink-subtle block truncate text-[0.75rem]">
-                        {[customer.city, customer.country_code].filter(Boolean).join(', ') ||
-                          'No address on file'}
+                        {customer.phone?.trim() ||
+                          customer.email?.trim() ||
+                          'No phone or email on file'}
                       </span>
                     </span>
                     {showLicence ? (
@@ -113,6 +143,16 @@ export function CustomerPicker({
           </ul>
         )}
       </div>
+
+      {/*
+       * Outside the scroll box on purpose: inside it, the one line warning that
+       * the list is incomplete would itself need scrolling to.
+       */}
+      {hiddenMatches ? (
+        <p className="text-ink-subtle text-[0.75rem]">
+          Showing {customers.length} of {total} — keep typing to narrow.
+        </p>
+      ) : null}
     </div>
   )
 }

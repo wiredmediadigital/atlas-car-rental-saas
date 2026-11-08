@@ -70,7 +70,16 @@ async function invalidateCustomers(client: QueryClient, organizationId: string):
   await client.invalidateQueries({ queryKey: customerKeys.all(organizationId) })
 }
 
-export function useCustomerList(query: Omit<CustomerQuery, 'organizationId'>) {
+export function useCustomerList(
+  query: Omit<CustomerQuery, 'organizationId'>,
+  /**
+   * `enabled: false` holds the request back entirely. The customer picker uses
+   * it to ask for nobody until something worth searching has been typed —
+   * otherwise opening a page would fetch a screenful of people's names, phone
+   * numbers and addresses that nobody asked to see.
+   */
+  options: { enabled?: boolean } = {},
+) {
   const organization = useOrganization()
 
   return useQuery({
@@ -80,6 +89,7 @@ export function useCustomerList(query: Omit<CustomerQuery, 'organizationId'>) {
     // search box does not blank the table on every keystroke.
     placeholderData: keepPreviousData,
     staleTime: 15_000,
+    enabled: options.enabled ?? true,
   })
 }
 
