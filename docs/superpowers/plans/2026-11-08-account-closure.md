@@ -86,7 +86,7 @@ it('reports closed only after closed_at is set', ...)
 **Files:** Create `supabase/migrations/20261108100100_account_closure_actions.sql`; Test `supabase/tests/account-closure-actions.test.ts`
 
 **Interfaces — Consumes:** Task 1's state and gate. **Produces:**
-- `public.organization_request_closure(p_organization_id uuid, p_immediate boolean default false) returns public.organizations` — **owner only**; sets the closure columns; `p_immediate` sets `closure_purge_after = now()`
+- `public.organization_request_closure(p_organization_id uuid) returns public.organizations` — **owner only**, `security definer` (Task 1's guard trigger refuses closure-column writes made as `authenticated`); sets the closure columns with `closure_purge_after = now() + interval '30 days'`. There is no immediate parameter: purging sooner is an operator action, not a customer one.
 - `public.organization_restore(p_organization_id uuid) returns public.organizations` — **owner or admin**; refused once `purge_started_at` is set
 - `public.account_closure_events` — the evidence record: organization id, legal name, requester **user id**, requested/purged timestamps, and per-table counts as `jsonb`. Service-role readable only; no `authenticated` policy.
 - `public.account_closure_objects` — storage keys collected before deletion, so the sweep is resumable.
@@ -101,7 +101,8 @@ it('refuses closure to an admin', ...)                      // Review Focus 5
 it('lets an admin restore', ...)                            // Review Focus 5
 it('refuses closure and restore to a manager and to staff', ...)
 it('lets a billing-restricted agency request closure', ...) // Review Focus 4
-it('sets the purge date 30 days out, or now when immediate', ...)
+it('sets the purge date 30 days out', ...)
+it('has no way for a caller to shorten the window', ...)
 it('refuses a restore once the purge has started', ...)     // Review Focus 1
 it('records the requester by id and never their email', ...)
 it('refuses a member of another agency entirely', ...)
@@ -217,7 +218,7 @@ Every owner and admin is emailed the moment closure is requested — this is the
 
 The workflow runs daily and calls the Edge Function with a secret. It must fail loudly — a silently broken scheduler means data retained after a deletion instruction, which is the anti-goal.
 
-The Terms gain closure, the 30-day grace, the immediate option and the no-refund position. The privacy policy points at them. `data-retention.md` Gap 2 is closed, and Gap 1 (`gps_positions`) explicitly is **not** — it stays open.
+The Terms gain closure, the 30-day grace, that purging sooner is by request to Adera Labs, and the no-refund position. The privacy policy points at them. `data-retention.md` Gap 2 is closed, and Gap 1 (`gps_positions`) explicitly is **not** — it stays open.
 
 - [ ] **Steps:** add the workflow; update the three documents; run `npm run verify`; commit.
 

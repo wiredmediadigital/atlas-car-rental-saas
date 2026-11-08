@@ -100,10 +100,21 @@ with its own RLS story, and no re-pointing of foreign keys. "Purge" means
   remainder. Read-only access continues free through the grace period. This
   matches the existing Terms, which already say part-used periods are not
   refunded.
-- **Immediate deletion requires an emailed confirmation link and typing the
-  agency name**, and every owner and admin is notified the moment closure is
-  requested. A stolen session alone cannot destroy the data, and another owner
-  can restore during the grace period.
+- **The button requests closure; it does not execute it.** The account
+  suspends immediately — read-only, labelled, restorable — so the instruction
+  visibly takes effect at once. The purge runs at the end of the 30-day window,
+  or sooner only when Adera Labs actions it. **There is no self-serve immediate
+  purge.** Every owner and admin is notified the moment closure is requested,
+  and typing the agency name is still required to request it.
+
+  This was reconsidered after the first draft, which had a self-serve immediate
+  path guarded by an emailed confirmation link. That path was the single most
+  dangerous capability in the product — the one place a compromised owner
+  account destroys a business's records irrecoverably — and almost every other
+  safeguard in this design existed to mitigate it. Removing the capability is
+  better than guarding it. Article 28 requires acting on the controller's
+  instruction, not providing a button that executes it; suspension within
+  seconds and a purge within days is acting on it.
 - **The purge is triggered by a scheduled call from outside the deployment** —
   a daily GitHub Action, with a secret, invoking an authenticated Edge
   Function that purges everything past its date. This preserves the project's
@@ -168,13 +179,16 @@ button during the grace period; with it, any admin can. An admin still cannot
 decision itself.
 
 **30 days by default**, serving the first anti-goal: a mistake must be
-recoverable. It also gives the agency time to export.
+recoverable. It also gives the agency time to export. The grace period must
+appear in the Terms, so it is a term the agency agreed to rather than one
+imposed.
 
-**With an immediate option**, because retention is processing and holding a
-controller's data for 30 days after they said "delete now" is not strictly
-acting on instruction. That path requires the emailed confirmation link and the
-typed agency name. The grace period must also appear in the Terms, so it is a
-term the agency agreed to rather than one imposed.
+**Purging sooner is an operator action, not a customer one.** An agency that
+needs its data gone immediately asks, and Adera Labs actions it. That keeps a
+human in the loop for the only irreversible step, and it is still acting on the
+controller's instruction — which is what Article 28 requires. A self-serve
+button that purges on the spot is not required by any obligation, and it is the
+capability that makes every other safeguard here load-bearing.
 
 ### The purge
 
@@ -208,8 +222,9 @@ design does not introduce a platform-admin role.
 The Terms say records stay readable after a subscription ends; the privacy
 policy says they are deleted when an account is closed. Both are true only if
 the two events are visibly different, and a reader cannot currently tell. The
-Terms must describe closure, the grace period, the immediate option and the
-no-refund position; the privacy policy must point at them.
+Terms must describe closure, the grace period, that purging sooner is by
+request to Adera Labs, and the no-refund position; the privacy policy must
+point at them.
 
 Drafting falls to the builder, as the existing pages did; the wording is then
 for a lawyer to review before it is relied on. **Whether existing customers
@@ -227,8 +242,12 @@ design.
   recorded by id rather than email.
 - **Billing retained intact**, not anonymised.
 - **Restore is refused once the purge has claimed the account.**
-- **Restore is open to admins as well as owners**, while closing stays
-  owner-only. Asked for explicitly after reviewing the threat model.
+- **Restore is open to admins as well as owners**, while requesting closure
+  stays owner-only. Asked for explicitly after reviewing the threat model.
+- **The self-serve immediate purge is removed**, and with it the emailed
+  confirmation token that guarded it. Reconsidered by the user mid-build: the
+  capability was the reason most of the other safeguards existed, and no
+  obligation requires it.
 
 ## What this does and does not protect against
 
@@ -238,19 +257,24 @@ Worth stating, because the limit is a design decision rather than an oversight.
 enforced in the database, so a manager or staff member cannot reach it through
 the interface or by calling the API directly.
 
-**A compromised owner account: strongly mitigated.** Every owner and admin is
-notified at the moment of request; the account is suspended rather than
-destroyed for 30 days; any owner or admin can restore it; and the immediate
-path additionally requires a link clicked from the owner's mailbox, so a stolen
-session alone is not enough.
+**A compromised owner account: cannot destroy anything.** The worst it can do
+is suspend the agency — visible immediately to every owner and admin by email,
+reversible by any of them with one click, and reversible by Adera Labs in any
+case. Nothing is destroyed for 30 days, and the destruction itself is not a
+capability the session holds.
 
-**A malicious sole owner: not prevented, deliberately.** They control the
-mailbox the confirmation goes to and there is nobody else to restore. This is
-correct: the owner is the data controller, the data is theirs, and the GDPR
-obliges a processor to honour that instruction. A product that could refuse
-would be the defect. The remaining backstop is the platform's point-in-time
-recovery, which is an infrastructure question rather than one this feature can
-answer.
+This is the point of separating the request from the purge. In the first draft
+a compromised owner could purge immediately, and the emailed confirmation link
+was the only thing standing in the way — a guard on a capability that did not
+need to exist.
+
+**A malicious sole owner: delayed, and visible, but not ultimately prevented.**
+They can suspend the agency and let the window expire. That is correct rather
+than a gap: the owner is the data controller, the data is theirs, and a
+processor that could refuse the instruction would be the defect. What has
+changed is that it now takes 30 days and is visible throughout, instead of
+being instantaneous and silent. The remaining backstop is the platform's
+point-in-time recovery, an infrastructure question this feature cannot answer.
 
 ## Left to the builder
 
