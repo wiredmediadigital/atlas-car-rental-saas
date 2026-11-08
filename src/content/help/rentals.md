@@ -63,7 +63,10 @@ never reduces what the customer still owes.
    minimum of one — the screen tells you how it reached the number.
 2. **Vehicle.** Only vehicles with nothing else booked across that period are
    offered. If the one you want is missing, it is committed elsewhere, in
-   maintenance, off the road or retired.
+   maintenance, off the road or retired — or it is out on a hire that is past
+   its return date and has not come back, in which case there is no honest way
+   to promise it to anyone. Recording the return frees it again, even before
+   the contract is closed.
 3. **People.** The renter is who signs and pays. The primary driver is who may
    take the keys, and defaults to the renter. Anyone else driving goes in as an
    additional driver.
@@ -206,9 +209,27 @@ distance covered.
 
 **Complete rental** is refused until three things are true: the hire is **Out**,
 the return has been recorded, and no deposit is still being held. Return the
-deposit from the Money panel first. There is no separate "keep the deposit"
-action: damage is charged as a line on the contract and settled like any other
-money.
+deposit from the Money panel first.
+
+There is no "keep the deposit" button, and the omission is deliberate. Keeping a
+deposit is not the money disappearing; it is the customer's money paying for
+something. Name the something and the rest is the ordinary path. To settle
+damage out of a deposit:
+
+1. **Add charge** for the repair — what it was, and what it comes to. The
+   balance owed rises by that amount.
+2. **Return deposit** in full. The hold clears, which is what releases
+   **Complete rental**.
+3. **Record payment** against the repair, for the part of the deposit the
+   customer is leaving with you.
+
+No cash has to move for any of this: the deposit you hand back and the payment
+you take can be the same notes. What changes is the record. The customer has an
+itemised charge they can read and question, the repair counts as takings instead
+of vanishing into a deposit that was never returned, and the contract closes
+saying what actually happened. If the repair comes to more than the deposit, the
+difference simply stays on the contract as money owed — completing has never
+required a zero balance.
 
 Completing puts the vehicle back in the fleet. It does not collect anything —
 a completed contract can quite correctly read **Unpaid**, and the **Money owed**
