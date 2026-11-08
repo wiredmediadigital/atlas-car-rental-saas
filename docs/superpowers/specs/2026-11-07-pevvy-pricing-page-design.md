@@ -162,15 +162,31 @@ A per-instance memory cache does not bound anything: Supabase Edge Functions sit
 behind no CDN, so a response cache header protects the browser and not the
 origin, and an in-memory value dies with its instance — concurrent and cold
 instances still reach Stripe on demand. Since one of the anti-goals above has an
-attacker in it, the bound has to hold across instances.
+attacker in it, the bound has to hold across instances, which means the database.
 
-**The resolved prices are therefore cached in the database with a short TTL**,
-refreshed from Stripe when stale. This follows the precedent already set by
-`gps-provider`, which backs its throttle with a table for the same reason. It
-needs a new migration, which the project's rules already describe how to write.
+**That cache already exists.** `public.billing_plans` holds exactly the display
+fields — `plan_key`, `display_name`, `currency`, `amount_minor`, `interval`,
+`interval_count`, `mode`, `is_active`, `sort_order`, `updated_at` — and its own
+comment says they are "refreshed from Stripe, never authored by hand".
+`refreshCatalogue` in `billing/index.ts` already resolves each catalogue entry
+against Stripe and replaces the table through `app.billing_replace_catalogue`,
+skipping prices that are archived, wrong-mode, non-recurring, or have no amount.
 
-The cache is a copy that expires, not a mirror that is maintained: its staleness
-is bounded by the TTL, and Stripe remains the only thing that is ever asked.
+So **no new table and no new migration**: the public function reads
+`billing_plans`, and refreshes it from Stripe only when the newest row is older
+than the TTL. Stripe calls are bounded globally by that timestamp, however many
+instances are serving.
+
+It needs no RLS change either. The existing policy — `to authenticated`, active
+owners only — stays exactly as it is. The function holds the service role, so it
+reads the table directly; the browser never touches it and sees only the fields
+the function chooses to return.
+
+**One real gap this exposes.** `refreshCatalogue` is called from one place: the
+authenticated `status` action. Today the table is therefore only as fresh as the
+last time an owner opened the Billing page, which is unbounded staleness — the
+very thing a webhook mirror was rejected for. Giving the public endpoint its own
+TTL-driven refresh closes that for both callers.
 
 ### Degrading honestly
 
@@ -209,10 +225,15 @@ page ends up labelling a monthly price "per year".
 
 Flagged so they can be overridden on reading:
 
-- **The resolved prices are cached in a database table**, which means a new
-  migration. The design originally assumed none; the review showed an
-  in-memory cache cannot bound a public path to Stripe, and honouring the
-  anti-goal matters more than avoiding a migration.
+- **The cache is the existing `billing_plans` table**, refreshed on a TTL. This
+  reverses twice: the design first assumed no migration, then called for a new
+  cache table after review, and then the table turned out to already exist and
+  already be refreshed from Stripe. No new table, no migration, no RLS change.
+- **The public function reads the table with the service role**, so the existing
+  owners-only policy is untouched and the browser never reaches the table.
+- **The TTL refresh is shared with the `status` action**, which closes an
+  existing gap: today `billing_plans` is only refreshed when an owner opens the
+  Billing page.
 - **The card heading is page copy, not Stripe's product name.** Fetching the
   product costs an extra Stripe call per price and gives both intervals the same
   name anyway.
