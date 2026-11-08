@@ -35,14 +35,18 @@ const auth: AuthContextValue = {
   signOut: () => Promise.resolve(),
 }
 
-function renderSection(value: PublicPricing | undefined) {
-  return render(
+function ui(value: PublicPricing | undefined) {
+  return (
     <AuthContext.Provider value={auth}>
       <MemoryRouter>
         <PricingSection pricing={value} />
       </MemoryRouter>
-    </AuthContext.Provider>,
+    </AuthContext.Provider>
   )
+}
+
+function renderSection(value: PublicPricing | undefined) {
+  return render(ui(value))
 }
 
 describe('PricingSection', () => {
@@ -172,5 +176,36 @@ describe('PricingSection', () => {
     expect(container.querySelector('section#pricing')).not.toBeNull()
     expect(screen.queryByRole('heading', { level: 1 })).toBeNull()
     expect(screen.getAllByRole('heading', { level: 2 })).toHaveLength(1)
+  })
+
+  it('gives the yearly button an accessible name with the words separated', () => {
+    renderSection(pricing([MONTHLY, YEARLY]))
+    expect(screen.getByRole('button', { name: 'Yearly Save 17%' })).toBeInTheDocument()
+  })
+
+  it('says "1 day", not "1 days"', () => {
+    renderSection(pricing([MONTHLY], { trialDays: 1 }))
+    expect(screen.getByText('Try it free for 1 day.')).toBeInTheDocument()
+  })
+
+  it('keeps the selected interval when a refetch reorders the plans', async () => {
+    const user = userEvent.setup()
+    const { rerender } = renderSection(pricing([MONTHLY, YEARLY]))
+    await user.click(screen.getByRole('button', { name: /yearly/i }))
+    expect(screen.getByText('$490.00')).toBeInTheDocument()
+
+    rerender(ui(pricing([YEARLY, MONTHLY])))
+    expect(screen.getByText('$490.00')).toBeInTheDocument()
+    expect(screen.getByText(/per year/i)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /yearly/i })).toHaveAttribute('aria-pressed', 'true')
+  })
+
+  it('falls back to a shown plan when the selected one disappears', async () => {
+    const user = userEvent.setup()
+    const { rerender } = renderSection(pricing([MONTHLY, YEARLY]))
+    await user.click(screen.getByRole('button', { name: /yearly/i }))
+
+    rerender(ui(pricing([MONTHLY])))
+    expect(screen.getByText('$49.00')).toBeInTheDocument()
   })
 })

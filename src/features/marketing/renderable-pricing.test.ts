@@ -39,4 +39,23 @@ describe('formatPlanAmount', () => {
     expect(formatPlanAmount(MONTHLY)).toBe('$49.00')
     expect(formatPlanAmount({ ...MONTHLY, currency: 'eur', amountMinor: 123456 })).toBe('€1,234.56')
   })
+
+  it('reads ISK as the x100 form Stripe takes: 500 is 5 krona, not 500', () => {
+    expect(formatPlanAmount({ ...MONTHLY, currency: 'isk', amountMinor: 500 })).toBe('ISK 5')
+    expect(formatPlanAmount({ ...MONTHLY, currency: 'isk', amountMinor: 490000 })).toBe('ISK 4,900')
+  })
+
+  it('reads UGX as the x100 form Stripe takes: 500 is 5 shillings, not 500', () => {
+    expect(formatPlanAmount({ ...MONTHLY, currency: 'ugx', amountMinor: 500 })).toBe('UGX 5')
+  })
+
+  it('keeps HUF and TWD on the ordinary two-decimal rule', () => {
+    // Their divisible-by-100 rule is for payouts, not charges; do not widen the ISK/UGX case.
+    expect(formatPlanAmount({ ...MONTHLY, currency: 'huf', amountMinor: 150050 })).toBe(
+      'HUF 1,500.50',
+    )
+    expect(formatPlanAmount({ ...MONTHLY, currency: 'twd', amountMinor: 150050 })).toBe(
+      'NT$1,500.50',
+    )
+  })
 })

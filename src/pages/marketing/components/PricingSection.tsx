@@ -38,19 +38,22 @@ function isYearly(plan: PublicPlan): boolean {
   return plan.interval === 'year' && plan.intervalCount === 1
 }
 
-function defaultIndex(plans: readonly PublicPlan[]): number {
-  const monthly = plans.findIndex((p) => p.interval === 'month' && p.intervalCount === 1)
-  return monthly === -1 ? 0 : monthly
+/** A plan's identity: what Stripe reported, stable across refetch reordering. */
+function identity(plan: PublicPlan): string {
+  return `${plan.interval}:${plan.intervalCount}`
+}
+
+function defaultPlan(plans: readonly PublicPlan[]): PublicPlan | undefined {
+  return plans.find((p) => p.interval === 'month' && p.intervalCount === 1) ?? plans[0]
 }
 
 export function PricingSection({ pricing }: PricingSectionProps) {
-  const [selected, setSelected] = useState<number | null>(null)
+  const [selected, setSelected] = useState<string | null>(null)
 
   if (!pricing || !hasRenderablePricing(pricing)) return null
   const plans = renderablePlans(pricing)
 
-  const index = selected !== null && selected < plans.length ? selected : defaultIndex(plans)
-  const plan = plans[index]
+  const plan = plans.find((p) => identity(p) === selected) ?? defaultPlan(plans)
   if (!plan) return null
 
   const saving = annualSaving(plans)
@@ -80,14 +83,14 @@ export function PricingSection({ pricing }: PricingSectionProps) {
             aria-label="Billing interval"
             className="border-line mx-auto mt-10 flex w-fit gap-1 rounded-lg border p-1"
           >
-            {plans.map((option, i) => {
-              const isSelected = i === index
+            {plans.map((option) => {
+              const isSelected = identity(option) === identity(plan)
               return (
                 <button
-                  key={`${option.planKey}-${i}`}
+                  key={identity(option)}
                   type="button"
                   aria-pressed={isSelected}
-                  onClick={() => setSelected(i)}
+                  onClick={() => setSelected(identity(option))}
                   className={[
                     'rounded-md px-4 py-2 text-sm font-medium transition-colors',
                     'focus-visible:outline-brand-500 focus-visible:outline-2',
@@ -96,8 +99,9 @@ export function PricingSection({ pricing }: PricingSectionProps) {
                   ].join(' ')}
                 >
                   {cadence(option, 'toggle')}
+                  {isYearly(option) && saving !== null && ' '}
                   {isYearly(option) && saving !== null && (
-                    <span className="ml-2 text-[0.75rem] font-semibold">Save {saving}%</span>
+                    <span className="ml-1 text-[0.75rem] font-semibold">Save {saving}%</span>
                   )}
                 </button>
               )
@@ -114,7 +118,7 @@ export function PricingSection({ pricing }: PricingSectionProps) {
           </p>
           {pricing.trialDays > 0 && (
             <p className="text-ink-muted mt-4 text-[0.9375rem] leading-6">
-              Try it free for {pricing.trialDays} days.
+              Try it free for {pricing.trialDays} {pricing.trialDays === 1 ? 'day' : 'days'}.
             </p>
           )}
           <div className="mt-6 flex justify-center">
