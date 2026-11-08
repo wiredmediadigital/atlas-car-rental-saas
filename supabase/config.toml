@@ -521,6 +521,13 @@ verify_jwt = false
 [functions.billing-webhook]
 verify_jwt = false
 
+# The public pricing endpoint serves the marketing page's prices to signed-out
+# visitors, so there is no session to verify. It is read-only, reads the
+# catalogue with the service role inside the function, and returns nothing a
+# landing page does not render: no key, no app URL, no Stripe identifier.
+[functions.pricing]
+verify_jwt = false
+
 # The user-initiated billing boundary keeps verify_jwt on, inheriting the
 # platform check, and calls auth.getUser() itself as well — the platform check is
 # never trusted alone.

@@ -122,7 +122,8 @@ and files there are the owner's own.
      approval.
 7. `npx supabase functions deploy --project-ref <ref>`, then
    `npx supabase functions list --project-ref <ref> -o json` → `team-invitations`, `gps-provider`,
-   `billing`, `billing-webhook` all ACTIVE.
+   `billing`, `billing-webhook`, `pricing` all ACTIVE. A missing `pricing` leaves the live site
+   without its pricing section, silently.
 8. `npm run setup:env -- <ref>` writes `.env.local` with the browser-safe values (it prints only
    the kind of key). Never run `supabase projects api-keys` yourself — its output holds secret
    keys. If `.env.local` already exists, ask before adding `--force`.

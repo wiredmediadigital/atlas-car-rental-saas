@@ -22,6 +22,7 @@ export default tseslint.config(
       'supabase/functions/team-invitations/**',
       'supabase/functions/billing/**',
       'supabase/functions/billing-webhook/**',
+      'supabase/functions/pricing/**',
     ],
   },
   js.configs.recommended,
