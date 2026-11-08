@@ -17,7 +17,7 @@ import type { BillingConfig } from './stripe-config.ts'
 /** The part of a Supabase client the refresh writes through. */
 export interface CatalogueStore {
   schema(name: 'app'): {
-    rpc(fn: string, args: Record<string, unknown>): PromiseLike<{ data: unknown }>
+    rpc(fn: string, args: Record<string, unknown>): PromiseLike<{ data: unknown; error: unknown }>
   }
 }
 
@@ -33,11 +33,20 @@ export interface StripePriceShape {
   recurring?: { interval?: string; interval_count?: number } | null
 }
 
+/** `public.billing_interval`: the only cadences the table can hold. */
+const BILLING_INTERVALS = new Set(['day', 'week', 'month', 'year'])
+const MIN_INTERVAL_COUNT = 1
+/** `billing_plans.interval_count between 1 and 12`: a wider value fails the whole insert. */
+const MAX_INTERVAL_COUNT = 12
+
 /**
  * One Stripe price as a billing_plans row, or null when it must not be sold.
  *
  * A price that is archived at Stripe, that belongs to the other mode, that is
- * not recurring, or that carries no amount is dropped rather than sold.
+ * not recurring, that carries no amount, or whose cadence the table cannot hold
+ * is dropped rather than sold. The last matters beyond that one plan: the
+ * catalogue is replaced in a single statement, so one row that violates a column
+ * constraint would fail the refresh for every plan, and for the Billing page.
  */
 export function priceToPlanRow(
   price: StripePriceShape,
@@ -49,6 +58,15 @@ export function priceToPlanRow(
   if (!price.recurring?.interval) return null
   if ((price.livemode === true ? 'live' : 'test') !== mode) return null
   if (typeof price.unit_amount !== 'number' || typeof price.currency !== 'string') return null
+  if (!BILLING_INTERVALS.has(price.recurring.interval)) return null
+  const intervalCount = price.recurring.interval_count ?? 1
+  if (
+    !Number.isInteger(intervalCount) ||
+    intervalCount < MIN_INTERVAL_COUNT ||
+    intervalCount > MAX_INTERVAL_COUNT
+  ) {
+    return null
+  }
 
   /*
    * A Stripe nickname is free text of any length, and the display_name column
@@ -63,12 +81,13 @@ export function priceToPlanRow(
     plan_key: planKey,
     display_name: displayName,
     stripe_price_id: price.id,
-    stripe_product_id: typeof price.product === 'string' ? price.product : (price.product?.id ?? null),
+    stripe_product_id:
+      typeof price.product === 'string' ? price.product : (price.product?.id ?? null),
     lookup_key: price.lookup_key ?? null,
     currency: price.currency.toUpperCase(),
     amount_minor: price.unit_amount,
     interval: price.recurring.interval,
-    interval_count: price.recurring.interval_count ?? 1,
+    interval_count: intervalCount,
     mode,
     sort_order: sortOrder,
   }
@@ -109,6 +128,15 @@ export async function refreshCatalogue(
     if (row !== null) plans.push(row)
   }
 
-  const { data } = await service.schema('app').rpc('billing_replace_catalogue', { p_plans: plans })
+  const { data, error } = await service
+    .schema('app')
+    .rpc('billing_replace_catalogue', { p_plans: plans })
+  /*
+   * A failed replace must not look like a successful one. Reporting
+   * `plans.length` here would leave visitors on stale prices with nothing in any
+   * log. Only the fact of failure is thrown: the database error text is not
+   * carried, since callers log the error and a message can echo row content.
+   */
+  if (error) throw new Error('billing_replace_catalogue failed')
   return typeof data === 'number' ? data : plans.length
 }

@@ -10,7 +10,12 @@
  */
 import { describe, expect, it } from 'vitest'
 
-import { priceToPlanRow, type StripePriceShape } from '../functions/_shared/billing-catalogue.ts'
+import {
+  priceToPlanRow,
+  refreshCatalogue,
+  type CatalogueStore,
+  type StripePriceShape,
+} from '../functions/_shared/billing-catalogue.ts'
 
 /** A sellable test-mode monthly price; each test overrides only what it is about. */
 function price(overrides: Partial<StripePriceShape> = {}): StripePriceShape {
@@ -74,11 +79,79 @@ describe('priceToPlanRow', () => {
   })
 
   it('upper-cases the currency', () => {
-    expect(priceToPlanRow(price({ currency: 'usd' }), 'pro_monthly', 0, 'test')?.currency).toBe('USD')
+    expect(priceToPlanRow(price({ currency: 'usd' }), 'pro_monthly', 0, 'test')?.currency).toBe(
+      'USD',
+    )
   })
 
   it('defaults interval_count to 1 when Stripe omits it', () => {
     const row = priceToPlanRow(price({ recurring: { interval: 'year' } }), 'pro_yearly', 0, 'test')
     expect(row?.interval_count).toBe(1)
+  })
+})
+
+describe('priceToPlanRow: cadences the table cannot hold', () => {
+  it('writes a weekly price, which billing_interval allows', () => {
+    const row = priceToPlanRow(
+      price({ recurring: { interval: 'week', interval_count: 1 } }),
+      'weekly',
+      0,
+      'test',
+    )
+    expect(row?.interval).toBe('week')
+  })
+
+  it('drops an interval the enum does not contain', () => {
+    expect(
+      priceToPlanRow(price({ recurring: { interval: 'fortnight' } }), 'x', 0, 'test'),
+    ).toBeNull()
+  })
+
+  it('accepts interval_count at both ends of 1..12', () => {
+    for (const count of [1, 12]) {
+      const row = priceToPlanRow(
+        price({ recurring: { interval: 'month', interval_count: count } }),
+        'x',
+        0,
+        'test',
+      )
+      expect(row?.interval_count).toBe(count)
+    }
+  })
+
+  it('drops interval_count outside 1..12, which would fail the whole insert', () => {
+    for (const count of [0, 13, 26, -1, 1.5]) {
+      expect(
+        priceToPlanRow(
+          price({ recurring: { interval: 'week', interval_count: count } }),
+          'x',
+          0,
+          'test',
+        ),
+      ).toBeNull()
+    }
+  })
+})
+
+describe('refreshCatalogue', () => {
+  function store(result: { data: unknown; error: unknown }): CatalogueStore {
+    return { schema: () => ({ rpc: () => Promise.resolve(result) }) }
+  }
+  const stripe = {
+    request: () => Promise.resolve(price()),
+  } as unknown as Parameters<typeof refreshCatalogue>[1]
+  const config = {
+    mode: 'test',
+    catalogue: [{ planKey: 'pro_monthly', priceId: 'price_1' }],
+  } as unknown as Parameters<typeof refreshCatalogue>[2]
+
+  it('returns the count the database reports', async () => {
+    expect(await refreshCatalogue(store({ data: 1, error: null }), stripe, config)).toBe(1)
+  })
+
+  it('throws when the replace fails, instead of reporting success', async () => {
+    await expect(
+      refreshCatalogue(store({ data: null, error: { message: 'boom' } }), stripe, config),
+    ).rejects.toThrow('billing_replace_catalogue failed')
   })
 })
