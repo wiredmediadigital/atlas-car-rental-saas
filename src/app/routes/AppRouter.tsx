@@ -191,6 +191,18 @@ const HelpIndexPage = lazy(() =>
   })),
 )
 
+const PrivacyPolicyPage = lazy(() =>
+  import('@/pages/legal/PrivacyPolicyPage').then((module) => ({
+    default: module.PrivacyPolicyPage,
+  })),
+)
+
+const TermsPage = lazy(() =>
+  import('@/pages/legal/TermsPage').then((module) => ({
+    default: module.TermsPage,
+  })),
+)
+
 const HelpArticlePage = lazy(() =>
   import('@/pages/help/HelpArticlePage').then((module) => ({
     default: module.HelpArticlePage,
@@ -253,6 +265,12 @@ export function AppRouter() {
            */}
           <Route path={paths.help} element={<HelpIndexPage />} />
           <Route path={paths.helpArticle} element={<HelpArticlePage />} />
+
+          {/* The legal documents sit beside help for the same reason: they are
+              public, they read identically signed in or out, and nothing in
+              them is fetched, so a missing session has nothing to refuse. */}
+          <Route path={paths.privacy} element={<PrivacyPolicyPage />} />
+          <Route path={paths.terms} element={<TermsPage />} />
 
           {/* Authenticated — except `/`, which a signed-out visitor sees the
               public marketing page for instead of being sent to sign in. */}

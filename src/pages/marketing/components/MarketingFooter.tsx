@@ -44,6 +44,18 @@ export function MarketingFooter() {
             >
               Create agency account
             </Link>
+            <Link
+              to={paths.privacy}
+              className="text-ink-muted hover:text-ink text-[0.8125rem] font-medium transition-colors"
+            >
+              Privacy
+            </Link>
+            <Link
+              to={paths.terms}
+              className="text-ink-muted hover:text-ink text-[0.8125rem] font-medium transition-colors"
+            >
+              Terms
+            </Link>
           </nav>
         </div>
 

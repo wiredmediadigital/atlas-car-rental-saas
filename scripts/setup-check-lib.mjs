@@ -300,6 +300,8 @@ export const SITE_ROUTES = [
   '/auth/reset-password',
   '/settings',
   '/help',
+  '/privacy',
+  '/terms',
 ]
 
 function isLocalHost(hostname) {

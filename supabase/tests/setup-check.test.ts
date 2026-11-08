@@ -324,6 +324,15 @@ describe('checking the deployed site', () => {
     expect(SITE_ROUTES).toContain('/help')
   })
 
+  // A payment provider's review opens these while signed out, and a buyer's
+  // procurement check does the same. A deployment that serves them behind a
+  // sign-in wall, or not at all, has the same problem as one with no policy —
+  // so the deploy verifier fetches them rather than trusting they exist.
+  it('checks the legal pages a signed-out reviewer will open', () => {
+    expect(SITE_ROUTES).toContain('/privacy')
+    expect(SITE_ROUTES).toContain('/terms')
+  })
+
   // The screenshots in public/help/ ship as a real directory, and a real
   // directory is what Apache serves rather than handing the path to the app:
   // /help answered 403 in production while every local test passed, because

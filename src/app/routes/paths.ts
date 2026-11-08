@@ -46,6 +46,14 @@ export const paths = {
   /** A help article; build with `helpArticlePath(slug)`. */
   helpArticle: '/help/:slug',
 
+  /**
+   * The legal documents. Public and reachable without a session — a payment
+   * provider or a buyer's procurement check opens these while signed out, and
+   * a policy behind a sign-in wall is the same as no policy.
+   */
+  privacy: '/privacy',
+  terms: '/terms',
+
   signIn: '/sign-in',
   signUp: '/sign-up',
   forgotPassword: '/forgot-password',
