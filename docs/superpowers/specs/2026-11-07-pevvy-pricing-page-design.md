@@ -273,3 +273,56 @@ a known decision rather than a surprise.
   loading and loaded states; one price versus two; non-comparable prices
   suppressing the saving; an interval label driven by a price whose key and
   interval disagree; and that no fallback price can appear in any state.
+
+---
+
+## Accepted limitations, recorded at merge (2026-11-08)
+
+The feature shipped and was verified live. These are decisions taken knowingly,
+written here because the workspace that held the reasoning was scratch and has
+been deleted.
+
+### The bound on Stripe calls is per instance, not global
+
+The anti-goal above asks for a bound that holds *across* function instances. The
+global mechanism is `billing_plans.updated_at`, and it only advances when a
+refresh both succeeds and touches a row. Two states freeze it: every Stripe
+price archived (`billing_replace_catalogue` deactivates rather than deletes, so
+the second such refresh touches nothing), and Stripe unreachable. In those
+states the only remaining bound is per instance.
+
+What shipped is a mitigation: the retry window backs off from 60 seconds to 10
+minutes after a refresh that fails or advances nothing. The code says in as many
+words that this is not the global bound, so it is not mistaken for one.
+
+**Why no migration.** At 10 minutes, a stuck instance makes about 12 Stripe
+calls an hour. Ten instances is roughly 120 an hour, against a rate limit near
+100 *per second* — four orders of magnitude of headroom, and only while Stripe
+is already failing. A true global bound needs a table and a lock on the
+anonymous request path, which is more moving parts in the one route that must
+not break. `billing_platform_state` was considered and rejected: its meaning is
+what the server knows about its own Stripe configuration, and the authenticated
+billing path reads it for access decisions.
+
+**Revisit if** the deployment runs many concurrent instances, or Stripe reports
+rate-limit warnings.
+
+### Still unchecked by any tool
+
+`supabase/functions/pricing/index.ts` is outside tsconfig, eslint-ignored, has
+no test, and the repo has no CI workflow and no `deno.json` — so not even
+`deno check` runs against it. It was reduced to method dispatch, status codes,
+headers and a call into tested `_shared` code, which is as far as that can go
+without adding a Deno toolchain to the project.
+
+### Smaller things left undone
+
+- `Faq.test.tsx` has no unit-level case for a non-empty `plans` array where
+  nothing is renderable; the page-level test covers it.
+- `readPlans` uses `select('*')` rather than an explicit column list, and orders
+  by `sort_order` with no tiebreaker.
+- `pricing` loads the whole billing config, so a valid catalogue with a bad
+  `BILLING_APP_URL` loses its pricing section. Fail-closed, but wider than the
+  three variables the payload needs.
+- The in-app Billing page still shows invented Starter/Growth/Scale example
+  tiers while the public page shows one real price. A known follow-up.
