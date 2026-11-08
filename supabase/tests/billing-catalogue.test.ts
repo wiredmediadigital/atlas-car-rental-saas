@@ -1,0 +1,84 @@
+// @vitest-environment node
+/**
+ * The skip rules of the catalogue refresh, which no test could reach while the
+ * function lived in an Edge Function entrypoint.
+ *
+ * Every rule here protects a sale: a price that is archived, from the other
+ * Stripe mode, not recurring, or without an amount must never reach
+ * billing_plans, because the Billing page and the public pricing section sell
+ * whatever that table holds.
+ */
+import { describe, expect, it } from 'vitest'
+
+import { priceToPlanRow, type StripePriceShape } from '../functions/_shared/billing-catalogue.ts'
+
+/** A sellable test-mode monthly price; each test overrides only what it is about. */
+function price(overrides: Partial<StripePriceShape> = {}): StripePriceShape {
+  return {
+    id: 'price_1',
+    active: true,
+    currency: 'usd',
+    unit_amount: 4900,
+    livemode: false,
+    lookup_key: 'pro_monthly',
+    product: 'prod_1',
+    nickname: 'Pro',
+    recurring: { interval: 'month', interval_count: 1 },
+    ...overrides,
+  }
+}
+
+describe('priceToPlanRow', () => {
+  it('maps a sellable price to a plan row', () => {
+    expect(priceToPlanRow(price(), 'pro_monthly', 3, 'test')).toEqual({
+      plan_key: 'pro_monthly',
+      display_name: 'Pro',
+      stripe_price_id: 'price_1',
+      stripe_product_id: 'prod_1',
+      lookup_key: 'pro_monthly',
+      currency: 'USD',
+      amount_minor: 4900,
+      interval: 'month',
+      interval_count: 1,
+      mode: 'test',
+      sort_order: 3,
+    })
+  })
+
+  it('skips an archived price', () => {
+    expect(priceToPlanRow(price({ active: false }), 'pro_monthly', 0, 'test')).toBeNull()
+  })
+
+  it('skips a price from the other Stripe mode', () => {
+    expect(priceToPlanRow(price({ livemode: true }), 'pro_monthly', 0, 'test')).toBeNull()
+    expect(priceToPlanRow(price({ livemode: false }), 'pro_monthly', 0, 'live')).toBeNull()
+  })
+
+  it('skips a one-off price with no recurring interval', () => {
+    expect(priceToPlanRow(price({ recurring: null }), 'pro_monthly', 0, 'test')).toBeNull()
+  })
+
+  it('skips a price with no unit amount', () => {
+    expect(priceToPlanRow(price({ unit_amount: null }), 'pro_monthly', 0, 'test')).toBeNull()
+  })
+
+  it('falls back to the plan key when the nickname is empty', () => {
+    expect(priceToPlanRow(price({ nickname: '  ' }), 'pro_monthly', 0, 'test')?.display_name).toBe(
+      'pro_monthly',
+    )
+  })
+
+  it('falls back to the plan key when the nickname exceeds 80 characters', () => {
+    const row = priceToPlanRow(price({ nickname: 'x'.repeat(81) }), 'pro_monthly', 0, 'test')
+    expect(row?.display_name).toBe('pro_monthly')
+  })
+
+  it('upper-cases the currency', () => {
+    expect(priceToPlanRow(price({ currency: 'usd' }), 'pro_monthly', 0, 'test')?.currency).toBe('USD')
+  })
+
+  it('defaults interval_count to 1 when Stripe omits it', () => {
+    const row = priceToPlanRow(price({ recurring: { interval: 'year' } }), 'pro_yearly', 0, 'test')
+    expect(row?.interval_count).toBe(1)
+  })
+})

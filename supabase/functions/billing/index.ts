@@ -43,11 +43,11 @@ import {
   type StripeSubscription,
   type SubscriptionStatus,
 } from '../_shared/billing-domain.ts'
+import { refreshCatalogue } from '../_shared/billing-catalogue.ts'
 import { StripeApiError, StripeClient } from '../_shared/stripe-api.ts'
 import {
   describeConfigProblem,
   resolveBillingConfig,
-  type BillingConfig,
 } from '../_shared/stripe-config.ts'
 
 const CORS_HEADERS: Record<string, string> = {
@@ -131,81 +131,6 @@ async function reportPlatformState(
     p_mode: mode,
     p_reason: reason,
   })
-}
-
-/**
- * Refreshes the sellable catalogue from Stripe.
- *
- * The configured entries name a price or a lookup key; the money is read from
- * Stripe and never from configuration, so nobody can publish a plan that says
- * one amount here and charges another there. A price that is archived at
- * Stripe, or that belongs to the other mode, is dropped rather than sold.
- */
-async function refreshCatalogue(
-  service: SupabaseClient,
-  stripe: StripeClient,
-  config: BillingConfig,
-): Promise<number> {
-  const plans: Record<string, unknown>[] = []
-
-  for (const [index, entry] of config.catalogue.entries()) {
-    let price: {
-      id: string
-      active?: boolean
-      currency?: string
-      unit_amount?: number | null
-      livemode?: boolean
-      lookup_key?: string | null
-      product?: string | { id?: string }
-      nickname?: string | null
-      recurring?: { interval?: string; interval_count?: number } | null
-    }
-
-    if (entry.priceId !== undefined) {
-      price = await stripe.request('GET', `/prices/${entry.priceId}`)
-    } else {
-      const found = await stripe.request<{ data?: (typeof price)[] }>('GET', '/prices', {
-        lookup_keys: [entry.lookupKey!],
-        active: true,
-        limit: 1,
-      })
-      const first = found.data?.[0]
-      if (!first) continue
-      price = first
-    }
-
-    if (price.active === false) continue
-    if (!price.recurring?.interval) continue
-    if ((price.livemode === true ? 'live' : 'test') !== config.mode) continue
-    if (typeof price.unit_amount !== 'number' || typeof price.currency !== 'string') continue
-
-    /*
-     * A Stripe nickname is free text of any length, and the display_name column
-     * accepts 1..80 characters. An empty or over-long nickname would fail the
-     * whole catalogue refresh — and therefore the Billing page — for every plan,
-     * so it falls back to the plan key rather than taking the deployment down.
-     */
-    const nickname = (price.nickname ?? '').trim()
-    const displayName =
-      nickname.length >= 1 && nickname.length <= 80 ? nickname : entry.planKey
-
-    plans.push({
-      plan_key: entry.planKey,
-      display_name: displayName,
-      stripe_price_id: price.id,
-      stripe_product_id: typeof price.product === 'string' ? price.product : (price.product?.id ?? null),
-      lookup_key: price.lookup_key ?? null,
-      currency: price.currency.toUpperCase(),
-      amount_minor: price.unit_amount,
-      interval: price.recurring.interval,
-      interval_count: price.recurring.interval_count ?? 1,
-      mode: config.mode,
-      sort_order: index,
-    })
-  }
-
-  const { data } = await service.schema('app').rpc('billing_replace_catalogue', { p_plans: plans })
-  return typeof data === 'number' ? data : plans.length
 }
 
 /**
