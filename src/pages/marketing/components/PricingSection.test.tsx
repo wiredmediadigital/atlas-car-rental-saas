@@ -233,9 +233,15 @@ describe('PricingSection', () => {
   })
 
   describe('deep link', () => {
+    // jsdom does not implement scrollIntoView, so the original is usually
+    // undefined; restore exactly that rather than leave a stub on the prototype.
+    const original = Element.prototype.scrollIntoView
+    const proto = Element.prototype as { scrollIntoView?: Element['scrollIntoView'] }
+
     afterEach(() => {
       window.location.hash = ''
-      vi.restoreAllMocks()
+      if (original === undefined) delete proto.scrollIntoView
+      else proto.scrollIntoView = original
     })
 
     it('scrolls to the section when the URL names it and prices arrive later', () => {

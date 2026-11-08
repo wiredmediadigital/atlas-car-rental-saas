@@ -93,7 +93,7 @@ describe('toPublicPlans', () => {
       row({ plan_key: 'a', sort_order: 1 }),
       row({ plan_key: 'off', is_active: false }),
     ]
-    const snapshot = JSON.parse(JSON.stringify(rows))
+    const snapshot = structuredClone(rows)
     toPublicPlans(rows)
     expect(rows).toEqual(snapshot)
   })
