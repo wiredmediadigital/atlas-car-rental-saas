@@ -12,6 +12,8 @@ import {
   isStale,
   newestUpdatedAt,
   PRICING_TTL_SECONDS,
+  REFRESH_RETRY_MS,
+  shouldRefresh,
   type PlanRow,
   toPublicPricing,
   UNCONFIGURED,
@@ -165,5 +167,60 @@ describe('newestUpdatedAt', () => {
   it('returns null when no timestamp is usable, so the catalogue counts as stale', () => {
     expect(newestUpdatedAt([row({ updated_at: 'garbage' })])).toBeNull()
     expect(isStale(newestUpdatedAt([row({ updated_at: 'garbage' })]), NOW)).toBe(true)
+  })
+})
+
+describe('shouldRefresh', () => {
+  const nowMs = NOW.getTime()
+  const stale = secondsBefore(PRICING_TTL_SECONDS + 1)
+
+  it('is false for fresh data, whatever the attempt history', () => {
+    expect(shouldRefresh({ newestUpdatedAt: secondsBefore(5), lastAttemptMs: null, nowMs })).toBe(
+      false,
+    )
+  })
+
+  it('is true for stale data with no prior attempt', () => {
+    expect(shouldRefresh({ newestUpdatedAt: stale, lastAttemptMs: null, nowMs })).toBe(true)
+  })
+
+  it('is false for stale data with a recent attempt', () => {
+    expect(shouldRefresh({ newestUpdatedAt: stale, lastAttemptMs: nowMs - 1000, nowMs })).toBe(
+      false,
+    )
+  })
+
+  it('is true once the retry window has elapsed, exactly at the boundary', () => {
+    expect(
+      shouldRefresh({
+        newestUpdatedAt: stale,
+        lastAttemptMs: nowMs - REFRESH_RETRY_MS,
+        nowMs,
+      }),
+    ).toBe(true)
+    expect(
+      shouldRefresh({
+        newestUpdatedAt: stale,
+        lastAttemptMs: nowMs - REFRESH_RETRY_MS + 1,
+        nowMs,
+      }),
+    ).toBe(false)
+  })
+
+  it('gates a null newest timestamp by the retry window instead of firing every request', () => {
+    expect(shouldRefresh({ newestUpdatedAt: null, lastAttemptMs: null, nowMs })).toBe(true)
+    expect(shouldRefresh({ newestUpdatedAt: null, lastAttemptMs: nowMs - 1000, nowMs })).toBe(false)
+  })
+
+  it('honours custom ttl and retry values', () => {
+    expect(
+      shouldRefresh({
+        newestUpdatedAt: secondsBefore(30),
+        lastAttemptMs: nowMs - 5000,
+        nowMs,
+        ttlSeconds: 10,
+        retryMs: 5000,
+      }),
+    ).toBe(true)
   })
 })

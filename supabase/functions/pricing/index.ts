@@ -22,8 +22,8 @@ import { createClient, type SupabaseClient } from 'jsr:@supabase/supabase-js@2'
 
 import { refreshCatalogue } from '../_shared/billing-catalogue.ts'
 import {
-  isStale,
   newestUpdatedAt,
+  shouldRefresh,
   toPublicPricing,
   UNCONFIGURED,
   type PlanRow,
@@ -56,18 +56,20 @@ async function readPlans(service: SupabaseClient): Promise<PlanRow[] | null> {
 }
 
 /**
- * Whether this instance has already tried to bootstrap an empty catalogue.
+ * When this instance last tried to refresh the catalogue, in epoch milliseconds.
  *
- * With no rows, `isStale(null)` is always true, so without this every anonymous
- * request on a deployment whose prices are all archived (or never mirrored)
- * would call Stripe: an unbounded public path to the payment API. This lets the
- * zero-rows case attempt a refresh once per function instance, which bounds
- * Stripe calls by the number of live instances rather than the number of
- * requests, while a cold instance can still populate a never-mirrored table.
- * The ordinary case (rows exist, TTL expired) is unaffected. Do not remove it
- * as a micro-optimisation.
+ * It bounds Stripe calls, not just freshness: a failed refresh writes nothing,
+ * so without it every anonymous request during an outage would call Stripe
+ * again. Set BEFORE the attempt so concurrent requests at TTL expiry do not all
+ * refresh at once. Per instance only; a cross-instance bound is deferred. Do not
+ * remove it as a micro-optimisation.
  */
-let hasAttemptedEmptyRefresh = false
+let lastRefreshAttemptMs: number | null = null
+
+/** Logs an error's name only: a message or body can echo a credential. */
+function errorName(error: unknown): string {
+  return error instanceof Error ? error.name : 'non-error'
+}
 
 Deno.serve(async (request: Request): Promise<Response> => {
   if (request.method === 'OPTIONS') return new Response('ok', { headers: CORS_HEADERS })
@@ -88,6 +90,7 @@ Deno.serve(async (request: Request): Promise<Response> => {
   const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? ''
   const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
   if (supabaseUrl === '' || serviceKey === '') {
+    console.error('pricing: platform credentials missing')
     return json({ error: 'Pricing is unavailable right now.' }, 503)
   }
 
@@ -96,12 +99,20 @@ Deno.serve(async (request: Request): Promise<Response> => {
   })
 
   let rows = await readPlans(service)
-  if (rows === null) return json({ error: 'Pricing is unavailable right now.' }, 503)
+  if (rows === null) {
+    console.error('pricing: catalogue read failed')
+    return json({ error: 'Pricing is unavailable right now.' }, 503)
+  }
 
-  const isEmpty = rows.length === 0
-  const mayRefresh = !isEmpty || !hasAttemptedEmptyRefresh
-  if (mayRefresh && isStale(newestUpdatedAt(rows), new Date())) {
-    if (isEmpty) hasAttemptedEmptyRefresh = true
+  const nowMs = Date.now()
+  if (
+    shouldRefresh({
+      newestUpdatedAt: newestUpdatedAt(rows),
+      lastAttemptMs: lastRefreshAttemptMs,
+      nowMs,
+    })
+  ) {
+    lastRefreshAttemptMs = nowMs
     try {
       await refreshCatalogue(
         service,
@@ -109,9 +120,9 @@ Deno.serve(async (request: Request): Promise<Response> => {
         config,
       )
       rows = (await readPlans(service)) ?? rows
-    } catch {
+    } catch (error) {
       // Stale but real beats nothing: serve whatever is already mirrored.
-      console.error('pricing: catalogue refresh failed')
+      console.error(`pricing: catalogue refresh failed (${errorName(error)})`)
     }
   }
 

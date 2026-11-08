@@ -87,6 +87,31 @@ export function toPublicPricing(rows: readonly PlanRow[], trialDays: number): Pu
   return { configured: rows.length > 0, plans, trialDays }
 }
 
+/** Minimum gap between Stripe refresh attempts by one function instance. */
+export const REFRESH_RETRY_MS = 60_000
+
+/**
+ * Whether to call Stripe now: the mirrored data is stale AND this instance has
+ * not tried recently.
+ *
+ * Staleness alone is not enough. A failed refresh writes nothing, so the data
+ * stays stale and every anonymous request would call Stripe again: a retry storm
+ * against the payment account during exactly the incident that caused the
+ * failure. The retry window bounds every refresh path, including a `null`
+ * newest timestamp (no rows, or none parseable), which is always stale.
+ */
+export function shouldRefresh(args: {
+  newestUpdatedAt: string | null
+  lastAttemptMs: number | null
+  nowMs: number
+  ttlSeconds?: number
+  retryMs?: number
+}): boolean {
+  const { newestUpdatedAt, lastAttemptMs, nowMs, ttlSeconds, retryMs = REFRESH_RETRY_MS } = args
+  if (!isStale(newestUpdatedAt, new Date(nowMs), ttlSeconds)) return false
+  return lastAttemptMs === null || nowMs - lastAttemptMs >= retryMs
+}
+
 /**
  * The newest `updated_at` among the rows, for `isStale`.
  *
