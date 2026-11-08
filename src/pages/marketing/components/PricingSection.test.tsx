@@ -1,7 +1,7 @@
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { AuthContext, type AuthContextValue } from '@/features/auth/auth-context'
 import type { PublicPlan, PublicPricing } from '@/features/marketing/api'
@@ -48,6 +48,8 @@ function ui(value: PublicPricing | undefined) {
 function renderSection(value: PublicPricing | undefined) {
   return render(ui(value))
 }
+
+const SECOND_MONTHLY: PublicPlan = { ...MONTHLY, planKey: 'pro_monthly_eur', amountMinor: 5900 }
 
 describe('PricingSection', () => {
   it('renders nothing while loading', () => {
@@ -119,8 +121,8 @@ describe('PricingSection', () => {
 
   it('shows the saving when the two prices are comparable', () => {
     renderSection(pricing([MONTHLY, YEARLY]))
-    // 49 * 12 = 588; 490 is 17% less.
-    expect(screen.getByText(/save 17%/i)).toBeInTheDocument()
+    // 49 * 12 = 588; 490 is 16.67% less, advertised as 16% (floored).
+    expect(screen.getByText(/save 16%/i)).toBeInTheDocument()
   })
 
   it('hides the saving across currencies', () => {
@@ -142,8 +144,13 @@ describe('PricingSection', () => {
 
   it('leads the call to action with the trial', () => {
     renderSection(pricing([MONTHLY], { trialDays: 14 }))
-    expect(screen.getByText(/free for 14 days/i)).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: 'Start your agency' })).toBeInTheDocument()
+    const lead = screen.getByText(/free for 14 days/i)
+    const cta = screen.getByRole('link', { name: 'Start your free trial' })
+    const price = screen.getByText('$49.00')
+    expect(screen.queryByRole('link', { name: 'Start your agency' })).not.toBeInTheDocument()
+    // The trial leads, the call to action follows, the price is beneath.
+    expect(lead.compareDocumentPosition(cta) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(cta.compareDocumentPosition(price) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
   })
 
   it('drops the trial copy when no trial is configured', () => {
@@ -180,7 +187,7 @@ describe('PricingSection', () => {
 
   it('gives the yearly button an accessible name with the words separated', () => {
     renderSection(pricing([MONTHLY, YEARLY]))
-    expect(screen.getByRole('button', { name: 'Yearly Save 17%' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Yearly Save 16%' })).toBeInTheDocument()
   })
 
   it('says "1 day", not "1 days"', () => {
@@ -207,5 +214,46 @@ describe('PricingSection', () => {
 
     rerender(ui(pricing([MONTHLY])))
     expect(screen.getByText('$49.00')).toBeInTheDocument()
+  })
+
+  it('keeps two plans that share a cadence apart', async () => {
+    const user = userEvent.setup()
+    renderSection(pricing([MONTHLY, SECOND_MONTHLY]))
+
+    const buttons = screen.getAllByRole('button', { name: /monthly/i })
+    expect(buttons).toHaveLength(2)
+    expect(buttons.filter((b) => b.getAttribute('aria-pressed') === 'true')).toHaveLength(1)
+
+    const second = buttons[1]!
+    await user.click(second)
+    expect(second).toHaveAttribute('aria-pressed', 'true')
+    expect(buttons[0]).toHaveAttribute('aria-pressed', 'false')
+    expect(screen.getByText('$59.00')).toBeInTheDocument()
+    expect(screen.queryByText('$49.00')).not.toBeInTheDocument()
+  })
+
+  describe('deep link', () => {
+    afterEach(() => {
+      window.location.hash = ''
+      vi.restoreAllMocks()
+    })
+
+    it('scrolls to the section when the URL names it and prices arrive later', () => {
+      const scroll = vi.fn()
+      Element.prototype.scrollIntoView = scroll
+      window.location.hash = '#pricing'
+
+      const { rerender } = renderSection(undefined)
+      expect(scroll).not.toHaveBeenCalled()
+      rerender(ui(pricing([MONTHLY])))
+      expect(scroll).toHaveBeenCalledTimes(1)
+    })
+
+    it('does not scroll when the URL names nothing', () => {
+      const scroll = vi.fn()
+      Element.prototype.scrollIntoView = scroll
+      renderSection(pricing([MONTHLY]))
+      expect(scroll).not.toHaveBeenCalled()
+    })
   })
 })

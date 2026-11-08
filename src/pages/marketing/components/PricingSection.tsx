@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 import { annualSaving, type PublicPlan, type PublicPricing } from '@/features/marketing/api'
 
@@ -38,10 +38,16 @@ function isYearly(plan: PublicPlan): boolean {
   return plan.interval === 'year' && plan.intervalCount === 1
 }
 
-/** A plan's identity: what Stripe reported, stable across refetch reordering. */
+/**
+ * A plan's identity. `plan_key` is unique in the table (`billing_plans_key_unique`),
+ * so two plans can never collide, and it does not change when a refetch reorders
+ * the list. A cadence is not an identity: two plans may share one.
+ */
 function identity(plan: PublicPlan): string {
-  return `${plan.interval}:${plan.intervalCount}`
+  return plan.planKey
 }
+
+const SECTION_ID = 'pricing'
 
 function defaultPlan(plans: readonly PublicPlan[]): PublicPlan | undefined {
   return plans.find((p) => p.interval === 'month' && p.intervalCount === 1) ?? plans[0]
@@ -49,8 +55,21 @@ function defaultPlan(plans: readonly PublicPlan[]): PublicPlan | undefined {
 
 export function PricingSection({ pricing }: PricingSectionProps) {
   const [selected, setSelected] = useState<string | null>(null)
+  const sectionRef = useRef<HTMLElement>(null)
+  const hasPricing = pricing !== undefined && hasRenderablePricing(pricing)
 
-  if (!pricing || !hasRenderablePricing(pricing)) return null
+  /*
+   * The section is absent until the price list arrives, so a browser that loaded
+   * `/#pricing` found no anchor and stayed at the top. Once the section exists,
+   * bring it into view if the URL names it.
+   */
+  useEffect(() => {
+    if (hasPricing && window.location.hash === `#${SECTION_ID}`) {
+      sectionRef.current?.scrollIntoView()
+    }
+  }, [hasPricing])
+
+  if (!pricing || !hasPricing) return null
   const plans = renderablePlans(pricing)
 
   const plan = plans.find((p) => identity(p) === selected) ?? defaultPlan(plans)
@@ -58,9 +77,16 @@ export function PricingSection({ pricing }: PricingSectionProps) {
 
   const saving = annualSaving(plans)
   const hasChoice = plans.length > 1
+  const hasTrial = pricing.trialDays > 0
+  const trialLength = `${pricing.trialDays} ${pricing.trialDays === 1 ? 'day' : 'days'}`
 
   return (
-    <section id="pricing" aria-labelledby="pricing-heading" className="border-line border-t">
+    <section
+      ref={sectionRef}
+      id={SECTION_ID}
+      aria-labelledby="pricing-heading"
+      className="border-line border-t"
+    >
       <div className="mx-auto max-w-[1220px] px-4 py-16 sm:px-6 sm:py-20 lg:px-8">
         <div className="mx-auto max-w-2xl text-center">
           <p className="text-ink-subtle text-[0.75rem] font-semibold tracking-[0.08em] uppercase">
@@ -110,20 +136,33 @@ export function PricingSection({ pricing }: PricingSectionProps) {
         )}
 
         <div className="border-line mx-auto mt-10 max-w-md rounded-xl border p-8 text-center">
-          <p className="text-ink flex items-baseline justify-center gap-2">
-            <span className="text-[2.5rem] font-semibold tracking-tight">
-              {formatPlanAmount(plan)}
-            </span>
-            <span className="text-ink-muted text-[0.9375rem]">{cadence(plan, 'price')}</span>
-          </p>
-          {pricing.trialDays > 0 && (
-            <p className="text-ink-muted mt-4 text-[0.9375rem] leading-6">
-              Try it free for {pricing.trialDays} {pricing.trialDays === 1 ? 'day' : 'days'}.
-            </p>
+          {hasTrial ? (
+            <>
+              <p className="text-ink text-[1.5rem] font-semibold tracking-tight">
+                Try it free for {trialLength}.
+              </p>
+              <div className="mt-6 flex justify-center">
+                <PrimaryCta label="Start your free trial" />
+              </div>
+              <p className="text-ink mt-6 flex items-baseline justify-center gap-2">
+                <span className="text-ink-muted text-[0.9375rem]">Then</span>
+                <span className="text-[1.25rem] font-semibold">{formatPlanAmount(plan)}</span>
+                <span className="text-ink-muted text-[0.9375rem]">{cadence(plan, 'price')}</span>
+              </p>
+            </>
+          ) : (
+            <>
+              <p className="text-ink flex items-baseline justify-center gap-2">
+                <span className="text-[2.5rem] font-semibold tracking-tight">
+                  {formatPlanAmount(plan)}
+                </span>
+                <span className="text-ink-muted text-[0.9375rem]">{cadence(plan, 'price')}</span>
+              </p>
+              <div className="mt-6 flex justify-center">
+                <PrimaryCta />
+              </div>
+            </>
           )}
-          <div className="mt-6 flex justify-center">
-            <PrimaryCta />
-          </div>
         </div>
       </div>
     </section>

@@ -23,13 +23,18 @@ const monthly = plan({ planKey: 'monthly', amountMinor: 1000, interval: 'month' 
 const yearly = plan({ planKey: 'yearly', amountMinor: 10000, interval: 'year' })
 
 describe('annualSaving', () => {
+  it('does not lose an exact saving to float error', () => {
+    // 12 x 1000 = 12000 against 10800 -> exactly 10%
+    expect(annualSaving([monthly, { ...yearly, amountMinor: 10800 }])).toBe(10)
+  })
+
   it('returns the percentage saved by paying yearly', () => {
-    // 12 x 1000 = 12000 against 10000 -> 16.67% -> 17
-    expect(annualSaving([monthly, yearly])).toBe(17)
+    // 12 x 1000 = 12000 against 10000 -> 16.67% -> floored to 16, never rounded up to 17
+    expect(annualSaving([monthly, yearly])).toBe(16)
   })
 
   it('does not depend on the order of the plans', () => {
-    expect(annualSaving([yearly, monthly])).toBe(17)
+    expect(annualSaving([yearly, monthly])).toBe(16)
   })
 
   it('returns null across different currencies', () => {
@@ -37,7 +42,7 @@ describe('annualSaving', () => {
   })
 
   it('compares currencies case-insensitively', () => {
-    expect(annualSaving([monthly, { ...yearly, currency: 'USD' }])).toBe(17)
+    expect(annualSaving([monthly, { ...yearly, currency: 'USD' }])).toBe(16)
   })
 
   it('returns null when both plans bill monthly', () => {

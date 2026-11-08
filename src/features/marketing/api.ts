@@ -5,7 +5,8 @@ import { getSupabaseClient } from '@/lib/supabase/client'
  * Edge Functions (Deno) and this app (Vite) share no module graph, and importing
  * from `supabase/functions/` would pull Deno-targeted code into the browser
  * bundle. The mirror of `supabase/functions/_shared/public-pricing.ts` is pinned
- * by the tests in `pricing.test.ts`, not by an import.
+ * by `pricing-shape.check.ts` at `tsc` time, not by an import and not by a
+ * runtime test. Do not delete that file as a tautology.
  */
 export interface PublicPlan {
   planKey: string
@@ -97,7 +98,10 @@ export function annualSaving(plans: readonly PublicPlan[]): number | null {
   if (!Number.isFinite(month.amountMinor) || !Number.isFinite(year.amountMinor)) return null
 
   const payingMonthly = month.amountMinor * MONTHS_PER_YEAR
-  const percent = Math.round((1 - year.amountMinor / payingMonthly) * 100)
+  // Floor, never round: a public claim about money must not overstate, so a
+  // true 16.67% saving is advertised as 16%, not 17%. Integer arithmetic keeps exact savings (10%) from
+  // flooring to 9% through float error.
+  const percent = Math.floor(((payingMonthly - year.amountMinor) * 100) / payingMonthly)
 
   return percent > 0 ? percent : null
 }

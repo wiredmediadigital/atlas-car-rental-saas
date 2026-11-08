@@ -174,9 +174,14 @@ one — a checkout that never took a payment does not count, so a declined first
 cost an owner their trial. Three days before the trial converts, Stripe sends
 `customer.subscription.trial_will_end` and the owners are notified with the date.
 
-`billing-webhook` is deployed with `verify_jwt = false`, as are `team-invitations` and the
-public `pricing` function. For the webhook the reason is that Stripe is the caller and has no
-user session, so the signature check inside the function stands in for the platform check. Local development uses the Stripe CLI:
+`billing-webhook`, `team-invitations` and the public `pricing` function are deployed with
+`verify_jwt = false`; `billing` keeps `verify_jwt = true`. For the webhook the reason is that
+Stripe is the caller and has no user session, so the signature check inside the function
+stands in for the platform check. `pricing` has to answer visitors who are not signed in, so
+it serves only what the marketing page renders and reads no user data. `team-invitations`
+is public because an invited person previewing their invitation has no session yet; every
+other action in it checks for a live user session itself. Local development uses the Stripe
+CLI:
 
 ```bash
 stripe listen --forward-to http://localhost:54321/functions/v1/billing-webhook

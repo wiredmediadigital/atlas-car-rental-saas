@@ -6,6 +6,8 @@ export interface PrimaryCtaProps {
   variant?: ButtonVariant
   size?: ButtonSize
   className?: string
+  /** Replaces "Start your agency" for a visitor who is not signed in. */
+  label?: string
 }
 
 /**
@@ -15,7 +17,12 @@ export interface PrimaryCtaProps {
  * true if that ever changes), it opens the dashboard instead of running
  * sign-up a second time and provisioning a second agency.
  */
-export function PrimaryCta({ variant = 'primary', size = 'lg', className }: PrimaryCtaProps) {
+export function PrimaryCta({
+  variant = 'primary',
+  size = 'lg',
+  className,
+  label,
+}: PrimaryCtaProps) {
   const { status } = useAuth()
   const isAuthenticated = status === 'authenticated'
 
@@ -26,7 +33,7 @@ export function PrimaryCta({ variant = 'primary', size = 'lg', className }: Prim
       size={size}
       className={className}
     >
-      {isAuthenticated ? 'Open dashboard' : 'Start your agency'}
+      {isAuthenticated ? 'Open dashboard' : (label ?? 'Start your agency')}
     </ButtonLink>
   )
 }

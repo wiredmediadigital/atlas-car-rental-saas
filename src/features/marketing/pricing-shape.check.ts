@@ -12,13 +12,16 @@
  *
  * This file closes that gap at `tsc` time. Both imports are `import type`, so
  * nothing here reaches a bundle or a runtime. It checks assignability in both
- * directions so neither side can add a required field the other lacks. It is
-
- * Placed under src/ because the app project can resolve both declarations
- * (the test project cannot compile the browser module: it lacks Vite types).
- * It is never imported, so it is not part of the bundle. It is
- * not a tautology; do not delete it as one. If it fails, update the two
- * declarations together.
+ * directions, so neither side can add a required field the other lacks.
+ *
+ * Limits: it catches renames and retypes, but NOT optional-field drift. An
+ * optional field added to one side stays mutually assignable, so do not read a
+ * passing check as proof the two shapes are identical.
+ *
+ * It lives under src/ because the app project can resolve both declarations (the
+ * test project cannot compile the browser module: it lacks Vite types). It is
+ * never imported, so it is not part of the bundle, and it is not a tautology:
+ * do not delete it as one. If it fails, update the two declarations together.
  */
 import type { PublicPlan as BrowserPlan, PublicPricing as BrowserPricing } from './api'
 import type {
