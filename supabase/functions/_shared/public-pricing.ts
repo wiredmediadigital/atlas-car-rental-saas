@@ -50,6 +50,9 @@ const MILLISECONDS_PER_SECOND = 1000
  * `null` means nothing has ever been written. An unparseable timestamp is also
  * treated as stale: the comparison is written so that NaN fails the freshness
  * test, rather than silently passing as fresh.
+ *
+ * The boundary is chosen, not inherited: a row exactly `ttlSeconds` old is still
+ * fresh, and only an age strictly greater than the TTL is stale.
  */
 export function isStale(
   newestUpdatedAt: string | null,
@@ -72,16 +75,14 @@ export function isStale(
 export function toPublicPricing(rows: readonly PlanRow[], trialDays: number): PublicPricing {
   const plans = rows
     .filter((row) => row.is_active)
-    .toSorted((a, b) => a.sort_order - b.sort_order)
-    .map(
-      (row): PublicPlan => ({
-        planKey: row.plan_key,
-        amountMinor: row.amount_minor,
-        currency: row.currency,
-        interval: row.interval,
-        intervalCount: row.interval_count,
-      }),
-    )
+    .sort((a, b) => a.sort_order - b.sort_order)
+    .map((row): PublicPlan => ({
+      planKey: row.plan_key,
+      amountMinor: row.amount_minor,
+      currency: row.currency,
+      interval: row.interval,
+      intervalCount: row.interval_count,
+    }))
 
   return { configured: rows.length > 0, plans, trialDays }
 }

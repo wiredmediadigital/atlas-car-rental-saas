@@ -67,7 +67,10 @@ describe('toPublicPricing', () => {
 
   it('orders by sort_order', () => {
     const pricing = toPublicPricing(
-      [row({ plan_key: 'pro_yearly', sort_order: 2 }), row({ plan_key: 'pro_monthly', sort_order: 1 })],
+      [
+        row({ plan_key: 'pro_yearly', sort_order: 2 }),
+        row({ plan_key: 'pro_monthly', sort_order: 1 }),
+      ],
       0,
     )
     expect(pricing.plans.map((plan) => plan.planKey)).toEqual(['pro_monthly', 'pro_yearly'])
@@ -85,13 +88,27 @@ describe('toPublicPricing', () => {
 
   it('shapes a row into the public plan fields and no others', () => {
     const pricing = toPublicPricing(
-      [row({ plan_key: 'pro_yearly', currency: 'EUR', amount_minor: 49000, interval: 'year', interval_count: 1 })],
+      [
+        row({
+          plan_key: 'pro_yearly',
+          currency: 'EUR',
+          amount_minor: 49000,
+          interval: 'year',
+          interval_count: 1,
+        }),
+      ],
       14,
     )
     expect(pricing).toEqual({
       configured: true,
       plans: [
-        { planKey: 'pro_yearly', amountMinor: 49000, currency: 'EUR', interval: 'year', intervalCount: 1 },
+        {
+          planKey: 'pro_yearly',
+          amountMinor: 49000,
+          currency: 'EUR',
+          interval: 'year',
+          intervalCount: 1,
+        },
       ],
       trialDays: 14,
     })
