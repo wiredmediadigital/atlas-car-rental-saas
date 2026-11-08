@@ -139,8 +139,24 @@ describe('CustomerTable', () => {
   })
 
   it('notes when no identification is on file', () => {
-    renderTable([makeCustomer({ identity_document_count: 0 })])
+    renderTable([makeCustomer({ identity_document_count: 0, document_count: 0 })])
     expect(screen.getByText('No ID on file')).toBeInTheDocument()
+  })
+
+  it('does not call a licence-only customer undocumented', () => {
+    // A driving licence IS identification — usually the identification a rental
+    // desk takes. `identity_document_count` counts only documents that are NOT
+    // the licence, so reading it here printed "No ID on file" on the same row
+    // as a green "Can drive" badge, which is the licence being on file.
+    renderTable([
+      makeCustomer({
+        identity_document_count: 0,
+        document_count: 1,
+        has_driver_license: true,
+      }),
+    ])
+
+    expect(screen.queryByText('No ID on file')).not.toBeInTheDocument()
   })
 })
 

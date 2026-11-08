@@ -117,7 +117,18 @@ export function CustomerTable({ customers, compliance, locale, isLoading }: Cust
                           </Link>
                           <div className="mt-0.5 flex items-center gap-1.5">
                             {customer.archived_at ? <ArchivedBadge /> : null}
-                            {customer.identity_document_count === 0 ? (
+                            {/*
+                             * `document_count`, not `identity_document_count`.
+                             * The view defines the latter as documents that are
+                             * NOT the driving licence, so a customer carrying
+                             * only a licence counted as zero and this line
+                             * called them undocumented — directly beside the
+                             * "Can drive" badge that the licence had produced.
+                             * This flag means "we hold nothing at all for this
+                             * person"; whether the licence specifically is
+                             * missing is the Driving licence column's job.
+                             */}
+                            {customer.document_count === 0 ? (
                               <span className="text-ink-subtle text-[0.6875rem]">
                                 No ID on file
                               </span>
