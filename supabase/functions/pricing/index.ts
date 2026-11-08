@@ -23,6 +23,7 @@ import { createClient, type SupabaseClient } from 'jsr:@supabase/supabase-js@2'
 import { refreshCatalogue } from '../_shared/billing-catalogue.ts'
 import {
   isStale,
+  newestUpdatedAt,
   toPublicPricing,
   UNCONFIGURED,
   type PlanRow,
@@ -54,18 +55,33 @@ async function readPlans(service: SupabaseClient): Promise<PlanRow[] | null> {
   return error ? null : ((data ?? []) as PlanRow[])
 }
 
-function newestUpdatedAt(rows: readonly PlanRow[]): string | null {
-  return rows.reduce<string | null>(
-    (newest, row) => (newest === null || row.updated_at > newest ? row.updated_at : newest),
-    null,
-  )
-}
+/**
+ * Whether this instance has already tried to bootstrap an empty catalogue.
+ *
+ * With no rows, `isStale(null)` is always true, so without this every anonymous
+ * request on a deployment whose prices are all archived (or never mirrored)
+ * would call Stripe: an unbounded public path to the payment API. This lets the
+ * zero-rows case attempt a refresh once per function instance, which bounds
+ * Stripe calls by the number of live instances rather than the number of
+ * requests, while a cold instance can still populate a never-mirrored table.
+ * The ordinary case (rows exist, TTL expired) is unaffected. Do not remove it
+ * as a micro-optimisation.
+ */
+let hasAttemptedEmptyRefresh = false
 
 Deno.serve(async (request: Request): Promise<Response> => {
   if (request.method === 'OPTIONS') return new Response('ok', { headers: CORS_HEADERS })
   if (request.method !== 'GET') return json({ error: 'Use GET.' }, 405)
 
   const resolved = resolveBillingConfig(Deno.env.toObject())
+  /*
+   * Invalid configuration is answered exactly like missing configuration: 200
+   * and UNCONFIGURED. An anonymous caller must not learn that this deployment's
+   * catalogue JSON or keys are malformed. The cost is that an operator with a
+   * typo sees the same silence as one who never configured anything; the real
+   * diagnosis is in the authenticated billing `status` action, which answers
+   * with the specific problem for owners.
+   */
   if (!resolved.ok) return json(UNCONFIGURED satisfies PublicPricing, 200, true)
   const config = resolved.config
 
@@ -82,7 +98,10 @@ Deno.serve(async (request: Request): Promise<Response> => {
   let rows = await readPlans(service)
   if (rows === null) return json({ error: 'Pricing is unavailable right now.' }, 503)
 
-  if (isStale(newestUpdatedAt(rows), new Date())) {
+  const isEmpty = rows.length === 0
+  const mayRefresh = !isEmpty || !hasAttemptedEmptyRefresh
+  if (mayRefresh && isStale(newestUpdatedAt(rows), new Date())) {
+    if (isEmpty) hasAttemptedEmptyRefresh = true
     try {
       await refreshCatalogue(
         service,

@@ -10,6 +10,7 @@ import { describe, expect, it } from 'vitest'
 
 import {
   isStale,
+  newestUpdatedAt,
   PRICING_TTL_SECONDS,
   type PlanRow,
   toPublicPricing,
@@ -122,5 +123,47 @@ describe('toPublicPricing', () => {
 describe('UNCONFIGURED', () => {
   it('returns no plans and no trial', () => {
     expect(UNCONFIGURED).toEqual({ configured: false, plans: [], trialDays: 0 })
+  })
+})
+
+describe('newestUpdatedAt', () => {
+  it('returns null when there are no rows', () => {
+    expect(newestUpdatedAt([])).toBeNull()
+  })
+
+  it('returns the only row timestamp', () => {
+    expect(newestUpdatedAt([row({ updated_at: secondsBefore(30) })])).toBe(secondsBefore(30))
+  })
+
+  it('finds the newest of several rows given out of order', () => {
+    const rows = [
+      row({ updated_at: secondsBefore(500) }),
+      row({ updated_at: secondsBefore(5) }),
+      row({ updated_at: secondsBefore(60) }),
+    ]
+    expect(newestUpdatedAt(rows)).toBe(secondsBefore(5))
+  })
+
+  it('compares instants, not strings, across offsets', () => {
+    // 12:00:00Z is later than 13:30+02:00 (11:30Z) although it sorts earlier as text.
+    const rows = [
+      row({ updated_at: '2026-11-08T13:30:00.000+02:00' }),
+      row({ updated_at: '2026-11-08T12:00:00.000Z' }),
+    ]
+    expect(newestUpdatedAt(rows)).toBe('2026-11-08T12:00:00.000Z')
+  })
+
+  it('ignores unparseable or missing timestamps', () => {
+    const rows = [
+      row({ updated_at: 'not a date' }),
+      row({ updated_at: undefined as unknown as string }),
+      row({ updated_at: secondsBefore(90) }),
+    ]
+    expect(newestUpdatedAt(rows)).toBe(secondsBefore(90))
+  })
+
+  it('returns null when no timestamp is usable, so the catalogue counts as stale', () => {
+    expect(newestUpdatedAt([row({ updated_at: 'garbage' })])).toBeNull()
+    expect(isStale(newestUpdatedAt([row({ updated_at: 'garbage' })]), NOW)).toBe(true)
   })
 })

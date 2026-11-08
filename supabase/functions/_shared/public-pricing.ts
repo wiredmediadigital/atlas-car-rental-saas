@@ -87,5 +87,25 @@ export function toPublicPricing(rows: readonly PlanRow[], trialDays: number): Pu
   return { configured: rows.length > 0, plans, trialDays }
 }
 
+/**
+ * The newest `updated_at` among the rows, for `isStale`.
+ *
+ * Compared as instants, not strings: Postgres may render the same instant with
+ * different offsets. A missing or unparseable timestamp is ignored rather than
+ * allowed to win a comparison; if no row has a usable one the answer is `null`,
+ * which `isStale` treats as stale, so bad data errs toward a refresh.
+ */
+export function newestUpdatedAt(rows: readonly Pick<PlanRow, 'updated_at'>[]): string | null {
+  let newest: string | null = null
+  let newestTime = Number.NEGATIVE_INFINITY
+  for (const row of rows) {
+    const time = typeof row.updated_at === 'string' ? Date.parse(row.updated_at) : Number.NaN
+    if (Number.isNaN(time) || time <= newestTime) continue
+    newest = row.updated_at
+    newestTime = time
+  }
+  return newest
+}
+
 /** The answer when no pricing is configured. A normal state, not a fault. */
 export const UNCONFIGURED: PublicPricing = { configured: false, plans: [], trialDays: 0 }
