@@ -67,6 +67,11 @@ describe('PricingSection', () => {
     expect(container).toBeEmptyDOMElement()
   })
 
+  it('renders nothing when the only plan has a currency Intl rejects', () => {
+    const { container } = renderSection(pricing([{ ...MONTHLY, currency: 'not-a-currency' }]))
+    expect(container).toBeEmptyDOMElement()
+  })
+
   it('never shows a currency symbol when there are no plans', () => {
     const { container } = renderSection(pricing([]))
     expect(container.textContent).not.toMatch(/[$€£]|\d/)

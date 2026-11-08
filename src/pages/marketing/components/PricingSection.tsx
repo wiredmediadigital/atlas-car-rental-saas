@@ -2,6 +2,12 @@ import { useState } from 'react'
 
 import { annualSaving, type PublicPlan, type PublicPricing } from '@/features/marketing/api'
 
+import {
+  formatPlanAmount,
+  hasRenderablePricing,
+  renderablePlans,
+} from '@/features/marketing/renderable-pricing'
+
 import { PrimaryCta } from './PrimaryCta'
 
 /**
@@ -16,20 +22,6 @@ import { PrimaryCta } from './PrimaryCta'
 export interface PricingSectionProps {
   /** `undefined` while the request is in flight. */
   pricing: PublicPricing | undefined
-}
-
-function formatAmount(plan: PublicPlan): string | null {
-  try {
-    const formatter = new Intl.NumberFormat(undefined, {
-      style: 'currency',
-      currency: plan.currency.toUpperCase(),
-    })
-    const { maximumFractionDigits } = formatter.resolvedOptions()
-    return formatter.format(plan.amountMinor / 10 ** (maximumFractionDigits ?? 2))
-  } catch {
-    // An unknown currency code: better no price than a wrong one.
-    return null
-  }
 }
 
 /** Derived from what Stripe reported, never from the plan key. */
@@ -54,9 +46,8 @@ function defaultIndex(plans: readonly PublicPlan[]): number {
 export function PricingSection({ pricing }: PricingSectionProps) {
   const [selected, setSelected] = useState<number | null>(null)
 
-  if (!pricing) return null
-  const plans = pricing.plans.filter((plan) => formatAmount(plan) !== null)
-  if (plans.length === 0) return null
+  if (!pricing || !hasRenderablePricing(pricing)) return null
+  const plans = renderablePlans(pricing)
 
   const index = selected !== null && selected < plans.length ? selected : defaultIndex(plans)
   const plan = plans[index]
@@ -116,7 +107,9 @@ export function PricingSection({ pricing }: PricingSectionProps) {
 
         <div className="border-line mx-auto mt-10 max-w-md rounded-xl border p-8 text-center">
           <p className="text-ink flex items-baseline justify-center gap-2">
-            <span className="text-[2.5rem] font-semibold tracking-tight">{formatAmount(plan)}</span>
+            <span className="text-[2.5rem] font-semibold tracking-tight">
+              {formatPlanAmount(plan)}
+            </span>
             <span className="text-ink-muted text-[0.9375rem]">{cadence(plan, 'price')}</span>
           </p>
           {pricing.trialDays > 0 && (
