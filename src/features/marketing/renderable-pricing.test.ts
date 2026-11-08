@@ -58,4 +58,18 @@ describe('formatPlanAmount', () => {
       'NT$1,500.50',
     )
   })
+
+  it('reads JPY as already major: 500 is 500 yen, where 500 ISK-form is 5', () => {
+    // Both show no decimals, but their divisors differ (1 vs 100).
+    expect(formatPlanAmount({ ...MONTHLY, currency: 'jpy', amountMinor: 500 })).toBe('¥500')
+    expect(formatPlanAmount({ ...MONTHLY, currency: 'isk', amountMinor: 500 })).toBe('ISK 5')
+  })
+
+  it('reads three-decimal currencies in thousandths', () => {
+    expect(formatPlanAmount({ ...MONTHLY, currency: 'kwd', amountMinor: 4900 })).toBe('KWD 4.900')
+  })
+
+  it('uses two decimals for an ordinary currency', () => {
+    expect(formatPlanAmount({ ...MONTHLY, currency: 'gbp', amountMinor: 1999 })).toBe('£19.99')
+  })
 })

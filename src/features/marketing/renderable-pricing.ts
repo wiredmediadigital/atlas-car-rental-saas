@@ -7,51 +7,71 @@ import type { PublicPlan, PublicPricing } from './api'
  */
 const LOCALE = 'en'
 
-/*
- * ISK and UGX are the exception to "Intl knows the minor unit". Intl reports
- * zero decimals for both, but Stripe's API takes them in a x100 form: per
- * Stripe's Supported Currencies documentation, "to charge 5 UGX, provide an
- * amount value of 500", and ISK has been enforced the same way since
- * 14 April 2023 (charged amounts are evenly divisible by 100). Dividing by
- * Intl's exponent of 0 would show 500 for a 5 ISK price, a hundred times too
- * high. So these two divide by 100 and display as whole numbers.
- *
- * HUF and TWD are NOT in that group: their divisible-by-100 rule applies to
- * manual payouts, not charges, and Stripe charges them in the ordinary
- * two-decimal minor unit. But Intl cannot be trusted to say so: the ICU
- * bundled with this Node reports 0 decimals for HUF (it varies by ICU
- * version), which would show 150050 for a 1,500.50 price, again 100x too
- * high. So both are pinned to two decimals explicitly rather than inherited.
- * Do not widen the ISK/UGX case to them, and do not "simplify" any of this
- * away; it contradicts Intl on purpose.
- */
-const STRIPE_X100_ZERO_DECIMAL = new Set(['ISK', 'UGX'])
-const STRIPE_TWO_DECIMAL = new Set(['HUF', 'TWD'])
-const X100_DIVISOR = 100
+interface MinorUnits {
+  /** What `unit_amount` is divided by to get the major amount. */
+  readonly divisor: number
+  /** Fraction digits shown. */
+  readonly digits: number
+}
 
-/** The display amount, or `null` when Intl cannot format this plan's currency. */
+/*
+ * How Stripe's `unit_amount` maps to a displayed amount, per Stripe's
+ * Supported Currencies documentation (checked 2026-11-08). This is an API
+ * contract, so it is a table here and NOT derived from
+ * `Intl.NumberFormat().resolvedOptions()`: ICU's currency digits are a
+ * typographic convention that differs from Stripe's rule and varies by ICU
+ * version (this repo's Node reports 0 decimals for HUF, which would show a
+ * 1,500.50 price as 150,050 -- 100x too high). Do not "simplify" this to
+ * resolvedOptions(); that is the bug this table exists to prevent.
+ *
+ *  - Zero-decimal: unit_amount already is the major amount (500 is JPY 500).
+ *  - ISK, UGX: zero-decimal in practice but carried by Stripe x100
+ *    ("to charge 5 UGX, provide an amount value of 500"; ISK enforced the
+ *    same way since 14 April 2023). So divide by 100, show no decimals.
+ *  - Three-decimal (BHD JOD KWD OMR TND): unit_amount is in thousandths.
+ *  - Everything else, including HUF and TWD (their divisible-by-100 rule is
+ *    for manual payouts, not charges): divide by 100, two decimals.
+ */
+const ZERO_DECIMAL = new Set([
+  'BIF',
+  'CLP',
+  'DJF',
+  'GNF',
+  'JPY',
+  'KMF',
+  'KRW',
+  'MGA',
+  'PYG',
+  'RWF',
+  'VND',
+  'VUV',
+  'XAF',
+  'XOF',
+  'XPF',
+])
+const STRIPE_X100_ZERO_DECIMAL = new Set(['ISK', 'UGX'])
+const THREE_DECIMAL = new Set(['BHD', 'JOD', 'KWD', 'OMR', 'TND'])
+
+function minorUnits(currency: string): MinorUnits {
+  if (ZERO_DECIMAL.has(currency)) return { divisor: 1, digits: 0 }
+  if (STRIPE_X100_ZERO_DECIMAL.has(currency)) return { divisor: 100, digits: 0 }
+  if (THREE_DECIMAL.has(currency)) return { divisor: 1000, digits: 3 }
+  return { divisor: 100, digits: 2 }
+}
+
+/** The display amount, or `null` when Intl does not recognise the currency code. */
 export function formatPlanAmount(plan: PublicPlan): string | null {
   const currency = plan.currency.toUpperCase()
+  const { divisor, digits } = minorUnits(currency)
   try {
-    if (STRIPE_X100_ZERO_DECIMAL.has(currency)) {
-      return new Intl.NumberFormat(LOCALE, {
-        style: 'currency',
-        currency,
-        minimumFractionDigits: 0,
-        maximumFractionDigits: 0,
-      }).format(plan.amountMinor / X100_DIVISOR)
-    }
-    if (STRIPE_TWO_DECIMAL.has(currency)) {
-      return new Intl.NumberFormat(LOCALE, {
-        style: 'currency',
-        currency,
-        minimumFractionDigits: 2,
-        maximumFractionDigits: 2,
-      }).format(plan.amountMinor / X100_DIVISOR)
-    }
-    const formatter = new Intl.NumberFormat(LOCALE, { style: 'currency', currency })
-    const { maximumFractionDigits } = formatter.resolvedOptions()
-    return formatter.format(plan.amountMinor / 10 ** (maximumFractionDigits ?? 2))
+    // Intl formats the symbol and grouping and rejects unknown codes; the
+    // scale is ours, passed explicitly.
+    return new Intl.NumberFormat(LOCALE, {
+      style: 'currency',
+      currency,
+      minimumFractionDigits: digits,
+      maximumFractionDigits: digits,
+    }).format(plan.amountMinor / divisor)
   } catch {
     // An unknown currency code: better no price than a wrong one.
     return null
