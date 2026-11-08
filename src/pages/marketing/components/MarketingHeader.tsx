@@ -5,6 +5,8 @@ import { Link } from 'react-router-dom'
 
 import { paths } from '@/app/routes/paths'
 import { Wordmark } from '@/components/brand/Wordmark'
+import type { PublicPricing } from '@/features/marketing/api'
+import { hasRenderablePricing } from '@/features/marketing/renderable-pricing'
 
 import { PrimaryCta } from './PrimaryCta'
 
@@ -14,8 +16,18 @@ const NAV_LINKS = [
   { label: 'Insights', href: '#insights' },
 ] as const
 
-export function MarketingHeader() {
+/** Points at `#pricing`, which PricingSection renders on this same condition. */
+const PRICING_LINK = { label: 'Pricing', href: '#pricing' } as const
+
+export interface MarketingHeaderProps {
+  /** `undefined` while loading. The Pricing link needs a section to point at. */
+  pricing?: PublicPricing
+}
+
+export function MarketingHeader({ pricing }: MarketingHeaderProps = {}) {
   const [isMenuOpen, setIsMenuOpen] = useState(false)
+  // One list feeds both the desktop nav and the mobile menu.
+  const navLinks = hasRenderablePricing(pricing) ? [...NAV_LINKS, PRICING_LINK] : NAV_LINKS
 
   return (
     <header className="border-line bg-canvas/85 sticky top-0 z-40 border-b backdrop-blur">
@@ -29,7 +41,7 @@ export function MarketingHeader() {
         </Link>
 
         <nav aria-label="Primary" className="hidden items-center gap-8 lg:flex">
-          {NAV_LINKS.map((link) => (
+          {navLinks.map((link) => (
             <a
               key={link.href}
               href={link.href}
@@ -76,7 +88,7 @@ export function MarketingHeader() {
               </div>
 
               <nav aria-label="Primary" className="flex flex-col gap-1 px-4 py-4 sm:px-6">
-                {NAV_LINKS.map((link) => (
+                {navLinks.map((link) => (
                   <a
                     key={link.href}
                     href={link.href}

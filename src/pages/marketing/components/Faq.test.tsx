@@ -2,6 +2,8 @@ import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it } from 'vitest'
 
+import type { PublicPricing } from '@/features/marketing/api'
+
 import { Faq } from './Faq'
 
 describe('the homepage FAQ', () => {
@@ -44,10 +46,40 @@ describe('the homepage FAQ', () => {
     )
   })
 
-  it('makes no claim about price', () => {
+  it('states no price when none is available', () => {
     // Nothing on this site states a price, and an FAQ is not the place to
-    // invent one.
-    const { container } = render(<Faq />)
-    expect(container.textContent).not.toMatch(/\$|€|per month|free trial/i)
+    // invent one. With no pricing to point at, the FAQ stays exactly as it was.
+    for (const pricing of [
+      undefined,
+      { configured: false, plans: [], trialDays: 0 },
+      { configured: true, plans: [], trialDays: 14 },
+    ] as (PublicPricing | undefined)[]) {
+      const { container, unmount } = render(<Faq pricing={pricing} />)
+      expect(container.textContent).not.toMatch(/\$|€|per month|free trial/i)
+      expect(screen.queryByText(/what does it cost/i)).not.toBeInTheDocument()
+      unmount()
+    }
+  })
+
+  it('answers what it costs when prices are available, without stating any figure', () => {
+    const pricing: PublicPricing = {
+      configured: true,
+      trialDays: 14,
+      plans: [
+        {
+          planKey: 'monthly',
+          amountMinor: 4900,
+          currency: 'usd',
+          interval: 'month',
+          intervalCount: 1,
+        },
+      ],
+    }
+    const { container } = render(<Faq pricing={pricing} />)
+
+    expect(screen.getByText('What does it cost?')).toBeInTheDocument()
+    expect(screen.getByText(/pricing section/i)).toBeInTheDocument()
+    // The section carries the figures; the FAQ must not be a second source.
+    expect(container.textContent).not.toMatch(/\$|€|per month|free trial|\d+[- ]day|14|49/i)
   })
 })

@@ -1,11 +1,31 @@
 import { render, screen, within } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
-import { describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { paths } from '@/app/routes/paths'
 import { AuthContext, type AuthContextValue, type AuthStatus } from '@/features/auth/auth-context'
 
+import type { PublicPricing } from '@/features/marketing/api'
+import { usePublicPricing } from '@/features/marketing/queries'
+
 import { MarketingHomePage } from './MarketingHomePage'
+
+// The page makes the one pricing request; the tests decide what it returns.
+vi.mock('@/features/marketing/queries', () => ({ usePublicPricing: vi.fn() }))
+
+const REAL_PRICING: PublicPricing = {
+  configured: true,
+  trialDays: 14,
+  plans: [
+    { planKey: 'monthly', amountMinor: 4900, currency: 'usd', interval: 'month', intervalCount: 1 },
+  ],
+}
+
+function givenPricing(data: PublicPricing | undefined) {
+  vi.mocked(usePublicPricing).mockReturnValue({ data } as ReturnType<typeof usePublicPricing>)
+}
+
+beforeEach(() => givenPricing(undefined))
 
 function authValue(status: AuthStatus): AuthContextValue {
   return {
@@ -88,5 +108,55 @@ describe('MarketingHomePage', () => {
       'href',
       paths.signUp,
     )
+  })
+
+  describe('pricing', () => {
+    const faqQuestion = /what does it cost/i
+
+    it('offers no Pricing link, section or FAQ entry when there is no price to show', () => {
+      for (const data of [
+        undefined,
+        { configured: false, plans: [], trialDays: 0 },
+        { configured: true, plans: [], trialDays: 14 },
+        {
+          configured: true,
+          trialDays: 0,
+          plans: [
+            {
+              planKey: 'm',
+              amountMinor: 100,
+              currency: 'zzz1',
+              interval: 'month',
+              intervalCount: 1,
+            },
+          ],
+        },
+      ] as (PublicPricing | undefined)[]) {
+        givenPricing(data)
+        const { container, unmount } = renderMarketingHome()
+        expect(screen.queryByRole('link', { name: 'Pricing' })).not.toBeInTheDocument()
+        expect(container.querySelector('#pricing')).toBeNull()
+        expect(screen.queryByText(faqQuestion)).not.toBeInTheDocument()
+        unmount()
+      }
+    })
+
+    it('offers a Pricing link to the section, and an FAQ entry, when prices load', () => {
+      givenPricing(REAL_PRICING)
+      const { container } = renderMarketingHome()
+
+      expect(container.querySelector('#pricing')).not.toBeNull()
+      const links = screen.getAllByRole('link', { name: 'Pricing' })
+      expect(links.length).toBeGreaterThan(0)
+      for (const link of links) expect(link).toHaveAttribute('href', '#pricing')
+      expect(screen.getByText(faqQuestion)).toBeInTheDocument()
+    })
+
+    it('makes a single pricing request for the whole page', () => {
+      givenPricing(REAL_PRICING)
+      vi.mocked(usePublicPricing).mockClear()
+      renderMarketingHome()
+      expect(usePublicPricing).toHaveBeenCalledTimes(1)
+    })
   })
 })

@@ -1,5 +1,8 @@
 import { ChevronDown } from 'lucide-react'
 
+import type { PublicPricing } from '@/features/marketing/api'
+import { hasRenderablePricing } from '@/features/marketing/renderable-pricing'
+
 /**
  * The questions an agency owner asks before they will put their business in
  * somebody else's software.
@@ -43,7 +46,24 @@ const QUESTIONS: readonly { readonly q: string; readonly a: string }[] = [
   },
 ]
 
-export function Faq() {
+/**
+ * Only offered when the page has a pricing section to point at (the same
+ * `hasRenderablePricing` condition as the section and the nav link). It says
+ * that there is pricing and where it is; it states no amount and no trial
+ * length, because the section is the one place those come from.
+ */
+const PRICING_QUESTION: { readonly q: string; readonly a: string } = {
+  q: 'What does it cost?',
+  a: 'The plans and their prices are listed in the pricing section of this page, exactly as they are charged. Nothing is quoted here, so there is one place to read it and it cannot disagree with your bill.',
+}
+
+export interface FaqProps {
+  pricing?: PublicPricing
+}
+
+export function Faq({ pricing }: FaqProps = {}) {
+  const questions = hasRenderablePricing(pricing) ? [...QUESTIONS, PRICING_QUESTION] : QUESTIONS
+
   return (
     <section aria-labelledby="faq-heading" className="border-line border-t">
       <div className="mx-auto max-w-[1220px] px-4 py-16 sm:px-6 sm:py-20 lg:px-8">
@@ -64,7 +84,7 @@ export function Faq() {
           </div>
 
           <div className="border-line border-t">
-            {QUESTIONS.map(({ q, a }) => (
+            {questions.map(({ q, a }) => (
               <details key={q} className="border-line group border-b">
                 <summary
                   className={[

@@ -1,3 +1,5 @@
+import { usePublicPricing } from '@/features/marketing/queries'
+
 import { Differentiation } from './components/Differentiation'
 import { Faq } from './components/Faq'
 import { FeatureGrid } from './components/FeatureGrid'
@@ -5,6 +7,7 @@ import { FinalCta } from './components/FinalCta'
 import { Hero } from './components/Hero'
 import { MarketingFooter } from './components/MarketingFooter'
 import { MarketingHeader } from './components/MarketingHeader'
+import { PricingSection } from './components/PricingSection'
 import { StorySections } from './components/StorySections'
 
 /**
@@ -18,16 +21,24 @@ import { StorySections } from './components/StorySections'
  * a signed-out visit to `/` downloads only this page.
  */
 export function MarketingHomePage() {
+  /*
+   * The one pricing request. The section, its nav link and its FAQ entry all
+   * take this result as a prop and decide with `hasRenderablePricing`, so they
+   * appear together or not at all (an unconfigured install shows none of them).
+   */
+  const { data: pricing } = usePublicPricing()
+
   return (
     <div className="bg-canvas min-h-dvh">
-      <MarketingHeader />
+      <MarketingHeader pricing={pricing} />
       <main id="main">
         <Hero />
         <StorySections />
         <FeatureGrid />
         <Differentiation />
+        <PricingSection pricing={pricing} />
         <FinalCta />
-        <Faq />
+        <Faq pricing={pricing} />
       </main>
       <MarketingFooter />
     </div>
