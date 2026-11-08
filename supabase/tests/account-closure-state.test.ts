@@ -285,6 +285,73 @@ describe('who may move the closure columns', () => {
     )
   })
 
+  it.each([
+    ['purge_started_at', `now()`],
+    ['closure_purge_after', `now() + interval '30 days'`],
+    ['closure_requested_by', `'${'$'}{OWNER}'`],
+  ])('refuses an administrator who tries to change %s', async (column, value) => {
+    const expression = value.replace('${OWNER}', owner)
+    await db.asUser(admin, (session) =>
+      session.expectRejection(
+        () =>
+          session.sql(`update public.organizations set ${column} = ${expression} where id = $1`, [
+            organizationId,
+          ]),
+        /cannot be changed directly/i,
+      ),
+    )
+  })
+
+  it('refuses an administrator who tries to clear purge_started_at once the purge began', async () => {
+    await db.sql(
+      `update public.organizations
+          set closure_requested_at = now() - interval '31 days', purge_started_at = now()
+        where id = $1`,
+      [organizationId],
+    )
+    await db.asUser(admin, (session) =>
+      session.expectRejection(
+        () =>
+          session.sql(`update public.organizations set purge_started_at = null where id = $1`, [
+            organizationId,
+          ]),
+        /cannot be changed directly/i,
+      ),
+    )
+    expect(await stateOf()).toBe('purging')
+  })
+
+  it('lets a SECURITY DEFINER function called by an administrator move the closure columns', async () => {
+    // The path every later closure function takes: current_user is the
+    // function owner inside the body, so the guard must let it through.
+    await db.exec(`
+      create or replace function public.test_throwaway_request_closure(p_org uuid)
+      returns void language sql security definer set search_path = ''
+      as $$ update public.organizations
+               set closure_requested_at = now(),
+                   closure_purge_after = now() + interval '30 days'
+             where id = p_org $$;
+      grant execute on function public.test_throwaway_request_closure(uuid) to authenticated;
+    `)
+    try {
+      await db.asUser(admin, (session) =>
+        session.sql(`select public.test_throwaway_request_closure($1)`, [organizationId]),
+      )
+      expect(await stateOf()).toBe('suspended')
+    } finally {
+      await db.exec(`drop function public.test_throwaway_request_closure(uuid)`)
+    }
+  })
+
+  it('lets the service role move the closure columns', async () => {
+    await db.asServiceRole(owner, (session) =>
+      session.sql(`update public.organizations set closure_requested_at = now() where id = $1`, [
+        organizationId,
+      ]),
+    )
+    expect(await stateOf()).toBe('suspended')
+  })
+
   it('still lets an administrator edit the rest of the organization', async () => {
     const rows = await db.asUser(admin, (session) =>
       session.sql(`update public.organizations set name = 'Renamed' where id = $1 returning id`, [

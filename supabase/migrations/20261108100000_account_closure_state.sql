@@ -73,6 +73,7 @@ comment on column public.organizations.closed_at is
 create or replace function app.guard_organization_closure_columns()
 returns trigger
 language plpgsql
+set search_path = ''
 as $$
 begin
   if current_user in ('authenticated', 'anon')
@@ -90,7 +91,7 @@ end;
 $$;
 
 comment on function app.guard_organization_closure_columns() is
-  'BEFORE UPDATE trigger: refuses a change to any closure_* column made as a browser role. Deliberately not SECURITY DEFINER, so current_user is the caller.';
+  'BEFORE UPDATE trigger: refuses a change to any closure_* column made as a browser role. Deliberately not SECURITY DEFINER, so current_user is the caller. Empty search_path like every function here.';
 
 drop trigger if exists organizations_guard_closure_columns on public.organizations;
 create trigger organizations_guard_closure_columns
