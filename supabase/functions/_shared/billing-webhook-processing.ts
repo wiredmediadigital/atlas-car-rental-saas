@@ -225,8 +225,7 @@ export async function processStripeEvent(
         subscriptionId: subscriptionIdFromEvent(event),
         invoiceId: invoice.id,
         invoiceStatus: invoice.status ?? null,
-        amountMinor:
-          typeof invoice.amount_due === 'number' ? invoice.amount_due : null,
+        amountMinor: typeof invoice.amount_due === 'number' ? invoice.amount_due : null,
         currency: typeof invoice.currency === 'string' ? invoice.currency.toUpperCase() : null,
         failed: event.type === 'invoice.payment_failed',
         eventCreatedAt: createdAt,

@@ -34,8 +34,11 @@ const transportError = () =>
   Object.assign(new Error('fetch failed'), { name: 'AuthRetryableFetchError', status: 0 })
 
 /** What it returns when GoTrue answered and refused. */
-const authError = (status = 400, code = 'invalid_credentials', message = 'Invalid login credentials') =>
-  Object.assign(new Error(message), { name: 'AuthApiError', status, code })
+const authError = (
+  status = 400,
+  code = 'invalid_credentials',
+  message = 'Invalid login credentials',
+) => Object.assign(new Error(message), { name: 'AuthApiError', status, code })
 
 const session = { access_token: 'token-value' }
 const user = { id: 'user-1' }
@@ -87,9 +90,9 @@ describe('what counts as a transport failure', () => {
     expect(isAuthTransportFailure(authError(400))).toBe(false)
     expect(isAuthTransportFailure(authError(401, 'unauthorized', 'Unauthorized'))).toBe(false)
     expect(isAuthTransportFailure(authError(403, 'forbidden', 'Forbidden'))).toBe(false)
-    expect(isAuthTransportFailure(authError(422, 'email_not_confirmed', 'Email not confirmed'))).toBe(
-      false,
-    )
+    expect(
+      isAuthTransportFailure(authError(422, 'email_not_confirmed', 'Email not confirmed')),
+    ).toBe(false)
   })
 
   it('treats a 5xx as infrastructure, exactly as sql() already does', () => {
@@ -109,9 +112,13 @@ describe('transient transport recovery', () => {
   it('retries once and succeeds, publishing only the working client', async () => {
     const { makeClient, made, attempts } = scriptedClient([transportError(), 'ok'])
 
-    const result = await signInTestUser(makeClient, { email: 'a@b.test', password: 'x' }, {
-      sleep: noSleep,
-    })
+    const result = await signInTestUser(
+      makeClient,
+      { email: 'a@b.test', password: 'x' },
+      {
+        sleep: noSleep,
+      },
+    )
 
     expect(attempts()).toBe(2)
     expect(result.attempts).toBe(2)
@@ -125,9 +132,13 @@ describe('transient transport recovery', () => {
   it('recovers from a thrown transport error as well as a returned one', async () => {
     const { makeClient, attempts } = scriptedClient(['throw', 'ok'])
 
-    const result = await signInTestUser(makeClient, { email: 'a@b.test', password: 'x' }, {
-      sleep: noSleep,
-    })
+    const result = await signInTestUser(
+      makeClient,
+      { email: 'a@b.test', password: 'x' },
+      {
+        sleep: noSleep,
+      },
+    )
     expect(attempts()).toBe(2)
     expect(result.session.access_token).toBe('token-value')
   })
@@ -136,12 +147,16 @@ describe('transient transport recovery', () => {
     const slept: number[] = []
     const { makeClient } = scriptedClient([transportError(), transportError(), 'ok'])
 
-    await signInTestUser(makeClient, { email: 'a@b.test', password: 'x' }, {
-      sleep: (ms: number) => {
-        slept.push(ms)
-        return Promise.resolve()
+    await signInTestUser(
+      makeClient,
+      { email: 'a@b.test', password: 'x' },
+      {
+        sleep: (ms: number) => {
+          slept.push(ms)
+          return Promise.resolve()
+        },
       },
-    })
+    )
 
     expect(slept).toEqual([250, 750])
     // A live suite must fail promptly when Auth is genuinely down.
@@ -210,7 +225,10 @@ describe('a real Auth answer is never retried', () => {
 
   it('does not retry a 401 or a 403', async () => {
     for (const status of [401, 403]) {
-      const { makeClient, attempts } = scriptedClient([authError(status, 'x', `HTTP ${status}`), 'ok'])
+      const { makeClient, attempts } = scriptedClient([
+        authError(status, 'x', `HTTP ${status}`),
+        'ok',
+      ])
       await expect(
         signInTestUser(makeClient, { email: 'a@b.test', password: 'x' }, { sleep: noSleep }),
       ).rejects.toThrow(`HTTP ${status}`)
@@ -268,13 +286,21 @@ describe('nothing unusable is ever published', () => {
      * What it must not do is hand back a candidate from a failed attempt.
      */
     let published: unknown = { id: 'previous-owner-client' }
-    const { makeClient, made } = scriptedClient([transportError(), transportError(), transportError()])
+    const { makeClient, made } = scriptedClient([
+      transportError(),
+      transportError(),
+      transportError(),
+    ])
 
     await expect(
       (async () => {
-        published = await signInTestUser(makeClient, { email: 'a@b.test', password: 'x' }, {
-          sleep: noSleep,
-        })
+        published = await signInTestUser(
+          makeClient,
+          { email: 'a@b.test', password: 'x' },
+          {
+            sleep: noSleep,
+          },
+        )
       })(),
     ).rejects.toBeInstanceOf(AuthTransportError)
 

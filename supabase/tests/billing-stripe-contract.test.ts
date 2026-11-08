@@ -90,7 +90,10 @@ describe('webhook signatures, against Stripe’s own signer', () => {
       secret: WEBHOOK_SECRET,
       timestamp,
     })
-    const theirs = header.split(',').find((part) => part.startsWith('v1='))!.slice(3)
+    const theirs = header
+      .split(',')
+      .find((part) => part.startsWith('v1='))!
+      .slice(3)
     const ours = await computeSignature(`${timestamp}.${payload}`, WEBHOOK_SECRET)
 
     expect(ours).toBe(theirs)
@@ -246,7 +249,9 @@ describe('configuration', () => {
 
   it('refuses a duplicate plan key, which would make resolution ambiguous', () => {
     expect(
-      parseCatalogue('[{"plan_key":"a","price_id":"price_1"},{"plan_key":"a","price_id":"price_2"}]'),
+      parseCatalogue(
+        '[{"plan_key":"a","price_id":"price_1"},{"plan_key":"a","price_id":"price_2"}]',
+      ),
     ).toBe('invalid_catalogue')
   })
 
@@ -358,7 +363,10 @@ describe('the Checkout request', () => {
    * day one by a deployment that advertised fourteen free days".
    */
   it('asks Stripe for a trial only when the caller granted one', () => {
-    const params = checkoutSessionParams({ ...request, trialPeriodDays: 14 }, 'https://atlasloca.com')!
+    const params = checkoutSessionParams(
+      { ...request, trialPeriodDays: 14 },
+      'https://atlasloca.com',
+    )!
     const subscriptionData = params.subscription_data as Record<string, unknown>
 
     expect(subscriptionData.trial_period_days).toBe(14)
@@ -424,7 +432,7 @@ describe('form encoding, as Stripe’s API expects it', () => {
   })
 
   it('escapes values that would otherwise change the request', () => {
-    const encoded = encodeForm({ 'return_url': 'https://a.test/x?y=1&z=2' })
+    const encoded = encodeForm({ return_url: 'https://a.test/x?y=1&z=2' })
     expect(encoded).toBe('return_url=https%3A%2F%2Fa.test%2Fx%3Fy%3D1%26z%3D2')
   })
 })
@@ -437,7 +445,9 @@ describe('the Stripe client', () => {
    * to do with Stripe.
    */
   function clientWith(body: string, status = 200) {
-    const fetchImpl = vi.fn(() => Promise.resolve(new Response(body, { status }))) as unknown as typeof fetch
+    const fetchImpl = vi.fn(() =>
+      Promise.resolve(new Response(body, { status })),
+    ) as unknown as typeof fetch
     return {
       fetchImpl,
       client: new StripeClient({ secretKey: 'sk_test_x', mode: 'test', fetchImpl }),
@@ -735,7 +745,11 @@ describe('processing an event', () => {
       failed: [] as { id: string; failureCategory: string }[],
       fetched: [] as string[],
       applied: 0,
-      trialsNoted: [] as { organizationId: string; subscriptionId: string; trialEnd: string | null }[],
+      trialsNoted: [] as {
+        organizationId: string
+        subscriptionId: string
+        trialEnd: string | null
+      }[],
     }
 
     const store: WebhookStore = {
@@ -942,7 +956,8 @@ describe('processing an event', () => {
 
   it('leaves a failed event open so Stripe’s retry can succeed later', async () => {
     const { store, calls } = makeStore({
-      fetchSubscription: () => Promise.reject(new StripeApiError('stripe_unavailable', 'unavailable')),
+      fetchSubscription: () =>
+        Promise.reject(new StripeApiError('stripe_unavailable', 'unavailable')),
     })
 
     const result = await processStripeEvent(subscriptionEvent, store)
@@ -983,9 +998,7 @@ describe('processing an event', () => {
      * evidence under repeated failures. The anomaly is in the billing history —
      * once — and support resolves it with a reconciliation.
      */
-    expect(calls.finished).toEqual([
-      { id: 'evt_1', result: 'failed', organizationId: 'org-1' },
-    ])
+    expect(calls.finished).toEqual([{ id: 'evt_1', result: 'failed', organizationId: 'org-1' }])
     expect(calls.failed).toEqual([])
   })
 

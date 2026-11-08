@@ -185,7 +185,11 @@ describe('settlement', () => {
 
     const read = async () =>
       (
-        await db.sql<{ amount_paid_minor: number; balance_due_minor: number; payment_status: string }>(
+        await db.sql<{
+          amount_paid_minor: number
+          balance_due_minor: number
+          payment_status: string
+        }>(
           `select amount_paid_minor, balance_due_minor, payment_status from public.rentals where id = $1`,
           [rental.id],
         )
@@ -217,7 +221,10 @@ describe('settlement', () => {
        values ($1, $2, 5000, 'EUR', 'outbound')`,
       [organizationId, rental.id],
     )
-    expect(await read()).toMatchObject({ amount_paid_minor: 15000, payment_status: 'partially_paid' })
+    expect(await read()).toMatchObject({
+      amount_paid_minor: 15000,
+      payment_status: 'partially_paid',
+    })
 
     // Removing a receipt is reflected too — the total is recomputed, not nudged.
     await db.sql(`delete from public.payments where id = $1`, [firstPayment!.id])
@@ -486,7 +493,9 @@ describe('account deletion is a referential action, not an edit', () => {
 
     // The exception is keyed on the account being gone, not on who is asking,
     // so it cannot be used to erase who did what.
-    await db.sql(`update public.vehicles set created_by = null where registration_plate = 'ERASE-2'`)
+    await db.sql(
+      `update public.vehicles set created_by = null where registration_plate = 'ERASE-2'`,
+    )
 
     const [row] = await db.sql<{ created_by: string | null }>(
       `select created_by from public.vehicles where registration_plate = 'ERASE-2'`,
@@ -538,9 +547,10 @@ describe('account deletion is a referential action, not an edit', () => {
        values ($1, 'Probe', 'Three', 'ERASE-3', 'EUR', $2)`,
       [organizationId, author.userId],
     )
-    await db.sql(`update public.vehicles set created_by = $1 where registration_plate = 'ERASE-3'`, [
-      other.userId,
-    ])
+    await db.sql(
+      `update public.vehicles set created_by = $1 where registration_plate = 'ERASE-3'`,
+      [other.userId],
+    )
 
     const [row] = await db.sql<{ created_by: string | null }>(
       `select created_by from public.vehicles where registration_plate = 'ERASE-3'`,
@@ -633,7 +643,9 @@ describe('role-based permissions', () => {
     await addMember(db, organizationId, admin.userId, 'admin')
 
     await db.asUser(manager.userId, (session) =>
-      session.sql(`update public.organizations set city = 'Blocked' where id = $1`, [organizationId]),
+      session.sql(`update public.organizations set city = 'Blocked' where id = $1`, [
+        organizationId,
+      ]),
     )
     let [org] = await db.sql<{ city: string | null }>(
       `select city from public.organizations where id = $1`,
@@ -724,7 +736,9 @@ describe('data integrity', () => {
       /vehicles_plate_unique_idx|duplicate key/i,
     )
 
-    await db.sql(`update public.vehicles set archived_at = now() where registration_plate = 'DUP-1'`)
+    await db.sql(
+      `update public.vehicles set archived_at = now() where registration_plate = 'DUP-1'`,
+    )
     await db.sql(
       `insert into public.vehicles (organization_id, make, model, registration_plate, currency)
        values ($1, 'Seat', 'Ibiza', 'DUP-1', 'EUR')`,

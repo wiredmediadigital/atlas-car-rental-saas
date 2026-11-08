@@ -103,13 +103,7 @@ export interface StripeClientOptions {
 
 /** A form value: Stripe accepts scalars, nested objects and arrays. */
 export type FormValue =
-  | string
-  | number
-  | boolean
-  | null
-  | undefined
-  | FormValue[]
-  | { [key: string]: FormValue }
+  string | number | boolean | null | undefined | FormValue[] | { [key: string]: FormValue }
 
 /**
  * Stripe's form encoding, including the bracket syntax for structure.
@@ -159,7 +153,10 @@ interface StripeErrorEnvelope {
  * The status code decides most of it; `error.type` refines the 402/400 cases.
  * Nothing from `error.message` reaches the caller.
  */
-export function categorizeStripeError(status: number, body: StripeErrorEnvelope): StripeErrorCategory {
+export function categorizeStripeError(
+  status: number,
+  body: StripeErrorEnvelope,
+): StripeErrorCategory {
   const type = body.error?.type ?? ''
 
   if (status === 401) return 'authentication'

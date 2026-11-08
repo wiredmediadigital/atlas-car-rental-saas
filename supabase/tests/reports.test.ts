@@ -74,11 +74,10 @@ async function business(
   asUser = ownerA,
 ): Promise<BusinessRow[]> {
   return db.asUser(asUser, (session) =>
-    session.sql<BusinessRow>(`select * from public.report_business_summary($1, $2::date, $3::date)`, [
-      organizationId,
-      from,
-      to,
-    ]),
+    session.sql<BusinessRow>(
+      `select * from public.report_business_summary($1, $2::date, $3::date)`,
+      [organizationId, from, to],
+    ),
   )
 }
 
@@ -742,9 +741,7 @@ describe('fleet performance', () => {
 
     expect(Number(existing!.rental_revenue_minor)).toBe(one.rental_revenue_minor)
     expect(Number(existing!.direct_expense_minor)).toBe(one.direct_expense_minor)
-    expect(Number(existing!.operating_contribution_minor)).toBe(
-      one.operating_contribution_minor,
-    )
+    expect(Number(existing!.operating_contribution_minor)).toBe(one.operating_contribution_minor)
   })
 
   it('keeps financing cash out of contribution and beside it', async () => {
@@ -922,9 +919,7 @@ describe('cost analysis', () => {
       vendor: vendors[1]!.id,
     })
 
-    const rows = (await breakdown('vendor')).filter(
-      (row) => row.dimension_label === 'Garage Atlas',
-    )
+    const rows = (await breakdown('vendor')).filter((row) => row.dimension_label === 'Garage Atlas')
     expect(rows).toHaveLength(2)
     expect(rows.map((row) => Number(row.gross_minor)).sort((a, b) => a - b)).toEqual([1_100, 2_200])
 
@@ -966,11 +961,11 @@ describe('cost analysis', () => {
   it('refuses a breakdown nobody defined', async () => {
     await db.asUser(ownerA, async (session) => {
       await session.expectRejection(
-        () => session.sql(`select * from public.report_expense_breakdown($1, $2::date, $3::date, 'moon')`, [
-          orgA,
-          FROM,
-          TO,
-        ]),
+        () =>
+          session.sql(
+            `select * from public.report_expense_breakdown($1, $2::date, $3::date, 'moon')`,
+            [orgA, FROM, TO],
+          ),
         /unsupported breakdown/i,
       )
     })
@@ -995,7 +990,9 @@ describe('current positions', () => {
 
   async function positions(asUser = ownerA, organizationId = orgA): Promise<PositionRow[]> {
     return db.asUser(asUser, (session) =>
-      session.sql<PositionRow>(`select * from public.report_position_summary($1)`, [organizationId]),
+      session.sql<PositionRow>(`select * from public.report_position_summary($1)`, [
+        organizationId,
+      ]),
     )
   }
 
@@ -1181,11 +1178,10 @@ describe('customers', () => {
 
   async function cohorts(from = FROM, to = TO): Promise<CohortRow> {
     const [row] = await db.asUser(ownerA, (session) =>
-      session.sql<CohortRow>(`select * from public.report_customer_cohorts($1, $2::date, $3::date)`, [
-        orgA,
-        from,
-        to,
-      ]),
+      session.sql<CohortRow>(
+        `select * from public.report_customer_cohorts($1, $2::date, $3::date)`,
+        [orgA, from, to],
+      ),
     )
     return row!
   }

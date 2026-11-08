@@ -314,7 +314,9 @@ describe('an amortising schedule', () => {
   it('repays exactly, at zero interest too', async () => {
     const rows = await project(12_000_001, 0, 12, null)
     expect(rows.every((row) => Number(row.expected_interest_minor) === 0)).toBe(true)
-    expect(rows.reduce((sum, row) => sum + Number(row.expected_principal_minor), 0)).toBe(12_000_001)
+    expect(rows.reduce((sum, row) => sum + Number(row.expected_principal_minor), 0)).toBe(
+      12_000_001,
+    )
     expect(Number(rows.at(-1)!.remaining_principal_minor)).toBe(0)
   })
 
@@ -339,7 +341,9 @@ describe('an amortising schedule', () => {
     // folded into the last payment is a surprise nobody can plan for.
     expect(last.due_on).toBe(rows.at(-2)!.due_on)
     expect(Number(rows.at(-2)!.remaining_principal_minor)).toBe(3_000_000)
-    expect(rows.reduce((sum, row) => sum + Number(row.expected_principal_minor), 0)).toBe(15_000_000)
+    expect(rows.reduce((sum, row) => sum + Number(row.expected_principal_minor), 0)).toBe(
+      15_000_000,
+    )
   })
 
   it('records the level payment it computed, when the terms did not state one', async () => {
@@ -413,7 +417,9 @@ describe('an amortising schedule', () => {
     const rows = await project(15_000_000, 725, 48, 361_000)
     expect(Number(rows[0]!.expected_total_minor)).toBe(361_000)
     expect(Number(rows.at(-1)!.expected_total_minor)).not.toBe(361_000)
-    expect(rows.reduce((sum, row) => sum + Number(row.expected_principal_minor), 0)).toBe(15_000_000)
+    expect(rows.reduce((sum, row) => sum + Number(row.expected_principal_minor), 0)).toBe(
+      15_000_000,
+    )
     expect(Number(rows.at(-1)!.remaining_principal_minor)).toBe(0)
   })
 
@@ -433,7 +439,9 @@ describe('an amortising schedule', () => {
   it('works the same at week and quarter frequencies', async () => {
     const weekly = await project(5_000_000, 600, 52, null, 0, '2032-01-05', 'weekly')
     expect(Number(weekly.at(-1)!.remaining_principal_minor)).toBe(0)
-    expect(weekly.reduce((sum, row) => sum + Number(row.expected_principal_minor), 0)).toBe(5_000_000)
+    expect(weekly.reduce((sum, row) => sum + Number(row.expected_principal_minor), 0)).toBe(
+      5_000_000,
+    )
 
     const quarterly = await project(5_000_000, 600, 8, null, 0, '2032-01-31', 'quarterly')
     expect(Number(quarterly.at(-1)!.remaining_principal_minor)).toBe(0)
@@ -445,7 +453,9 @@ describe('an amortising schedule', () => {
     // arithmetic is on integers, so the number of decimals changes nothing —
     // which is the property being asserted.
     const rows = await project(12_345_678, 437, 36, null)
-    expect(rows.reduce((sum, row) => sum + Number(row.expected_principal_minor), 0)).toBe(12_345_678)
+    expect(rows.reduce((sum, row) => sum + Number(row.expected_principal_minor), 0)).toBe(
+      12_345_678,
+    )
     expect(Number(rows.at(-1)!.remaining_principal_minor)).toBe(0)
   })
 
@@ -625,9 +635,7 @@ describe('principal is not a cost', () => {
 
     expect(Number(position.interest_paid_minor)).toBe(50_000)
     expect(Number(position.financing_cost_minor)).toBe(50_000)
-    expect(Number(position.cash_paid_minor)).toBe(
-      Number(beforePosition.cash_paid_minor) + 50_000,
-    )
+    expect(Number(position.cash_paid_minor)).toBe(Number(beforePosition.cash_paid_minor) + 50_000)
     expect(Number(position.remaining_principal_minor)).toBe(
       Number(beforePosition.remaining_principal_minor),
     )
@@ -650,9 +658,7 @@ describe('principal is not a cost', () => {
     expect(Number(position.financing_cost_minor)).toBe(
       Number(beforePosition.financing_cost_minor) + 10_000,
     )
-    expect(Number(position.principal_paid_minor)).toBe(
-      Number(beforePosition.principal_paid_minor),
-    )
+    expect(Number(position.principal_paid_minor)).toBe(Number(beforePosition.principal_paid_minor))
   })
 
   it('an unallocated payment stays unallocated', async () => {
@@ -663,17 +669,11 @@ describe('principal is not a cost', () => {
     const position = await overview(agreementId)
 
     expect(Number(position.unallocated_minor)).toBe(430_000)
-    expect(Number(position.cash_paid_minor)).toBe(
-      Number(beforePosition.cash_paid_minor) + 430_000,
-    )
+    expect(Number(position.cash_paid_minor)).toBe(Number(beforePosition.cash_paid_minor) + 430_000)
     // It did not become principal…
-    expect(Number(position.principal_paid_minor)).toBe(
-      Number(beforePosition.principal_paid_minor),
-    )
+    expect(Number(position.principal_paid_minor)).toBe(Number(beforePosition.principal_paid_minor))
     // …and it did not become interest.
-    expect(Number(position.interest_paid_minor)).toBe(
-      Number(beforePosition.interest_paid_minor),
-    )
+    expect(Number(position.interest_paid_minor)).toBe(Number(beforePosition.interest_paid_minor))
     // And because part of the cash is unexplained, neither the balance nor the
     // cost is claimed as known any more.
     expect(position.remaining_principal_minor).toBeNull()
@@ -889,7 +889,9 @@ describe('overdue', () => {
     expect(Number(position.overdue_minor)).toBe(0)
 
     await db.asUser(ownerId, (session) =>
-      session.sql(`select public.financing_close_agreement($1, 'cancelled', 'test teardown')`, [id]),
+      session.sql(`select public.financing_close_agreement($1, 'cancelled', 'test teardown')`, [
+        id,
+      ]),
     )
   })
 })
@@ -939,9 +941,7 @@ describe('voiding a financing payment', () => {
 
     const reopened = await installments(id)
     expect(Number(reopened[0]!.paid_minor)).toBe(0)
-    expect(Number(reopened[0]!.outstanding_minor)).toBe(
-      Number(schedule[0]!.expected_total_minor),
-    )
+    expect(Number(reopened[0]!.outstanding_minor)).toBe(Number(schedule[0]!.expected_total_minor))
 
     // The record survives, with its reason.
     const [row] = await db.sql<{ status: string; void_reason: string; amount_minor: number }>(
@@ -966,12 +966,15 @@ describe('voiding a financing payment', () => {
     )
 
     await db.expectRejection(
-      () => db.sql(`update public.financing_payments set amount_minor = 1 where id = $1`, [paymentId]),
+      () =>
+        db.sql(`update public.financing_payments set amount_minor = 1 where id = $1`, [paymentId]),
       /kept exactly as it was/i,
     )
     await db.expectRejection(
       () =>
-        db.sql(`update public.financing_payments set status = 'recorded' where id = $1`, [paymentId]),
+        db.sql(`update public.financing_payments set status = 'recorded' where id = $1`, [
+          paymentId,
+        ]),
       /cannot be reinstated/i,
     )
     await db.expectRejection(
@@ -1162,7 +1165,9 @@ describe('the agreement lifecycle', () => {
       /Say why/i,
     )
     await db.asUser(adminId, (session) =>
-      session.sql(`select public.financing_close_agreement($1, 'closed', 'Vehicle sold', null)`, [id]),
+      session.sql(`select public.financing_close_agreement($1, 'closed', 'Vehicle sold', null)`, [
+        id,
+      ]),
     )
   })
 
@@ -1217,7 +1222,9 @@ describe('the agreement lifecycle', () => {
       session.sql(`select public.financing_close_agreement($1, 'paid_off', null, null)`, [id]),
     )
     await db.asUser(adminId, (session) =>
-      session.sql(`select public.financing_close_agreement($1, 'closed', 'Filed away', null)`, [id]),
+      session.sql(`select public.financing_close_agreement($1, 'closed', 'Filed away', null)`, [
+        id,
+      ]),
     )
 
     const [row] = await db.sql<{ agreement_status: string }>(
@@ -1314,7 +1321,10 @@ describe('editing an agreement', () => {
     })
 
     await db.asUser(adminId, (session) =>
-      session.sql(`update public.financing_agreements set installment_amount_minor = 120000 where id = $1`, [id]),
+      session.sql(
+        `update public.financing_agreements set installment_amount_minor = 120000 where id = $1`,
+        [id],
+      ),
     )
     await db.asUser(adminId, (session) =>
       session.sql(`select public.financing_generate_schedule($1)`, [id]),
@@ -1346,9 +1356,10 @@ describe('editing an agreement', () => {
 
     // A note is not a term, and stays editable.
     await db.asUser(adminId, (session) =>
-      session.sql(`update public.financing_agreements set notes = 'Called the bank' where id = $1`, [
-        id,
-      ]),
+      session.sql(
+        `update public.financing_agreements set notes = 'Called the bank' where id = $1`,
+        [id],
+      ),
     )
 
     await db.expectRejection(
@@ -1423,9 +1434,10 @@ describe('editing an agreement', () => {
       firstPaymentOn: '2034-07-01',
     })
     await db.asUser(adminId, (session) =>
-      session.sql(`select public.financing_close_agreement($1, 'cancelled', 'Never signed', null)`, [
-        id,
-      ]),
+      session.sql(
+        `select public.financing_close_agreement($1, 'cancelled', 'Never signed', null)`,
+        [id],
+      ),
     )
 
     const events = await db.sql<{ kind: string; reason: string }>(
@@ -1660,7 +1672,11 @@ describe('who may do what', () => {
       }
 
       await session.expectRejection(
-        () => session.sql(`select * from public.organization_financing_summary($1, '2032-01-01'::date, '2033-01-01'::date)`, [organizationId]),
+        () =>
+          session.sql(
+            `select * from public.organization_financing_summary($1, '2032-01-01'::date, '2033-01-01'::date)`,
+            [organizationId],
+          ),
         /not permitted/i,
       )
     })

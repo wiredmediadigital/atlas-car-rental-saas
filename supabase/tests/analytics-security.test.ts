@@ -290,9 +290,7 @@ describe('agency A cannot obtain agency B analytics', () => {
 
   it('scopes an unfiltered availability query to the caller', async () => {
     const rows = await db.asUser(agencyA.userId, (session) =>
-      session.sql<{ organization_id: string }>(
-        `select organization_id from public.vehicle_fleet`,
-      ),
+      session.sql<{ organization_id: string }>(`select organization_id from public.vehicle_fleet`),
     )
 
     expect(rows.length).toBeGreaterThan(0)

@@ -39,7 +39,10 @@ async function seedCast(): Promise<Cast> {
   if (!owner.organizationId) throw new Error('provisioning did not create an agency')
 
   const admin = await signUp(db, { email: `admin${suffix}@atlas.test`, fullName: 'Admin One' })
-  const manager = await signUp(db, { email: `manager${suffix}@atlas.test`, fullName: 'Manager One' })
+  const manager = await signUp(db, {
+    email: `manager${suffix}@atlas.test`,
+    fullName: 'Manager One',
+  })
   const staff = await signUp(db, { email: `staff${suffix}@atlas.test`, fullName: 'Staff One' })
 
   await addMember(db, owner.organizationId, admin.userId, 'admin')
@@ -348,9 +351,10 @@ describe('invitation lifecycle', () => {
     await db.asUser(cast.owner, async (session) => {
       await session.expectRejection(
         () =>
-          session.sql(`select * from public.create_team_invitation($1, 'not-an-address', 'staff')`, [
-            cast.organizationId,
-          ]),
+          session.sql(
+            `select * from public.create_team_invitation($1, 'not-an-address', 'staff')`,
+            [cast.organizationId],
+          ),
         /not a valid email/i,
       )
     })
@@ -725,7 +729,12 @@ describe('acceptance', () => {
       [cast.organizationId, returning.userId],
     )
 
-    const { token } = await invite(cast.owner, cast.organizationId, 'suspended@atlas.test', 'manager')
+    const { token } = await invite(
+      cast.owner,
+      cast.organizationId,
+      'suspended@atlas.test',
+      'manager',
+    )
 
     const outcome = await db.asUser(returning.userId, async (session) => {
       const [row] = await session.sql<{ outcome: string; role: string }>(
@@ -905,10 +914,10 @@ describe('review regressions', () => {
      * an owner which one they meant to promote.
      */
     await db.asUser(cast.staff, (session) =>
-      session.sql(`update public.profiles set full_name = 'Manager One', email = $1 where id = $2`, [
-        `manager${seq}@atlas.test`,
-        cast.staff,
-      ]),
+      session.sql(
+        `update public.profiles set full_name = 'Manager One', email = $1 where id = $2`,
+        [`manager${seq}@atlas.test`, cast.staff],
+      ),
     )
 
     const [mirrored] = await db.sql<{ email: string }>(
@@ -1503,10 +1512,9 @@ describe('what the delivery function may read', () => {
     )
 
     const [row] = await db.asUser(cast.admin, (session) =>
-      session.sql<Record<string, unknown>>(
-        `select * from public.team_invitation_message($1)`,
-        [invitationId],
-      ),
+      session.sql<Record<string, unknown>>(`select * from public.team_invitation_message($1)`, [
+        invitationId,
+      ]),
     )
 
     expect(row?.email).toBe('message@atlas.test')

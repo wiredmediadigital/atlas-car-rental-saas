@@ -91,13 +91,20 @@ describe('the ownership check', () => {
   it('refuses anything that reads as traversal, even under the right prefix', () => {
     // Storage keys resolve nothing, so these are odd names rather than escapes.
     // A delete path should not be what depends on that.
-    for (const path of [`${ALPHA}/..`, `${ALPHA}/../${BETA}/logo.png`, `${ALPHA}//logo.png`, `${ALPHA}/./logo.png`]) {
+    for (const path of [
+      `${ALPHA}/..`,
+      `${ALPHA}/../${BETA}/logo.png`,
+      `${ALPHA}//logo.png`,
+      `${ALPHA}/./logo.png`,
+    ]) {
       expect(() => assertOwnedPath(ALPHA, path)).toThrow(/does not belong/)
     }
   })
 
   it('refuses to act at all on something that is not an organization id', () => {
-    expect(() => assertOwnedPath('not-a-uuid', 'anything/at/all.png')).toThrow(/not an organization id/)
+    expect(() => assertOwnedPath('not-a-uuid', 'anything/at/all.png')).toThrow(
+      /not an organization id/,
+    )
   })
 })
 

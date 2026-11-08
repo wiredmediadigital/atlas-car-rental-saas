@@ -28,11 +28,7 @@
 
 import { createClient, type SupabaseClient } from 'jsr:@supabase/supabase-js@2'
 
-import {
-  GpsProviderError,
-  type NormalizedUnit,
-  toSyncPayload,
-} from '../_shared/gps-provider.ts'
+import { GpsProviderError, type NormalizedUnit, toSyncPayload } from '../_shared/gps-provider.ts'
 import { WialonAdapter } from '../_shared/wialon-adapter.ts'
 
 type Role = 'owner' | 'admin' | 'manager' | 'staff'
@@ -85,11 +81,15 @@ function failure(category: string, message: string, status = 400): Response {
 function describe(error: unknown): { category: string; message: string; status: number } {
   if (error instanceof GpsProviderError) {
     const status =
-      error.category === 'auth_error' ? 401
-      : error.category === 'permission_denied' ? 403
-      : error.category === 'rate_limited' ? 429
-      : error.category === 'unreachable' ? 504
-      : 400
+      error.category === 'auth_error'
+        ? 401
+        : error.category === 'permission_denied'
+          ? 403
+          : error.category === 'rate_limited'
+            ? 429
+            : error.category === 'unreachable'
+              ? 504
+              : 400
     return { category: error.category, message: error.message, status }
   }
   return {
@@ -211,8 +211,7 @@ async function resolveConnection(
   minimum: Role,
   userId: string,
 ): Promise<
-  | { ok: true; connection: Record<string, unknown>; role: Role }
-  | { ok: false; response: Response }
+  { ok: true; connection: Record<string, unknown>; role: Role } | { ok: false; response: Response }
 > {
   if (typeof connectionId !== 'string' || connectionId === '') {
     return { ok: false, response: failure('malformed_config', 'No connection was named.') }
@@ -434,7 +433,10 @@ async function handleSave(
       .single()
 
     if (error || !data) {
-      return failure('malformed_config', 'That connection could not be saved. Check the name is not already in use.')
+      return failure(
+        'malformed_config',
+        'That connection could not be saved. Check the name is not already in use.',
+      )
     }
     connectionId = data.id as string
   }
@@ -474,7 +476,12 @@ async function handleSync(
    * Changing the device inventory — adding units, marking them missing — stays
    * with the administrator who owns the connection, alongside assignment.
    */
-  const resolved = await resolveConnection(asUser, body.connectionId, mode === 'sync' ? 'admin' : 'manager', userId)
+  const resolved = await resolveConnection(
+    asUser,
+    body.connectionId,
+    mode === 'sync' ? 'admin' : 'manager',
+    userId,
+  )
   if (!resolved.ok) return resolved.response
 
   const connection = resolved.connection
@@ -524,10 +531,13 @@ async function handleSync(
   } catch (error) {
     const described = describe(error)
     outcome =
-      described.category === 'auth_error' ? 'auth_error'
-      : described.category === 'unreachable' ? 'unreachable'
-      : described.category === 'rate_limited' ? 'rate_limited'
-      : 'provider_error'
+      described.category === 'auth_error'
+        ? 'auth_error'
+        : described.category === 'unreachable'
+          ? 'unreachable'
+          : described.category === 'rate_limited'
+            ? 'rate_limited'
+            : 'provider_error'
     errorCategory = described.category
     errorMessage = described.message
   } finally {
@@ -570,7 +580,10 @@ async function handleSync(
   }
 
   if (errorCategory) {
-    return json({ ok: false, error: { category: errorCategory, message: errorMessage }, result: applied }, 200)
+    return json(
+      { ok: false, error: { category: errorCategory, message: errorMessage }, result: applied },
+      200,
+    )
   }
 
   return json({ ok: true, result: applied, skipped })
@@ -643,11 +656,7 @@ async function handleHistory(
   if (tooSoon) return tooSoon
 
   const token = await readToken(service, resolved.connection_id as string)
-  const adapter = adapterFor(
-    resolved.provider as string,
-    resolved.base_url as string,
-    token,
-  )
+  const adapter = adapterFor(resolved.provider as string, resolved.base_url as string, token)
 
   try {
     const track = await adapter.fetchTrack(

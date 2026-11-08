@@ -59,10 +59,14 @@ afterAll(async () => {
 
 describe('sign-up provisioning', () => {
   it('creates the agency, its owner membership and its settings row', async () => {
-    const [org] = await db.sql<{ name: string; default_currency: string; time_zone: string; slug: string }>(
-      `select name, default_currency, time_zone, slug from public.organizations where id = $1`,
-      [agencyA.organizationId],
-    )
+    const [org] = await db.sql<{
+      name: string
+      default_currency: string
+      time_zone: string
+      slug: string
+    }>(`select name, default_currency, time_zone, slug from public.organizations where id = $1`, [
+      agencyA.organizationId,
+    ])
     expect(org).toMatchObject({
       name: 'Northwind Rentals',
       default_currency: 'EUR',
@@ -137,10 +141,13 @@ describe('sign-up provisioning', () => {
       countryCode: 'XYZ',
     })
 
-    const [org] = await db.sql<{ default_currency: string; time_zone: string; country_code: string | null }>(
-      `select default_currency, time_zone, country_code from public.organizations where id = $1`,
-      [organizationId],
-    )
+    const [org] = await db.sql<{
+      default_currency: string
+      time_zone: string
+      country_code: string | null
+    }>(`select default_currency, time_zone, country_code from public.organizations where id = $1`, [
+      organizationId,
+    ])
     expect(org).toEqual({ default_currency: 'USD', time_zone: 'UTC', country_code: null })
   })
 })
@@ -153,18 +160,16 @@ describe('cross-tenant reads', () => {
     expect(orgs.map((row) => row.id)).toEqual([agencyA.organizationId])
   })
 
-  it.each([
-    ['vehicles'],
-    ['customers'],
-    ['organization_members'],
-    ['organization_settings'],
-  ])('scopes %s to the caller\'s agency', async (table) => {
-    const rows = await db.asUser(agencyA.userId, (session) =>
-      session.sql<{ organization_id: string }>(`select organization_id from public.${table}`),
-    )
-    expect(rows.length).toBeGreaterThan(0)
-    expect(rows.every((row) => row.organization_id === agencyA.organizationId)).toBe(true)
-  })
+  it.each([['vehicles'], ['customers'], ['organization_members'], ['organization_settings']])(
+    "scopes %s to the caller's agency",
+    async (table) => {
+      const rows = await db.asUser(agencyA.userId, (session) =>
+        session.sql<{ organization_id: string }>(`select organization_id from public.${table}`),
+      )
+      expect(rows.length).toBeGreaterThan(0)
+      expect(rows.every((row) => row.organization_id === agencyA.organizationId)).toBe(true)
+    },
+  )
 
   it('returns nothing when explicitly querying another agency by id', async () => {
     const rows = await db.asUser(agencyA.userId, (session) =>
@@ -183,7 +188,10 @@ describe('cross-tenant reads', () => {
   })
 
   it('shows profiles of colleagues in the same agency', async () => {
-    const colleague = await signUp(db, { email: 'colleague@northwind-rentals.test', fullName: 'Colleague' })
+    const colleague = await signUp(db, {
+      email: 'colleague@northwind-rentals.test',
+      fullName: 'Colleague',
+    })
     await addMember(db, agencyA.organizationId, colleague.userId, 'staff')
 
     const rows = await db.asUser(agencyA.userId, (session) =>
@@ -244,7 +252,7 @@ describe('cross-tenant writes', () => {
     expect(after?.organization_id).toBe(agencyA.organizationId)
   })
 
-  it('cannot reference another agency\'s vehicle on a contract', async () => {
+  it("cannot reference another agency's vehicle on a contract", async () => {
     const [foreignVehicle] = await db.sql<{ id: string }>(
       `select id from public.vehicles where organization_id = $1 limit 1`,
       [agencyB.organizationId],

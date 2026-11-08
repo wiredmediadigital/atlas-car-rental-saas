@@ -240,8 +240,11 @@ describe('the provider credential', () => {
     )
     await db.sql(`select public.gps_store_credential($1, 'temp-token')`, [connection!.id])
     expect(
-      (await db.sql<{ token: string | null }>(`select public.gps_read_credential($1) as token`, [connection!.id]))[0]!
-        .token,
+      (
+        await db.sql<{ token: string | null }>(`select public.gps_read_credential($1) as token`, [
+          connection!.id,
+        ])
+      )[0]!.token,
     ).toBe('temp-token')
 
     await db.sql(`select public.gps_disconnect_connection($1, $2)`, [connection!.id, ownerId])
@@ -261,14 +264,18 @@ describe('the provider credential', () => {
   })
 
   it('is replaced rather than accumulated when it is rotated', async () => {
-    const before = await db.sql<{ count: number }>(`select count(*)::int as count from vault.secrets`)
+    const before = await db.sql<{ count: number }>(
+      `select count(*)::int as count from vault.secrets`,
+    )
 
     await db.sql(`select public.gps_store_credential($1, 'rotated-token', null, null, $2)`, [
       connectionId,
       adminId,
     ])
 
-    const after = await db.sql<{ count: number }>(`select count(*)::int as count from vault.secrets`)
+    const after = await db.sql<{ count: number }>(
+      `select count(*)::int as count from vault.secrets`,
+    )
     expect(Number(after[0]!.count)).toBe(Number(before[0]!.count))
 
     const [token] = await db.sql<{ token: string }>(
@@ -385,11 +392,10 @@ describe('applying a synchronisation', () => {
       },
     ]
 
-    await db.sql(`select public.gps_apply_sync($1, $2, $3::jsonb, 'success', now(), false, null, null, null, null)`, [
-      connectionId,
-      Number(generation),
-      JSON.stringify(unit(newer, 48.9)),
-    ])
+    await db.sql(
+      `select public.gps_apply_sync($1, $2, $3::jsonb, 'success', now(), false, null, null, null, null)`,
+      [connectionId, Number(generation), JSON.stringify(unit(newer, 48.9))],
+    )
 
     // The delayed response arrives second carrying the earlier fix.
     const [late] = await db.sql<{ result: Record<string, number> }>(
@@ -794,34 +800,38 @@ describe('assigning a device to a vehicle', () => {
     )
 
     const other = await freshVehicle('DUP')
-    await db.sql(
-      `insert into public.gps_unit_assignments (organization_id, vehicle_id, unit_id)
+    await db
+      .sql(
+        `insert into public.gps_unit_assignments (organization_id, vehicle_id, unit_id)
        values ($1, $2, $3)`,
-      [organizationId, other, unit],
-    ).then(
-      () => {
-        throw new Error('a device was assigned to two vehicles')
-      },
-      (error: Error) => {
-        expect(error.message).toMatch(/duplicate key|gps_unit_assignments_one_active_unit/i)
-      },
-    )
+        [organizationId, other, unit],
+      )
+      .then(
+        () => {
+          throw new Error('a device was assigned to two vehicles')
+        },
+        (error: Error) => {
+          expect(error.message).toMatch(/duplicate key|gps_unit_assignments_one_active_unit/i)
+        },
+      )
   })
 
   it('refuses two devices for one vehicle', async () => {
     const second = await seedUnit('assign-2')
-    await db.sql(
-      `insert into public.gps_unit_assignments (organization_id, vehicle_id, unit_id)
+    await db
+      .sql(
+        `insert into public.gps_unit_assignments (organization_id, vehicle_id, unit_id)
        values ($1, $2, $3)`,
-      [organizationId, vehicleA, second],
-    ).then(
-      () => {
-        throw new Error('a vehicle was given two primary trackers')
-      },
-      (error: Error) => {
-        expect(error.message).toMatch(/duplicate key|gps_unit_assignments_one_active_vehicle/i)
-      },
-    )
+        [organizationId, vehicleA, second],
+      )
+      .then(
+        () => {
+          throw new Error('a vehicle was given two primary trackers')
+        },
+        (error: Error) => {
+          expect(error.message).toMatch(/duplicate key|gps_unit_assignments_one_active_vehicle/i)
+        },
+      )
   })
 
   it('replaces a tracker without erasing where the old one was', async () => {
@@ -1023,7 +1033,9 @@ describe('connectivity, freshness and sync health', () => {
 
   it('keeps provider connectivity separate from position age', async () => {
     // Online, and yet the last fix is hours old. Both true, both shown.
-    await setPosition(new Date(Date.now() - 5 * 60 * 60_000).toISOString(), { providerOnline: true })
+    await setPosition(new Date(Date.now() - 5 * 60 * 60_000).toISOString(), {
+      providerOnline: true,
+    })
     const online = await fleetRow(trackedVehicle)
     expect(online!.provider_online).toBe(true)
     expect(online!.position_freshness).toBe('very_stale')
@@ -1037,10 +1049,9 @@ describe('connectivity, freshness and sync health', () => {
   })
 
   it('keeps our own synchronisation health separate from both', async () => {
-    await db.sql(
-      `update public.gps_provider_connections set status = 'auth_error' where id = $1`,
-      [connectionId],
-    )
+    await db.sql(`update public.gps_provider_connections set status = 'auth_error' where id = $1`, [
+      connectionId,
+    ])
     const row = await fleetRow(trackedVehicle)
 
     // The tracker is fine; our integration is not. The last known position is
@@ -1049,10 +1060,9 @@ describe('connectivity, freshness and sync health', () => {
     expect(row!.position_freshness).toBe('fresh')
     expect(row!.latitude).not.toBeNull()
 
-    await db.sql(
-      `update public.gps_provider_connections set status = 'healthy' where id = $1`,
-      [connectionId],
-    )
+    await db.sql(`update public.gps_provider_connections set status = 'healthy' where id = $1`, [
+      connectionId,
+    ])
   })
 
   it('says unknown when there has never been a fix', async () => {
@@ -1200,7 +1210,9 @@ describe('who may see what', () => {
   it('shows a manager the fleet and nothing about the connection log', async () => {
     await db.asUser(managerId, async (session) => {
       expect((await session.sql(`select * from public.gps_fleet`)).length).toBeGreaterThan(0)
-      expect((await session.sql(`select * from public.gps_unit_inventory`)).length).toBeGreaterThan(0)
+      expect((await session.sql(`select * from public.gps_unit_inventory`)).length).toBeGreaterThan(
+        0,
+      )
       expect(
         (await session.sql(`select * from public.gps_provider_connections`)).length,
       ).toBeGreaterThan(0)
@@ -1393,13 +1405,12 @@ describe('the attention signals', () => {
     const kinds = new Set(signals.map((row) => row.signal))
     expect(kinds).toContain('connection_unhealthy')
     expect(kinds).toContain('device_missing')
-    expect(
-      [...kinds].some((kind) => kind === 'position_stale' || kind === 'no_position'),
-    ).toBe(true)
-
-    await db.sql(
-      `update public.gps_provider_connections set status = 'healthy' where id = $1`,
-      [connectionId],
+    expect([...kinds].some((kind) => kind === 'position_stale' || kind === 'no_position')).toBe(
+      true,
     )
+
+    await db.sql(`update public.gps_provider_connections set status = 'healthy' where id = $1`, [
+      connectionId,
+    ])
   })
 })

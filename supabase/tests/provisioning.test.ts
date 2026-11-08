@@ -230,9 +230,7 @@ describe('it cannot reach an agency that is not the caller’s', () => {
 
     await db.expectRejection(
       () =>
-        db.asUser(userId, (session) =>
-          session.sql(`select public.create_organization($1)`, ['X']),
-        ),
+        db.asUser(userId, (session) => session.sql(`select public.create_organization($1)`, ['X'])),
       /at least 2 characters/i,
     )
 

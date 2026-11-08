@@ -186,9 +186,7 @@ function expressionFor(table: string, command: string): string | null {
 function enforcesRole(expression: string, role: OrgRole): boolean {
   if (role === 'staff') {
     // staff is the lowest rank, so plain membership is equivalent.
-    return (
-      expression.includes('is_org_member') || /has_min_role\([^)]*'staff'/.test(expression)
-    )
+    return expression.includes('is_org_member') || /has_min_role\([^)]*'staff'/.test(expression)
   }
   return new RegExp(`has_min_role\\([^)]*'${role}'`).test(expression)
 }

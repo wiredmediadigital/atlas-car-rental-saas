@@ -105,10 +105,7 @@ export class TestDatabase {
   }
 
   /** Asserts that a statement is rejected, and returns the error message. */
-  async expectRejection(
-    run: () => Promise<unknown>,
-    matcher?: RegExp,
-  ): Promise<string> {
+  async expectRejection(run: () => Promise<unknown>, matcher?: RegExp): Promise<string> {
     let message: string | null = null
     try {
       await run()

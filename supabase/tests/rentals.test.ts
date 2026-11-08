@@ -198,10 +198,16 @@ describe('the lifecycle', () => {
     await addPrimaryDriver(id)
 
     await db.sql(`select public.rental_confirm($1)`, [id])
-    await db.sql(`select public.rental_check_out($1, $2, 90::smallint, 'Clean, full tank')`, [id, nextOdometer()])
+    await db.sql(`select public.rental_check_out($1, $2, 90::smallint, 'Clean, full tank')`, [
+      id,
+      nextOdometer(),
+    ])
     expect((await readRental(id)).status).toBe('active')
 
-    await db.sql(`select public.rental_check_in($1, $2, 40::smallint, 'Minor scuff, rear bumper')`, [id, nextOdometer()])
+    await db.sql(
+      `select public.rental_check_in($1, $2, 40::smallint, 'Minor scuff, rear bumper')`,
+      [id, nextOdometer()],
+    )
     // Returned is not the same as settled: the rental is still active until it
     // is completed, which leaves room to add a fuel or damage charge.
     expect((await readRental(id)).status).toBe('active')
@@ -249,8 +255,7 @@ describe('the lifecycle', () => {
 
     // Straight to completed, bypassing every function.
     await db.expectRejection(
-      () =>
-        db.sql(`update public.rentals set status = 'completed' where id = $1`, [id]),
+      () => db.sql(`update public.rentals set status = 'completed' where id = $1`, [id]),
       /checked out or cancelled/i,
     )
   })
@@ -408,7 +413,6 @@ describe('availability', () => {
     expect(conflicts).toHaveLength(1)
     expect(conflicts[0]?.rental_id).toBe(held)
     expect(conflicts[0]?.customer_name).toContain('Amina')
-
   })
 
   it('keeps the exclusion constraint immediate, not deferred', async () => {
@@ -567,7 +571,12 @@ describe('pricing', () => {
   it('leaves an exempt line out of the tax base', async () => {
     const id = await createRental({ taxRateBps: 2000 })
     await addLine(id, { amountMinor: 10000 })
-    await addLine(id, { kind: 'other', description: 'Airport levy', amountMinor: 5000, taxable: false })
+    await addLine(id, {
+      kind: 'other',
+      description: 'Airport levy',
+      amountMinor: 5000,
+      taxable: false,
+    })
 
     const rental = await readRental(id)
     expect(Number(rental.tax_minor)).toBe(2000)
@@ -602,7 +611,10 @@ describe('pricing', () => {
     await addLine(id, { kind: 'delivery', description: 'Delivery', amountMinor: 2500 })
     expect(Number((await readRental(id)).total_minor)).toBe(12500)
 
-    await db.sql(`delete from public.rental_line_items where rental_id = $1 and kind = 'delivery'`, [id])
+    await db.sql(
+      `delete from public.rental_line_items where rental_id = $1 and kind = 'delivery'`,
+      [id],
+    )
     expect(Number((await readRental(id)).total_minor)).toBe(10000)
   })
 
@@ -774,10 +786,7 @@ describe('deposits and revenue', () => {
     await db.sql(`select public.rental_check_out($1, $2)`, [id, nextOdometer()])
     await db.sql(`select public.rental_check_in($1, $2)`, [id, nextOdometer()])
 
-    await db.expectRejection(
-      () => db.sql(`select public.rental_complete($1)`, [id]),
-      /still held/i,
-    )
+    await db.expectRejection(() => db.sql(`select public.rental_complete($1)`, [id]), /still held/i)
 
     await db.sql(`select public.rental_record_payment($1, 20000, 'outbound', 'deposit')`, [id])
     await db.sql(`select public.rental_complete($1)`, [id])
@@ -966,7 +975,9 @@ describe('contracts', () => {
     const { contractId } = await issuedContract()
 
     await db.sql(`update public.customers set last_name = 'Renamed' where id = $1`, [customerId])
-    await db.sql(`update public.vehicles set registration_plate = 'RNT-999' where id = $1`, [vehicleId])
+    await db.sql(`update public.vehicles set registration_plate = 'RNT-999' where id = $1`, [
+      vehicleId,
+    ])
 
     const [row] = await db.sql<{ snapshot: Record<string, Record<string, unknown>> }>(
       `select snapshot from public.rental_contracts where id = $1`,
@@ -977,15 +988,18 @@ describe('contracts', () => {
 
     // Put the fixtures back for the tests that follow.
     await db.sql(`update public.customers set last_name = 'Tazi' where id = $1`, [customerId])
-    await db.sql(`update public.vehicles set registration_plate = 'RNT-001' where id = $1`, [vehicleId])
+    await db.sql(`update public.vehicles set registration_plate = 'RNT-001' where id = $1`, [
+      vehicleId,
+    ])
   })
 
   it('refuses to rewrite an issued snapshot', async () => {
     const { contractId } = await issuedContract()
 
-    await db.sql(`update public.rental_contracts set snapshot = '{"tampered": true}'::jsonb where id = $1`, [
-      contractId,
-    ])
+    await db.sql(
+      `update public.rental_contracts set snapshot = '{"tampered": true}'::jsonb where id = $1`,
+      [contractId],
+    )
 
     const [row] = await db.sql<{ snapshot: Record<string, unknown> }>(
       `select snapshot from public.rental_contracts where id = $1`,
@@ -1044,7 +1058,8 @@ describe('contracts', () => {
     )
 
     await db.expectRejection(
-      () => db.sql(`update public.rental_contracts set status = 'issued' where id = $1`, [contractId]),
+      () =>
+        db.sql(`update public.rental_contracts set status = 'issued' where id = $1`, [contractId]),
       /cannot be returned to unsigned/i,
     )
   })
@@ -1118,10 +1133,10 @@ describe('agency terms', () => {
     const id = await createRental()
     await addPrimaryDriver(id)
     await db.sql(`select public.rental_confirm($1)`, [id])
-    const [contract] = await db.sql<{ terms_version: number; snapshot: Record<string, Record<string, unknown>> }>(
-      `select terms_version, snapshot from public.rental_issue_contract($1)`,
-      [id],
-    )
+    const [contract] = await db.sql<{
+      terms_version: number
+      snapshot: Record<string, Record<string, unknown>>
+    }>(`select terms_version, snapshot from public.rental_issue_contract($1)`, [id])
 
     expect(Number(contract?.terms_version)).toBe(Number(settings?.terms_version))
     expect(contract!.snapshot.terms?.damage_policy).toBe('Damage is charged at cost.')
@@ -1140,7 +1155,10 @@ describe('the rentals board', () => {
       renter_is_not_driver: boolean
       primary_driver_name: string
       customer_name: string
-    }>(`select renter_is_not_driver, primary_driver_name, customer_name from public.rental_board where id = $1`, [id])
+    }>(
+      `select renter_is_not_driver, primary_driver_name, customer_name from public.rental_board where id = $1`,
+      [id],
+    )
 
     expect(row?.renter_is_not_driver).toBe(true)
     expect(row?.primary_driver_name).toContain('Youssef')
@@ -1207,22 +1225,30 @@ describe('permissions and isolation', () => {
     await db.sql(`select public.rental_issue_contract($1)`, [sharedRentalId]).catch(() => undefined)
   })
 
-  it('hides another agency\'s rentals entirely', async () => {
+  it("hides another agency's rentals entirely", async () => {
     await db.asUser(otherAgency.userId, async (session) => {
-      const rows = await session.sql(`select id from public.rentals where id = $1`, [sharedRentalId])
+      const rows = await session.sql(`select id from public.rentals where id = $1`, [
+        sharedRentalId,
+      ])
       expect(rows).toHaveLength(0)
     })
   })
 
-  it('hides another agency\'s line items and contracts', async () => {
+  it("hides another agency's line items and contracts", async () => {
     await db.asUser(otherAgency.userId, async (session) => {
       expect(
-        await session.sql(`select id from public.rental_line_items where rental_id = $1`, [sharedRentalId]),
+        await session.sql(`select id from public.rental_line_items where rental_id = $1`, [
+          sharedRentalId,
+        ]),
       ).toHaveLength(0)
       expect(
-        await session.sql(`select id from public.rental_contracts where rental_id = $1`, [sharedRentalId]),
+        await session.sql(`select id from public.rental_contracts where rental_id = $1`, [
+          sharedRentalId,
+        ]),
       ).toHaveLength(0)
-      expect(await session.sql(`select id from public.rental_board where id = $1`, [sharedRentalId])).toHaveLength(0)
+      expect(
+        await session.sql(`select id from public.rental_board where id = $1`, [sharedRentalId]),
+      ).toHaveLength(0)
     })
   })
 
@@ -1253,7 +1279,7 @@ describe('permissions and isolation', () => {
     })
   })
 
-  it('answers another agency\'s rental identically, so the id is not an oracle', async () => {
+  it("answers another agency's rental identically, so the id is not an oracle", async () => {
     await db.asUser(otherAgency.userId, async (session) => {
       const existsElsewhere = await session.sql(`select * from public.rental_usage($1)`, [
         sharedRentalId,
@@ -1303,7 +1329,10 @@ describe('permissions and isolation', () => {
 
     await db.asUser(staffId, async (session) => {
       await session.sql(`delete from public.rental_condition_photos where rental_id = $1`, [id])
-      const rows = await session.sql(`select id from public.rental_condition_photos where rental_id = $1`, [id])
+      const rows = await session.sql(
+        `select id from public.rental_condition_photos where rental_id = $1`,
+        [id],
+      )
       // The delete matched nothing: the policy is manager and above.
       expect(rows).toHaveLength(1)
     })
@@ -1326,7 +1355,7 @@ describe('permissions and isolation', () => {
     })
   })
 
-  it('keeps every rental function out of anon\'s reach', async () => {
+  it("keeps every rental function out of anon's reach", async () => {
     const rows = await db.sql<{ proname: string }>(
       `select p.proname
          from pg_proc p join pg_namespace n on n.oid = p.pronamespace
@@ -1356,7 +1385,7 @@ describe('permissions and isolation', () => {
     )
   })
 
-  it('will not attach a line item to another agency\'s rental', async () => {
+  it("will not attach a line item to another agency's rental", async () => {
     await db.expectRejection(
       () =>
         db.sql(

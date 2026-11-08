@@ -178,10 +178,7 @@ export interface NormalizedSubscription {
   readonly trialEnd: string | null
 }
 
-export type NormalizeFailure =
-  | 'missing_customer'
-  | 'unrecognised_status'
-  | 'missing_items'
+export type NormalizeFailure = 'missing_customer' | 'unrecognised_status' | 'missing_items'
 
 /**
  * The subscription, flattened into the columns the projection holds.
@@ -239,9 +236,10 @@ export function normalizeSubscription(
       currency: typeof price?.currency === 'string' ? price.currency.toUpperCase() : null,
       amountMinor: typeof price?.unit_amount === 'number' ? price.unit_amount : null,
       interval: intervalValue,
-      intervalCount: typeof price?.recurring?.interval_count === 'number'
-        ? price.recurring.interval_count
-        : null,
+      intervalCount:
+        typeof price?.recurring?.interval_count === 'number'
+          ? price.recurring.interval_count
+          : null,
       quantity: typeof first.quantity === 'number' ? first.quantity : null,
       currentPeriodStart: starts.length > 0 ? secondsToIso(Math.min(...starts)) : null,
       currentPeriodEnd: ends.length > 0 ? secondsToIso(Math.min(...ends)) : null,

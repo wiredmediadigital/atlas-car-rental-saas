@@ -110,7 +110,10 @@ function previewAllowed(key: string, now: number): boolean {
 /** The address of the caller, as far as the platform will say. */
 function callerKey(request: Request): string {
   const forwarded = request.headers.get('x-forwarded-for') ?? ''
-  const hops = forwarded.split(',').map((hop) => hop.trim()).filter(Boolean)
+  const hops = forwarded
+    .split(',')
+    .map((hop) => hop.trim())
+    .filter(Boolean)
   return hops[hops.length - 1] || request.headers.get('cf-connecting-ip') || 'unknown'
 }
 
@@ -293,7 +296,8 @@ async function handleIssue(
       outcome,
       invitationId,
       delivery: 'not_configured',
-      deliveryDetail: 'No application address is configured for this project, so no email was sent.',
+      deliveryDetail:
+        'No application address is configured for this project, so no email was sent.',
       token,
       expiresAt,
     })
@@ -412,10 +416,7 @@ async function handlePreview(
 /** Turns a database refusal into the message it already wrote for a person. */
 function rpcFailure(error: { code?: string; message?: string }): Response {
   const status =
-    error.code === '42501' ? 403
-    : error.code === 'P0002' ? 404
-    : error.code === '55006' ? 429
-    : 400
+    error.code === '42501' ? 403 : error.code === 'P0002' ? 404 : error.code === '55006' ? 429 : 400
 
   return failure(
     error.code === '42501' ? 'permission_denied' : 'rejected',

@@ -45,10 +45,7 @@ import {
 } from '../_shared/billing-domain.ts'
 import { refreshCatalogue } from '../_shared/billing-catalogue.ts'
 import { StripeApiError, StripeClient } from '../_shared/stripe-api.ts'
-import {
-  describeConfigProblem,
-  resolveBillingConfig,
-} from '../_shared/stripe-config.ts'
+import { describeConfigProblem, resolveBillingConfig } from '../_shared/stripe-config.ts'
 
 const CORS_HEADERS: Record<string, string> = {
   'Access-Control-Allow-Origin': '*',
@@ -468,12 +465,16 @@ Deno.serve(async (request: Request): Promise<Response> => {
          */
         const readAt = new Date().toISOString()
 
-        const list = await stripe.request<{ data?: StripeSubscription[] }>('GET', '/subscriptions', {
-          customer: mapping.stripe_customer_id,
-          status: 'all',
-          limit: 10,
-          expand: ['data.items.data.price'],
-        })
+        const list = await stripe.request<{ data?: StripeSubscription[] }>(
+          'GET',
+          '/subscriptions',
+          {
+            customer: mapping.stripe_customer_id,
+            status: 'all',
+            limit: 10,
+            expand: ['data.items.data.price'],
+          },
+        )
 
         let applied = 0
         for (const subscription of list.data ?? []) {

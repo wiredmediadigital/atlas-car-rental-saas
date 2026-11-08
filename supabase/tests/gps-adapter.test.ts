@@ -268,9 +268,7 @@ describe('the request the Wialon adapter constructs', () => {
     expect(calls[0]!.body.get('svc')).toBe('token/login')
     expect(JSON.parse(calls[0]!.body.get('params')!)).toEqual({ token: TOKEN })
     // The documentation is explicit: POST only, form-encoded.
-    expect(calls[0]!.headers?.['Content-Type']).toBe(
-      'application/x-www-form-urlencoded',
-    )
+    expect(calls[0]!.headers?.['Content-Type']).toBe('application/x-www-form-urlencoded')
   })
 
   it('uses the account’s own server rather than a compiled-in one', async () => {
@@ -293,7 +291,10 @@ describe('the request the Wialon adapter constructs', () => {
   })
 
   it('carries the session id on every request after login', async () => {
-    const { adapter, calls } = adapterWith([LOGIN_OK, { totalItemsCount: 1, items: [unitFixture()] }])
+    const { adapter, calls } = adapterWith([
+      LOGIN_OK,
+      { totalItemsCount: 1, items: [unitFixture()] },
+    ])
     await adapter.listUnits()
 
     expect(calls[0]!.body.get('sid')).toBeNull()
@@ -318,7 +319,10 @@ describe('the request the Wialon adapter constructs', () => {
   })
 
   it('never puts the token anywhere but the login body', async () => {
-    const { adapter, calls } = adapterWith([LOGIN_OK, { totalItemsCount: 1, items: [unitFixture()] }])
+    const { adapter, calls } = adapterWith([
+      LOGIN_OK,
+      { totalItemsCount: 1, items: [unitFixture()] },
+    ])
     const result = await adapter.listUnits()
 
     for (const call of calls.slice(1)) {
@@ -456,10 +460,7 @@ describe('normalising a Wialon unit', () => {
     // corrupt at the provider.
     expect(units).toHaveLength(2)
     expect(skipped).toBe(2)
-    expect(units.map((unit) => unit.externalId)).toEqual([
-      '400000000000001',
-      '400000000000002',
-    ])
+    expect(units.map((unit) => unit.externalId)).toEqual(['400000000000001', '400000000000002'])
   })
 
   it('falls back to the identifier when a device has no name', async () => {
@@ -532,7 +533,7 @@ describe('fetching a track', () => {
   it('refuses an identifier that is not one this provider issues', async () => {
     const { adapter } = adapterWith([LOGIN_OK])
     await expect(
-      adapter.fetchTrack("1 or 1=1", new Date(NOW - 1000), new Date(NOW), 100),
+      adapter.fetchTrack('1 or 1=1', new Date(NOW - 1000), new Date(NOW), 100),
     ).rejects.toThrow(/identifier/i)
   })
 
@@ -571,9 +572,9 @@ describe('fetching a track', () => {
 
   it('refuses a period that ends before it starts', async () => {
     const { adapter } = adapterWith([LOGIN_OK])
-    await expect(
-      adapter.fetchTrack('1', new Date(NOW), new Date(NOW - 1000), 100),
-    ).rejects.toThrow(/end after it starts/i)
+    await expect(adapter.fetchTrack('1', new Date(NOW), new Date(NOW - 1000), 100)).rejects.toThrow(
+      /end after it starts/i,
+    )
   })
 })
 
@@ -656,7 +657,9 @@ describe('when the provider says no', () => {
     await expect(adapter.listUnits()).rejects.toMatchObject({ category: 'auth_error' })
 
     // A revoked token must not turn into an infinite login loop.
-    expect(calls.filter((call) => call.body.get('svc') === 'token/login').length).toBeLessThanOrEqual(2)
+    expect(
+      calls.filter((call) => call.body.get('svc') === 'token/login').length,
+    ).toBeLessThanOrEqual(2)
   })
 
   it('reports a timeout as unreachable and retryable', async () => {
@@ -786,4 +789,3 @@ describe('a provider that misbehaves', () => {
     })
   })
 })
-

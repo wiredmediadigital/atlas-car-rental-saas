@@ -164,9 +164,7 @@ describe('tenant isolation', () => {
 
   it('scopes the fleet view to the caller', async () => {
     const rows = await db.asUser(agencyB.userId, (session) =>
-      session.sql<{ organization_id: string }>(
-        `select organization_id from public.vehicle_fleet`,
-      ),
+      session.sql<{ organization_id: string }>(`select organization_id from public.vehicle_fleet`),
     )
     expect(rows.every((row) => row.organization_id === agencyB.organizationId)).toBe(true)
   })
@@ -759,7 +757,11 @@ describe('storage policies', () => {
     await db.asUser(agencyA.managerId, async (session) => {
       await session.expectRejection(
         () =>
-          insertObject(session, 'vehicle-photos', `${agencyB.organizationId}/${vehicleB}/steal.jpg`),
+          insertObject(
+            session,
+            'vehicle-photos',
+            `${agencyB.organizationId}/${vehicleB}/steal.jpg`,
+          ),
         /row-level security/i,
       )
     })
@@ -769,7 +771,11 @@ describe('storage policies', () => {
     await db.asUser(agencyA.staffId, async (session) => {
       await session.expectRejection(
         () =>
-          insertObject(session, 'vehicle-photos', `${agencyA.organizationId}/${vehicleA}/staff.jpg`),
+          insertObject(
+            session,
+            'vehicle-photos',
+            `${agencyA.organizationId}/${vehicleA}/staff.jpg`,
+          ),
         /row-level security/i,
       )
     })
@@ -777,7 +783,9 @@ describe('storage policies', () => {
 
   it('does not let one agency read another’s objects, even knowing the exact key', async () => {
     const key = `${agencyB.organizationId}/${vehicleB}/private.jpg`
-    await db.sql(`insert into storage.objects (bucket_id, name) values ('vehicle-photos', $1)`, [key])
+    await db.sql(`insert into storage.objects (bucket_id, name) values ('vehicle-photos', $1)`, [
+      key,
+    ])
 
     const seen = await db.asUser(agencyA.userId, (session) =>
       session.sql(`select id from storage.objects where name = $1`, [key]),

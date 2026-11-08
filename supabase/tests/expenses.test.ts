@@ -88,14 +88,14 @@ async function summary(from = '2032-01-01', to = '2033-01-01') {
   // the harness superuser has no auth.uid() for app.is_org_member to find.
   return db.asUser(ownerId, (session) =>
     session.sql<{
-    currency: string
-    total_minor: number
-    overhead_minor: number
-    vehicle_minor: number
-    rental_minor: number
-    tax_minor: number
-    expense_count: number
-    voided_count: number
+      currency: string
+      total_minor: number
+      overhead_minor: number
+      vehicle_minor: number
+      rental_minor: number
+      tax_minor: number
+      expense_count: number
+      voided_count: number
     }>(`select * from public.organization_expense_summary($1, $2::date, $3::date)`, [
       organizationId,
       from,
@@ -294,10 +294,9 @@ describe('vendors', () => {
   })
 
   it('refuses two suppliers sharing a tax identifier, because that names one entity', async () => {
-    await db.sql(
-      `update public.expense_vendors set tax_identifier = 'MA-778899' where id = $1`,
-      [vendorId],
-    )
+    await db.sql(`update public.expense_vendors set tax_identifier = 'MA-778899' where id = $1`, [
+      vendorId,
+    ])
 
     await db.expectRejection(
       () =>
@@ -418,7 +417,7 @@ describe('allocation', () => {
     )
   })
 
-  it('reads a rental cost\'s vehicle through the contract', async () => {
+  it("reads a rental cost's vehicle through the contract", async () => {
     const rentalId = await createRental(vehicleB, 100)
     const id = await recordExpense({ allocation: 'rental', rentalId })
 
@@ -750,12 +749,12 @@ describe('the vehicle operating contribution', () => {
   const forVehicle = (vehicleId: string) =>
     db.asUser(ownerId, (session) =>
       session.sql<{
-      currency: string
-      rental_revenue_minor: number
-      direct_expense_minor: number
-      vehicle_expense_minor: number
-      rental_expense_minor: number
-      operating_contribution_minor: number
+        currency: string
+        rental_revenue_minor: number
+        direct_expense_minor: number
+        vehicle_expense_minor: number
+        rental_expense_minor: number
+        operating_contribution_minor: number
       }>(
         `select * from public.vehicle_operating_summary($1, '2032-06-01'::date, '2032-07-01'::date)`,
         [vehicleId],
@@ -1226,7 +1225,7 @@ describe('permissions and isolation', () => {
     })
   })
 
-  it('refuses to summarise another agency\'s spend', async () => {
+  it("refuses to summarise another agency's spend", async () => {
     await db.asUser(rival.userId, async (session) => {
       await session.expectRejection(
         () =>
@@ -1247,7 +1246,7 @@ describe('permissions and isolation', () => {
     })
   })
 
-  it('refuses to void another agency\'s cost, indistinguishably from a missing one', async () => {
+  it("refuses to void another agency's cost, indistinguishably from a missing one", async () => {
     await db.asUser(rival.userId, async (session) => {
       const foreign = await session.expectRejection(
         () => session.sql(`select public.expense_void($1)`, [sharedExpenseId]),
@@ -1255,23 +1254,21 @@ describe('permissions and isolation', () => {
       )
       const missing = await session.expectRejection(
         () =>
-          session.sql(
-            `select public.expense_void('00000000-0000-0000-0000-000000000000'::uuid)`,
-          ),
+          session.sql(`select public.expense_void('00000000-0000-0000-0000-000000000000'::uuid)`),
         /not found/i,
       )
       expect(foreign).toBe(missing)
     })
   })
 
-  it('will not let a cost be booked against another agency\'s vehicle', async () => {
+  it("will not let a cost be booked against another agency's vehicle", async () => {
     await db.expectRejection(
       () => recordExpense({ allocation: 'vehicle', vehicleId: rivalVehicleId }),
       /expenses_vehicle_fkey|violates foreign key/i,
     )
   })
 
-  it('will not let a cost use another agency\'s category or vendor', async () => {
+  it("will not let a cost use another agency's category or vendor", async () => {
     const [rivalCategory] = await db.sql<{ id: string }>(
       `select id from public.expense_categories where organization_id = $1 limit 1`,
       [rival.organizationId],
@@ -1375,7 +1372,7 @@ describe('permissions and isolation', () => {
     })
   })
 
-  it('keeps every expense function out of anon\'s reach', async () => {
+  it("keeps every expense function out of anon's reach", async () => {
     const rows = await db.sql<{ proname: string }>(
       `select p.proname from pg_proc p join pg_namespace n on n.oid = p.pronamespace
         where n.nspname = 'public'
@@ -1602,10 +1599,9 @@ describe('the change history', () => {
 describe('a voided cost and the agency it belongs to', () => {
   it('cannot be deleted while its agency exists', async () => {
     const id = await recordExpense({ incurredOn: '2032-11-02', amountMinor: 4500 })
-    await db.sql(
-      `update public.expenses set status = 'voided', voided_at = now() where id = $1`,
-      [id],
-    )
+    await db.sql(`update public.expenses set status = 'voided', voided_at = now() where id = $1`, [
+      id,
+    ])
 
     await expect(db.sql(`delete from public.expenses where id = $1`, [id])).rejects.toThrow(
       /record of a correction/i,
@@ -1644,10 +1640,9 @@ describe('a voided cost and the agency it belongs to', () => {
        returning id`,
       [doomed.organizationId, category!.id, vehicle!.id],
     )
-    await db.sql(
-      `update public.expenses set status = 'voided', voided_at = now() where id = $1`,
-      [expense!.id],
-    )
+    await db.sql(`update public.expenses set status = 'voided', voided_at = now() where id = $1`, [
+      expense!.id,
+    ])
 
     await db.sql(`delete from public.organizations where id = $1`, [doomed.organizationId])
 
@@ -1708,8 +1703,7 @@ describe('the Financing boundary on the dashboard', () => {
     )
 
     const december = series.find(
-      (row) =>
-        row.bucket_start.getUTCFullYear() === 2032 && row.bucket_start.getUTCMonth() === 11,
+      (row) => row.bucket_start.getUTCFullYear() === 2032 && row.bucket_start.getUTCMonth() === 11,
     )
     expect(december).toBeDefined()
 
@@ -1783,10 +1777,10 @@ describe('who a correction is attributed to', () => {
     // A server-side backfill has no auth.uid(); the column is then the only
     // identity there is, and losing it entirely would be worse.
     const id = await recordExpense({ incurredOn: '2032-11-06', amountMinor: 51000 })
-    await db.sql(
-      `update public.expenses set amount_minor = 52000, updated_by = $2 where id = $1`,
-      [id, ownerId],
-    )
+    await db.sql(`update public.expenses set amount_minor = 52000, updated_by = $2 where id = $1`, [
+      id,
+      ownerId,
+    ])
 
     const [event] = await db.sql<{ changed_by: string }>(
       `select changed_by from public.expense_change_events

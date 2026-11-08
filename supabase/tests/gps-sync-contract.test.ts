@@ -82,8 +82,9 @@ function wialonUnit(overrides: Record<string, unknown> = {}) {
 
 async function listUnitsFromProvider(units: unknown[] | string) {
   const search =
-    typeof units === 'string' ? units
-    : JSON.stringify({ totalItemsCount: units.length, items: units })
+    typeof units === 'string'
+      ? units
+      : JSON.stringify({ totalItemsCount: units.length, items: units })
 
   const adapter = new WialonAdapter(
     { baseUrl: BASE_URL, token: TOKEN },
@@ -109,12 +110,7 @@ async function applyThroughSql(
     `select public.gps_apply_sync(
        $1, $2, $3::jsonb, 'success'::public.gps_sync_outcome, now(), $4, null, null, null, null
      ) as result`,
-    [
-      connectionId,
-      options.generation ?? 1,
-      JSON.stringify(payload),
-      options.fullInventory ?? true,
-    ],
+    [connectionId, options.generation ?? 1, JSON.stringify(payload), options.fullInventory ?? true],
   )
   return row!.result
 }
@@ -399,7 +395,6 @@ describe('the translation', () => {
     }
   })
 })
-
 
 // -----------------------------------------------------------------------------
 describe('the seam between the Edge Function and membership', () => {

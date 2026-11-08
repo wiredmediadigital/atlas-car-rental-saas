@@ -90,30 +90,80 @@ function boundedText(value: unknown, limit: number): string | undefined {
  * 1 and 1011 mean the session went away — recoverable by logging in again,
  * which the adapter does once rather than looping.
  */
-const ERROR_CATEGORIES: Readonly<Record<number, { category: GpsProviderError['category']; message: string; retryable?: boolean }>> = {
-  [-100]: { category: 'unreachable', message: 'The tracking provider did not respond in time.', retryable: true },
-  [-101]: { category: 'provider_error', message: 'The tracking provider returned something we could not read.', retryable: true },
-  1: { category: 'auth_error', message: 'The provider session is no longer valid.', retryable: true },
+const ERROR_CATEGORIES: Readonly<
+  Record<number, { category: GpsProviderError['category']; message: string; retryable?: boolean }>
+> = {
+  [-100]: {
+    category: 'unreachable',
+    message: 'The tracking provider did not respond in time.',
+    retryable: true,
+  },
+  [-101]: {
+    category: 'provider_error',
+    message: 'The tracking provider returned something we could not read.',
+    retryable: true,
+  },
+  1: {
+    category: 'auth_error',
+    message: 'The provider session is no longer valid.',
+    retryable: true,
+  },
   2: { category: 'provider_error', message: 'The provider did not recognise that request.' },
   3: { category: 'provider_error', message: 'The provider returned an invalid result.' },
   4: { category: 'malformed_config', message: 'The provider rejected the request as invalid.' },
-  5: { category: 'provider_error', message: 'The provider could not carry out the request.', retryable: true },
-  6: { category: 'provider_error', message: 'The provider reported an unknown error.', retryable: true },
+  5: {
+    category: 'provider_error',
+    message: 'The provider could not carry out the request.',
+    retryable: true,
+  },
+  6: {
+    category: 'provider_error',
+    message: 'The provider reported an unknown error.',
+    retryable: true,
+  },
   7: { category: 'permission_denied', message: 'This provider account is not allowed to do that.' },
   8: { category: 'auth_error', message: 'The access token was rejected.' },
-  9: { category: 'unreachable', message: 'The provider authorization server is unavailable.', retryable: true },
-  10: { category: 'rate_limited', message: 'The provider is limiting how many requests we may make.', retryable: true },
+  9: {
+    category: 'unreachable',
+    message: 'The provider authorization server is unavailable.',
+    retryable: true,
+  },
+  10: {
+    category: 'rate_limited',
+    message: 'The provider is limiting how many requests we may make.',
+    retryable: true,
+  },
   1001: { category: 'not_found', message: 'The provider has no messages for that period.' },
-  1003: { category: 'rate_limited', message: 'The provider allows only one request of this kind at a time.', retryable: true },
-  1004: { category: 'provider_error', message: 'That period holds more history than the provider will return at once.' },
-  1005: { category: 'provider_error', message: 'The provider took too long and gave up on that request.', retryable: true },
-  1011: { category: 'auth_error', message: 'The provider session expired or the address it was opened from changed.', retryable: true },
+  1003: {
+    category: 'rate_limited',
+    message: 'The provider allows only one request of this kind at a time.',
+    retryable: true,
+  },
+  1004: {
+    category: 'provider_error',
+    message: 'That period holds more history than the provider will return at once.',
+  },
+  1005: {
+    category: 'provider_error',
+    message: 'The provider took too long and gave up on that request.',
+    retryable: true,
+  },
+  1011: {
+    category: 'auth_error',
+    message: 'The provider session expired or the address it was opened from changed.',
+    retryable: true,
+  },
 }
 
 function toProviderError(code: number): GpsProviderError {
   const known = ERROR_CATEGORIES[code]
   if (known) {
-    return new GpsProviderError(known.category, known.message, String(code), known.retryable ?? false)
+    return new GpsProviderError(
+      known.category,
+      known.message,
+      String(code),
+      known.retryable ?? false,
+    )
   }
   return new GpsProviderError(
     'provider_error',
@@ -241,15 +291,15 @@ export class WialonAdapter implements GpsProviderAdapter {
       })
     } catch (cause) {
       const aborted = cause instanceof Error && cause.name === 'AbortError'
-      const redirected =
-        cause instanceof TypeError && /redirect/i.test(cause.message)
+      const redirected = cause instanceof TypeError && /redirect/i.test(cause.message)
 
       throw new GpsProviderError(
         redirected ? 'malformed_config' : 'unreachable',
-        aborted ? 'The tracking provider did not respond in time.'
-        : redirected ?
-          'The provider address redirected elsewhere. Set the address it should be, rather than one that forwards.'
-        : 'The tracking provider could not be reached.',
+        aborted
+          ? 'The tracking provider did not respond in time.'
+          : redirected
+            ? 'The provider address redirected elsewhere. Set the address it should be, rather than one that forwards.'
+            : 'The tracking provider could not be reached.',
         undefined,
         !redirected,
       )
@@ -382,7 +432,11 @@ export class WialonAdapter implements GpsProviderAdapter {
     )
   }
 
-  async listUnits(): Promise<{ units: NormalizedUnit[]; skipped: number; account: ProviderAccount }> {
+  async listUnits(): Promise<{
+    units: NormalizedUnit[]
+    skipped: number
+    account: ProviderAccount
+  }> {
     const session = await this.ensureSession()
     const result = await this.withSession((sid) => this.searchUnits(sid))
 
@@ -447,8 +501,7 @@ export class WialonAdapter implements GpsProviderAdapter {
     // Only a scalar becomes a hardware label. Wialon's `hw` is documented as a
     // hardware type, but an unexpected object here would stringify to
     // "[object Object]" and be stored as if it meant something.
-    const hardware =
-      typeof unit.hw === 'number' ? String(unit.hw) : boundedText(unit.hw, 120)
+    const hardware = typeof unit.hw === 'number' ? String(unit.hw) : boundedText(unit.hw, 120)
 
     return {
       externalId,
@@ -492,7 +545,8 @@ export class WialonAdapter implements GpsProviderAdapter {
     const altitudeM = isFiniteNumber(p.z) && p.z >= -1000 && p.z <= 20000 ? p.z : undefined
     if (altitudeM !== undefined) capabilities.add('altitude')
 
-    const satellites = isFiniteNumber(p.sc) && p.sc >= 0 && p.sc <= 64 ? Math.trunc(p.sc) : undefined
+    const satellites =
+      isFiniteNumber(p.sc) && p.sc >= 0 && p.sc <= 64 ? Math.trunc(p.sc) : undefined
     if (satellites !== undefined) capabilities.add('satellites')
 
     return {

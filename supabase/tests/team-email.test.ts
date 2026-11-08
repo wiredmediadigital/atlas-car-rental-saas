@@ -162,12 +162,22 @@ describe('what delivery claims', () => {
 
   it('fails loudly when a provider is named but not usable', async () => {
     expect(
-      (await deliverInvitation(message, { provider: 'resend', apiKey: undefined, from: 'a@b.test' }))
-        .state,
+      (
+        await deliverInvitation(message, {
+          provider: 'resend',
+          apiKey: undefined,
+          from: 'a@b.test',
+        })
+      ).state,
     ).toBe('failed')
     expect(
-      (await deliverInvitation(message, { provider: 'postal-pigeon', apiKey: 'k', from: 'a@b.test' }))
-        .state,
+      (
+        await deliverInvitation(message, {
+          provider: 'postal-pigeon',
+          apiKey: 'k',
+          from: 'a@b.test',
+        })
+      ).state,
     ).toBe('failed')
   })
 
@@ -184,7 +194,9 @@ describe('what delivery claims', () => {
     const send = vi.fn(() =>
       // A provider error body commonly echoes the request, and the request
       // contained the invitation link.
-      Promise.resolve(new Response(JSON.stringify({ message: message.acceptUrl }), { status: 422 })),
+      Promise.resolve(
+        new Response(JSON.stringify({ message: message.acceptUrl }), { status: 422 }),
+      ),
     )
     const result = await deliverInvitation(message, configured, send)
 

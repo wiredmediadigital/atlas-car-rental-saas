@@ -147,9 +147,7 @@ export function parseCatalogue(raw: string | null | undefined): CatalogueEntry[]
     if (priceId === '' && lookupKey === '') return 'invalid_catalogue'
     if (priceId !== '' && lookupKey !== '') return 'invalid_catalogue'
 
-    entries.push(
-      priceId !== '' ? { planKey, priceId } : { planKey, lookupKey },
-    )
+    entries.push(priceId !== '' ? { planKey, priceId } : { planKey, lookupKey })
   }
 
   return entries

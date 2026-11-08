@@ -241,9 +241,7 @@ describe('tenant isolation', () => {
       )
       const missing = await db.expectRejection(() =>
         db.asUser(agencyA.userId, (session) =>
-          session.sql(`select * from public.${fn}($1)`, [
-            '00000000-0000-0000-0000-000000000000',
-          ]),
+          session.sql(`select * from public.${fn}($1)`, ['00000000-0000-0000-0000-000000000000']),
         ),
       )
       expect(foreign, fn).toBe(missing)
@@ -284,17 +282,18 @@ describe('duplicate detection', () => {
     await addDocument(agencyB.organizationId, betaTwin!.id, 'passport', 'SHARED-PASSPORT-9')
 
     const hints = await db.asUser(agencyA.userId, (session) =>
-      session.sql(
-        `select * from public.find_customer_duplicates($1, $2, $3, $4::jsonb)`,
-        [
-          agencyA.organizationId,
-          'shared@example.com',
-          '+212600999888',
-          JSON.stringify([
-            { document_type: 'passport', document_number: 'SHARED-PASSPORT-9', issuing_country: null },
-          ]),
-        ],
-      ),
+      session.sql(`select * from public.find_customer_duplicates($1, $2, $3, $4::jsonb)`, [
+        agencyA.organizationId,
+        'shared@example.com',
+        '+212600999888',
+        JSON.stringify([
+          {
+            document_type: 'passport',
+            document_number: 'SHARED-PASSPORT-9',
+            issuing_country: null,
+          },
+        ]),
+      ]),
     )
 
     expect(hints).toEqual([])
@@ -567,9 +566,10 @@ describe('storage policies', () => {
 
   it('does not let one agency read another’s scans, even knowing the exact key', async () => {
     const key = `${agencyB.organizationId}/${customerB}/private-passport.pdf`
-    await db.sql(`insert into storage.objects (bucket_id, name) values ('customer-documents', $1)`, [
-      key,
-    ])
+    await db.sql(
+      `insert into storage.objects (bucket_id, name) values ('customer-documents', $1)`,
+      [key],
+    )
 
     const seen = await db.asUser(agencyA.userId, (session) =>
       session.sql(`select id from storage.objects where name = $1`, [key]),
@@ -584,9 +584,10 @@ describe('storage policies', () => {
 
   it('reserves deleting a scan for a manager', async () => {
     const key = `${agencyA.organizationId}/${customerA}/deletable.pdf`
-    await db.sql(`insert into storage.objects (bucket_id, name) values ('customer-documents', $1)`, [
-      key,
-    ])
+    await db.sql(
+      `insert into storage.objects (bucket_id, name) values ('customer-documents', $1)`,
+      [key],
+    )
 
     await db.asUser(agencyA.staffId, (session) =>
       session.sql(`delete from storage.objects where name = $1`, [key]),
@@ -639,7 +640,9 @@ describe('archive and delete', () => {
     )
     expect(after?.archived_at).not.toBeNull()
 
-    const rentals = await db.sql(`select id from public.rentals where customer_id = $1`, [customerA])
+    const rentals = await db.sql(`select id from public.rentals where customer_id = $1`, [
+      customerA,
+    ])
     expect(rentals).toHaveLength(1)
   })
 

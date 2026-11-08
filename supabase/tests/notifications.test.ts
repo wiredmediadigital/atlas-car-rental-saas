@@ -561,10 +561,14 @@ describe('per-user state', () => {
       ]),
     )
 
-    expect((await feed(cast.owner)).find((r) => r.fingerprint === item!.fingerprint)).toBeUndefined()
+    expect(
+      (await feed(cast.owner)).find((r) => r.fingerprint === item!.fingerprint),
+    ).toBeUndefined()
     expect((await feed(cast.staff)).find((r) => r.fingerprint === item!.fingerprint)).toBeTruthy()
     // Still there when looking back, and the vehicle is still uninsured.
-    expect((await feed(cast.owner, 'all')).find((r) => r.fingerprint === item!.fingerprint)).toBeTruthy()
+    expect(
+      (await feed(cast.owner, 'all')).find((r) => r.fingerprint === item!.fingerprint),
+    ).toBeTruthy()
   })
 
   it('does not let a dismissed warning silence the escalation that follows', async () => {
@@ -602,7 +606,9 @@ describe('per-user state', () => {
         item!.fingerprint,
       ]),
     )
-    expect((await feed(cast.owner)).find((r) => r.fingerprint === item!.fingerprint)).toBeUndefined()
+    expect(
+      (await feed(cast.owner)).find((r) => r.fingerprint === item!.fingerprint),
+    ).toBeUndefined()
 
     await db.sql(
       `update public.notification_states set snoozed_until = now() - interval '1 minute'
@@ -644,17 +650,15 @@ describe('per-user state', () => {
      * notification that fixed itself would misdescribe what happened.
      */
     await reservedRental(6, 72)
-    const invented = 'vehicle_compliance_expired:00000000-0000-0000-0000-000000000000:insurance:2020-01-01'
+    const invented =
+      'vehicle_compliance_expired:00000000-0000-0000-0000-000000000000:insurance:2020-01-01'
 
     await db.asUser(cast.owner, async (session) => {
       await session.sql(`select public.notification_mark_read($1, $2)`, [
         cast.organizationId,
         invented,
       ])
-      await session.sql(`select public.notification_dismiss($1, $2)`, [
-        cast.organizationId,
-        'junk',
-      ])
+      await session.sql(`select public.notification_dismiss($1, $2)`, [cast.organizationId, 'junk'])
       await session.sql(`select public.notification_snooze($1, $2, now() + interval '1 day')`, [
         cast.organizationId,
         'junk-2',
@@ -956,9 +960,10 @@ describe('event notifications', () => {
     // would keep the history and lose the ability to close an account.
     await db.sql(`delete from public.organizations where id = $1`, [cast.organizationId])
 
-    const left = await db.sql(`select 1 from public.notification_events where organization_id = $1`, [
-      cast.organizationId,
-    ])
+    const left = await db.sql(
+      `select 1 from public.notification_events where organization_id = $1`,
+      [cast.organizationId],
+    )
     expect(left).toHaveLength(0)
   })
 })
@@ -1080,9 +1085,10 @@ describe('ordering and scopes', () => {
   it('refuses an unknown scope rather than quietly showing everything', async () => {
     await db.asUser(cast.owner, async (session) => {
       await session.expectRejection(
-        () => session.sql(`select * from public.notification_feed($1, 'everything')`, [
-          cast.organizationId,
-        ]),
+        () =>
+          session.sql(`select * from public.notification_feed($1, 'everything')`, [
+            cast.organizationId,
+          ]),
         /unknown notification scope/i,
       )
     })

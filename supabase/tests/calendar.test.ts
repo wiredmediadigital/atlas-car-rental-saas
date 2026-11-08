@@ -313,10 +313,7 @@ describe('overdue, defined once', () => {
         [status, endsAt, returnedAt],
       )
       expect(row?.overdue).toBe(
-        isOverdue(
-          { status: status as never, ends_at: endsAt, returned_at: returnedAt },
-          now,
-        ),
+        isOverdue({ status: status as never, ends_at: endsAt, returned_at: returnedAt }, now),
       )
     }
   })
@@ -478,10 +475,11 @@ describe('rescheduling', () => {
       [organizationId, id],
     )
 
-    await db.sql(
-      `select public.rental_reschedule($1, $2::timestamptz, $3::timestamptz)`,
-      [id, period.startsAt, new Date(Date.parse(period.startsAt) + 5 * DAY).toISOString()],
-    )
+    await db.sql(`select public.rental_reschedule($1, $2::timestamptz, $3::timestamptz)`, [
+      id,
+      period.startsAt,
+      new Date(Date.parse(period.startsAt) + 5 * DAY).toISOString(),
+    ])
 
     const [row] = await db.sql<{ billable_days: number; total_minor: number }>(
       `select billable_days, total_minor from public.rentals where id = $1`,
@@ -563,10 +561,12 @@ describe('rescheduling', () => {
 
     await db.expectRejection(
       () =>
-        db.sql(
-          `select public.rental_reschedule($1, $2::timestamptz, $3::timestamptz, $4)`,
-          [id, blocker.startsAt, blocker.endsAt, vehicleB],
-        ),
+        db.sql(`select public.rental_reschedule($1, $2::timestamptz, $3::timestamptz, $4)`, [
+          id,
+          blocker.startsAt,
+          blocker.endsAt,
+          vehicleB,
+        ]),
       /rentals_no_vehicle_overlap|conflicting key/i,
     )
 
@@ -697,7 +697,10 @@ describe('rescheduling', () => {
 // -----------------------------------------------------------------------------
 
 describe('contracts survive a reschedule', () => {
-  async function reservationWithContract(): Promise<{ id: string; period: ReturnType<typeof nextPeriod> }> {
+  async function reservationWithContract(): Promise<{
+    id: string
+    period: ReturnType<typeof nextPeriod>
+  }> {
     const period = nextPeriod(2)
     const id = await createRental(period)
     await reserve(id)
@@ -739,7 +742,11 @@ describe('contracts survive a reschedule', () => {
       ],
     )
 
-    const contracts = await db.sql<{ version: number; status: string; snapshot: Record<string, Record<string, unknown>> }>(
+    const contracts = await db.sql<{
+      version: number
+      status: string
+      snapshot: Record<string, Record<string, unknown>>
+    }>(
       `select version, status, snapshot from public.rental_contracts
         where rental_id = $1 order by version`,
       [id],
@@ -827,7 +834,7 @@ describe('permissions and isolation', () => {
     })
   })
 
-  it('refuses to reschedule another agency\'s booking, indistinguishably from a missing one', async () => {
+  it("refuses to reschedule another agency's booking, indistinguishably from a missing one", async () => {
     await db.asUser(rival.userId, async (session) => {
       const foreign = await session.expectRejection(
         () =>
@@ -847,7 +854,7 @@ describe('permissions and isolation', () => {
     })
   })
 
-  it('will not let a booking be moved onto another agency\'s vehicle', async () => {
+  it("will not let a booking be moved onto another agency's vehicle", async () => {
     const [rivalVehicle] = await db.sql<{ id: string }>(
       `insert into public.vehicles (organization_id, make, model, registration_plate, currency)
        values ($1, 'Kia', 'Picanto', 'RIV-001', 'EUR') returning id`,
