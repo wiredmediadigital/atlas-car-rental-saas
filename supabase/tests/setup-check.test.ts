@@ -7,6 +7,8 @@
  * than the app points at, a remote that can push to the original repository —
  * has to be exactly right.
  */
+import { readFileSync } from 'node:fs'
+
 import { describe, expect, it } from 'vitest'
 
 import {
@@ -320,6 +322,25 @@ describe('checking the deployed site', () => {
   // would prove only that the XML is well formed.
   it('checks the public Help Centre, not just the sitemap that advertises it', () => {
     expect(SITE_ROUTES).toContain('/help')
+  })
+
+  // The screenshots in public/help/ ship as a real directory, and a real
+  // directory is what Apache serves rather than handing the path to the app:
+  // /help answered 403 in production while every local test passed, because
+  // the dev server has no such directory to collide with. The rule that
+  // rescues it is only effective ahead of the passthrough that lets real
+  // files and directories through untouched.
+  it('rescues the Help Centre index before the directory passthrough can claim it', () => {
+    const htaccess = readFileSync(new URL('../../public/.htaccess', import.meta.url), 'utf8')
+
+    const helpRule = htaccess.indexOf('RewriteRule ^help/?$ index.html')
+    const directoryPassthrough = htaccess.indexOf('RewriteCond %{REQUEST_FILENAME} -d')
+
+    expect(helpRule, 'the /help rewrite is missing from public/.htaccess').toBeGreaterThan(-1)
+    expect(directoryPassthrough).toBeGreaterThan(-1)
+    expect(helpRule, 'the /help rewrite must come first, or it never runs').toBeLessThan(
+      directoryPassthrough,
+    )
   })
 
   it('finds the application script and its preloaded chunks, on this site only', () => {

@@ -14,6 +14,21 @@
   RewriteEngine On
   RewriteBase /
 
+  # The Help Centre's front page, before the passthrough below can claim it.
+  #
+  # /help is an application route, but public/help/ also holds the Help Centre
+  # screenshots, so the deployed site has a real directory of that name. Left to
+  # the rules below, mod_dir redirected /help to /help/ (301), the -d condition
+  # then handed it to the directory, there is no index.html inside one, and the
+  # front page answered 403 in production while every test passed locally —
+  # the dev server has no such directory to collide with.
+  #
+  # Article pages were never affected: /help/rentals is neither a file nor a
+  # directory. The screenshots are not affected either; /help/vehicles-01.jpg is
+  # a real file and still matches -f below. This rule is exact, so it catches
+  # only the index itself.
+  RewriteRule ^help/?$ index.html [L]
+
   RewriteCond %{REQUEST_FILENAME} -f [OR]
   RewriteCond %{REQUEST_FILENAME} -d
   RewriteRule ^ - [L]
