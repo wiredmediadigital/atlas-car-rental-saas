@@ -330,7 +330,12 @@ content_path = "./supabase/templates/reauthentication.html"
 [auth.email.notification.password_changed]
 enabled = true
 subject = "Your Pevvy password was changed"
-content_path = "./supabase/templates/password_changed_notification.html"
+# Deliberately not "./supabase/templates/..." like the blocks above. The CLI
+# (2.114.0) resolves this newer notification key relative to the supabase/
+# directory rather than the project root, so the familiar prefix makes it look
+# for supabase/supabase/templates/ and every command — including `db push` —
+# fails to load the config at all. Leave this one root-less.
+content_path = "./templates/password_changed_notification.html"
 
 [auth.sms]
 # Allow/disallow new user signups via SMS to your project.
