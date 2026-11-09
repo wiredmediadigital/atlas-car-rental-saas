@@ -532,3 +532,9 @@ verify_jwt = false
 # platform check, and calls auth.getUser() itself as well — the platform check is
 # never trusted alone.
 
+# The account-closure runner is NOT public, unlike pricing. It destroys an
+# agency's data, so verify_jwt stays on and the function additionally requires
+# the bearer token to be the service role key (isAuthorizedRunner). It holds no
+# Stripe key: cancelling a closing agency's subscription is a manual step.
+[functions.account-closure]
+verify_jwt = true
