@@ -24,6 +24,7 @@ import { VehicleImportDialog } from '@/features/vehicles/components/VehicleImpor
 import { VehicleTable } from '@/features/vehicles/components/VehicleTable'
 import {
   useFleetCounts,
+  useVehicleLimit,
   useVehicleList,
   useVehicleMakes,
   useVehicleThumbnails,
@@ -152,6 +153,7 @@ export function VehiclesPage() {
   }, [setSearchParams])
 
   const countsQuery = useFleetCounts()
+  const limitQuery = useVehicleLimit()
   const makesQuery = useVehicleMakes()
 
   /*
@@ -221,6 +223,13 @@ export function VehiclesPage() {
    * has vehicles.create withdrawn, and nesting the export inside that check
    * would withdraw it on precisely the day the wind-down promises it.
    */
+  /*
+   * At the ceiling the database refuses every new vehicle, so neither adding nor
+   * importing is offered; the notice below the header says why. Export stays.
+   */
+  const limit = limitQuery.data
+  const isAtLimit = limit !== undefined && limit.limit !== null && limit.count >= limit.limit
+
   const addAction = (
     <div className="flex items-center gap-2">
       <Button
@@ -232,7 +241,7 @@ export function VehiclesPage() {
       >
         Export
       </Button>
-      {canCreate ? (
+      {canCreate && !isAtLimit ? (
         <>
           <Button
             variant="secondary"

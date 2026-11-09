@@ -52,6 +52,29 @@ describe('the counter', () => {
   })
 })
 
+describe('the way out when no tier covers the fleet', () => {
+  it('offers a reachable contact route at Business', () => {
+    state.status = { limit: 50, count: 50, tier: 'business' }
+    renderAt(<VehicleLimitNotice />)
+
+    const link = screen.getByRole('link', { name: /help@pevvy.io/ })
+    expect(link.getAttribute('href')).toMatch(/^mailto:help@pevvy.io/)
+    expect(screen.queryByRole('link', { name: 'Upgrade' })).toBeNull()
+  })
+
+  it('offers the same route for a per-agency limit', () => {
+    state.status = { limit: 150, count: 150, tier: 'starter' }
+    renderAt(<VehicleLimitNotice />)
+    expect(screen.getByRole('link', { name: /help@pevvy.io/ })).toBeTruthy()
+  })
+
+  it('gives an owner the Billing link and no mail link below Business', () => {
+    state.canManageBilling = true
+    renderAt(<VehicleLimitNotice />)
+    expect(screen.queryByRole('link', { name: /help@pevvy.io/ })).toBeNull()
+  })
+})
+
 describe('what the limit says', () => {
   it('tells an owner to upgrade and offers the button', () => {
     state.canManageBilling = true
@@ -65,12 +88,12 @@ describe('what the limit says', () => {
     expect(screen.getByRole('link', { name: 'Upgrade' }).getAttribute('href')).toBe('/billing')
   })
 
-  it('tells a staff member to ask an owner or admin, with no button', () => {
+  it('tells a non-owner to ask the owner, with no button', () => {
     renderAt(<VehicleLimitNotice />)
 
     const text = screen.getByRole('status').textContent ?? ''
     expect(text.startsWith('Starter covers 5 vehicles. You have 5. ')).toBe(true)
-    expect(text).toMatch(/ask an owner or admin to upgrade\.$/)
+    expect(text).toMatch(/ask the owner to upgrade\.$/)
     expect(screen.queryByRole('link')).toBeNull()
     expect(screen.queryByRole('button')).toBeNull()
   })
@@ -100,6 +123,7 @@ describe('vehicleLimitCopy', () => {
     expect(vehicleLimitCopy({ limit: 20, count: 20, tier: 'pro' }, true)).toEqual({
       sentence:
         'Pro covers 20 vehicles. You have 20. Upgrade to Business for 50 vehicles, or retire one you no longer rent.',
+      action: 'upgrade',
       showUpgradeButton: true,
     })
   })
@@ -129,6 +153,12 @@ describe('downgradeRefusalCopy', () => {
   it('names the gap', () => {
     expect(downgradeRefusalCopy('starter', 5, 12)).toBe(
       'Starter covers 5 vehicles. You have 12. Retire 7 to move down.',
+    )
+  })
+
+  it('never prints an unknown catalogue key', () => {
+    expect(downgradeRefusalCopy('enterprise_plus', 200, 250)).toBe(
+      'That plan covers 200 vehicles. You have 250. Retire 50 to move down.',
     )
   })
 

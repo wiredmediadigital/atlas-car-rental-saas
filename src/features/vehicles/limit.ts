@@ -30,19 +30,18 @@ export const VEHICLE_TIERS: readonly Tier[] = [
   { key: 'business', label: 'Business', limit: 50 },
 ]
 
-/** The display name of a stored tier key; never the raw key. */
-export function tierLabel(tier: string): string {
-  const known = VEHICLE_TIERS.find((candidate) => candidate.key === tier)
-  if (known) return known.label
-  return tier.charAt(0).toUpperCase() + tier.slice(1)
-}
-
 function vehicles(count: number): string {
   return `${count} ${count === 1 ? 'vehicle' : 'vehicles'}`
 }
 
 export interface VehicleLimitCopy {
   sentence: string
+  /**
+   * The one way out the screen offers beside the sentence: 'upgrade' is the
+   * Billing link (owner only), 'contact' is a mail link to support for the cases
+   * no tier covers, null is no action.
+   */
+  action: 'upgrade' | 'contact' | null
   showUpgradeButton: boolean
 }
 
@@ -69,6 +68,7 @@ export function vehicleLimitCopy(
   if (!current || current.limit !== limit) {
     return {
       sentence: `Your agency's limit is ${vehicles(limit)}. You have ${count}. Retire one you no longer rent, or contact us to raise it.`,
+      action: 'contact',
       showUpgradeButton: false,
     }
   }
@@ -79,6 +79,7 @@ export function vehicleLimitCopy(
   if (!next) {
     return {
       sentence: `${lead} Retire one you no longer rent, or contact us about a larger fleet.`,
+      action: 'contact',
       showUpgradeButton: false,
     }
   }
@@ -86,10 +87,12 @@ export function vehicleLimitCopy(
   return canManageBilling
     ? {
         sentence: `${lead} Upgrade to ${next.label} for ${vehicles(next.limit)}, or retire one you no longer rent.`,
+        action: 'upgrade',
         showUpgradeButton: true,
       }
     : {
-        sentence: `${lead} Retire one you no longer rent, or ask an owner or admin to upgrade.`,
+        sentence: `${lead} Retire one you no longer rent, or ask the owner to upgrade.`,
+        action: null,
         showUpgradeButton: false,
       }
 }
@@ -104,5 +107,9 @@ export function downgradeRefusalCopy(
   targetLimit: number,
   count: number,
 ): string {
-  return `${tierLabel(targetTier)} covers ${vehicles(targetLimit)}. You have ${count}. Retire ${count - targetLimit} to move down.`
+  // A tier key this file does not know is never printed: "Enterprise_plus" is a
+  // catalogue key, not a name.
+  const known = VEHICLE_TIERS.find((candidate) => candidate.key === targetTier)
+  const subject = known ? known.label : 'That plan'
+  return `${subject} covers ${vehicles(targetLimit)}. You have ${count}. Retire ${count - targetLimit} to move down.`
 }

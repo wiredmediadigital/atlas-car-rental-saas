@@ -1,5 +1,6 @@
 import { paths } from '@/app/routes/paths'
 import { Alert, ButtonLink } from '@/components/ui'
+import { SUPPORT_EMAIL } from '@/features/help/constants'
 import { usePermission } from '@/features/workspace/workspace-context'
 
 import { vehicleLimitCopy } from '../limit'
@@ -20,6 +21,7 @@ export function VehicleLimitCounter() {
       title="Vehicles in your fleet, out of what your plan covers"
     >
       {data.count} of {data.limit}
+      <span className="sr-only"> vehicles, the most your plan covers</span>
     </span>
   )
 }
@@ -35,10 +37,17 @@ export function VehicleLimitNotice() {
     <Alert
       tone="info"
       actions={
-        copy.showUpgradeButton ? (
+        copy.action === 'upgrade' ? (
           <ButtonLink to={paths.billing} size="sm" variant="primary">
             Upgrade
           </ButtonLink>
+        ) : copy.action === 'contact' ? (
+          <a
+            href={`mailto:${SUPPORT_EMAIL}?subject=${encodeURIComponent('Vehicle limit')}`}
+            className="font-medium underline"
+          >
+            Email {SUPPORT_EMAIL}
+          </a>
         ) : null
       }
     >
