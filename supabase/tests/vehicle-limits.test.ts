@@ -223,6 +223,108 @@ describe('the per-agency override', () => {
   })
 })
 
+describe('a deployment whose billing is not configured', () => {
+  async function setPlatformConfigured(configured: boolean): Promise<void> {
+    await db.sql(`select app.billing_report_platform_state($1, 'test', 'Stripe state.')`, [
+      configured,
+    ])
+  }
+
+  it('acquires no plan limit from a stale subscription', async () => {
+    await subscribe('starter_monthly')
+    expect(await limitOf()).toBe(5)
+    await setPlatformConfigured(false)
+    try {
+      const [{ configured }] = (await db.sql<{ configured: boolean }>(
+        `select app.billing_platform_configured() as configured`,
+      )) as [{ configured: boolean }]
+      expect(configured).toBe(false)
+      expect(await limitOf()).toBeNull()
+    } finally {
+      await setPlatformConfigured(true)
+    }
+  })
+
+  it('also has no plan limit when no billing plan is active', async () => {
+    await subscribe('starter_monthly')
+    await db.exec(
+      `select app.billing_writing(); update public.billing_plans set is_active = false;`,
+    )
+    try {
+      expect(await limitOf()).toBeNull()
+    } finally {
+      await replaceCatalogue(PLAN_KEYS)
+    }
+  })
+
+  it('still honours a per-agency override', async () => {
+    await subscribe('starter_monthly')
+    await db.sql(
+      `update public.organizations
+          set vehicle_limit_override = 150, vehicle_limit_override_set_by = $2,
+              vehicle_limit_override_set_at = now()
+        where id = $1`,
+      [organizationId, owner],
+    )
+    await setPlatformConfigured(false)
+    try {
+      expect(await limitOf()).toBe(150)
+    } finally {
+      await setPlatformConfigured(true)
+    }
+  })
+})
+
+describe('who set the override', () => {
+  it('must be a real user', async () => {
+    await db.expectRejection(
+      () =>
+        db.sql(`update public.organizations set vehicle_limit_override_set_by = $2 where id = $1`, [
+          organizationId,
+          '00000000-0000-4000-8000-000000000000',
+        ]),
+      /foreign key|violates/i,
+    )
+  })
+})
+
+describe('who may call the resolver and read the table', () => {
+  it('refuses the functions to an authenticated user and allows the service role', async () => {
+    for (const fn of ['vehicle_limit_of', 'vehicle_count_of']) {
+      await db.asUser(owner, (session) =>
+        session.expectRejection(
+          () => session.sql(`select app.${fn}($1)`, [organizationId]),
+          /permission denied/i,
+        ),
+      )
+    }
+    await subscribe('pro_monthly')
+    const [row] = await db.asServiceRole(owner, (session) =>
+      session.sql<{ lim: number }>(`select app.vehicle_limit_of($1) as lim`, [organizationId]),
+    )
+    expect(row!.lim).toBe(20)
+    const [count] = await db.asServiceRole(owner, (session) =>
+      session.sql<{ n: number }>(`select app.vehicle_count_of($1) as n`, [organizationId]),
+    )
+    expect(count!.n).toBe(0)
+  })
+
+  it('does not let an authenticated user read or write plan_vehicle_limits', async () => {
+    await db.asUser(owner, (session) =>
+      session.expectRejection(
+        () => session.sql(`select * from public.plan_vehicle_limits`),
+        /permission denied/i,
+      ),
+    )
+    await db.asUser(owner, (session) =>
+      session.expectRejection(
+        () => session.sql(`update public.plan_vehicle_limits set vehicle_limit = 9999`),
+        /permission denied/i,
+      ),
+    )
+  })
+})
+
 describe('the vehicle count', () => {
   it('counts only unarchived vehicles', async () => {
     await addVehicle('LIM-1')

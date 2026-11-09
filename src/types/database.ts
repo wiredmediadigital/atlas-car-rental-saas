@@ -224,9 +224,20 @@ type OrganizationRow = {
   region: string | null
   postal_code: string | null
   logo_path: string | null
+  /** Operator-set vehicle ceiling; service role only. null = the plan decides. */
+  vehicle_limit_override: number | null
+  vehicle_limit_override_set_by: string | null
+  vehicle_limit_override_set_at: string | null
   created_by: string | null
   created_at: string
   updated_at: string
+}
+
+/** Authored in migrations, written by no sync, unreadable by browser roles. */
+export type PlanVehicleLimitRow = {
+  plan_key: string
+  tier: string
+  vehicle_limit: number
 }
 
 type OrganizationMemberRow = {
@@ -2178,6 +2189,9 @@ type Insertable<Row, Required extends keyof Row, Omitted extends keyof Row = nev
 type Updatable<Row, Frozen extends keyof Row> = Partial<Omit<Row, Frozen>>
 
 type ManagedColumns = 'created_at' | 'updated_at'
+/** Service-role only: the browser can neither insert nor update these. */
+type OrganizationVehicleLimitColumns =
+  'vehicle_limit_override' | 'vehicle_limit_override_set_by' | 'vehicle_limit_override_set_at'
 type GeneratedRentalColumns = 'balance_due_minor' | 'payment_status' | 'amount_paid_minor'
 
 export interface Database {
@@ -2191,8 +2205,21 @@ export interface Database {
       }
       organizations: {
         Row: OrganizationRow
-        Insert: Insertable<OrganizationRow, 'name' | 'slug', 'id' | ManagedColumns>
-        Update: Updatable<OrganizationRow, 'id' | 'slug' | 'created_by' | ManagedColumns>
+        Insert: Insertable<
+          OrganizationRow,
+          'name' | 'slug',
+          'id' | OrganizationVehicleLimitColumns | ManagedColumns
+        >
+        Update: Updatable<
+          OrganizationRow,
+          'id' | 'slug' | 'created_by' | OrganizationVehicleLimitColumns | ManagedColumns
+        >
+        Relationships: []
+      }
+      plan_vehicle_limits: {
+        Row: PlanVehicleLimitRow
+        Insert: never
+        Update: never
         Relationships: []
       }
       organization_members: {
