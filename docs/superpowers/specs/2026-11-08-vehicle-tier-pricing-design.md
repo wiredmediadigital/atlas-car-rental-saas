@@ -10,18 +10,18 @@ that with three tiers priced by fleet size, because fleet size is the thing that
 actually varies between a two-car operation and a fifty-car one, and it is the
 thing both sides can count without arguing.
 
-| Tier | Monthly | Vehicles |
-| --- | --- | --- |
-| Starter | $59 | up to 5 |
-| Growth | $119 | up to 20 |
-| Business | $199 | up to 50 |
+| Tier     | Monthly | Vehicles |
+| -------- | ------- | -------- |
+| Starter  | $59     | up to 5  |
+| Pro      | $119    | up to 20 |
+| Business | $199    | up to 50 |
 
 Every tier includes every feature. Nothing in the product is gated by tier except
 how many vehicles an agency may have on its fleet at once. Each tier also sells
 yearly; the yearly amounts are set in Stripe and are not fixed by this document.
 
-The free trial is **14 days**, and it is a trial *of a tier* — the agency picks
-Starter, Growth or Business and trials that, with that tier's limit.
+The free trial is **14 days**, and it is a trial _of a tier_ — the agency picks
+Starter, Pro or Business and trials that, with that tier's limit.
 
 The trial length needs no code: it is already the deployment variable
 `BILLING_TRIAL_DAYS`, read at checkout (`billing-domain.ts`, which sets
@@ -56,7 +56,7 @@ migration path is now.
 - **The product retires one of their vehicles for them.** Never. Choosing which
   car comes off the road is the agency's decision, always.
 - **An agency is locked out of records it already has.** The limit governs
-  *adding*, never reading, editing or renting what is already there.
+  _adding_, never reading, editing or renting what is already there.
 - **Someone is offered a control the database refuses.** A staff member must not
   see an Upgrade button that does nothing when pressed.
 - **The limit silently stops being enforced.** See the Stripe-sync trap below.
@@ -74,7 +74,7 @@ migration path is now.
   fleet, not everything the agency has ever owned.
 - **Downgrading is blocked while the fleet exceeds the target tier's limit.**
   The user's own words: it would not make sense to downgrade while already above
-  the tier limit. This is measured against the tier being moved *to*, at the
+  the tier limit. This is measured against the tier being moved _to_, at the
   moment of the attempt — it is never a permanent state, and it is not triggered
   by having upgraded before.
 - **The counter is always visible** (option B of three shown): a quiet
@@ -94,7 +94,7 @@ have to invent. They are load-bearing and should not be re-litigated.
 (`20261103100000_billing_restricted_access.sql`): an agency without a live
 subscription keeps everything it can read and loses everything it can write. A
 brand-new agency therefore starts restricted and cannot add a single vehicle
-until it starts its trial. *This is why no free allowance is needed* — there is
+until it starts its trial. _This is why no free allowance is needed_ — there is
 no state in which an unpaid agency can add vehicles at all.
 
 **2. Trials already work end to end.** Stripe's `trialing` status resolves to
@@ -137,14 +137,14 @@ Three write paths, and the database beneath all of them:
    agency is one over. Retiring frees the slot; bringing it back needs a free
    slot.
 3. **CSV import** (`src/features/vehicles/csv.ts`). The whole batch is checked
-   against remaining capacity *before* any row is written. A 40-row import by a
+   against remaining capacity _before_ any row is written. A 40-row import by a
    Starter agency is refused as a batch, naming how many slots are free — it
    never half-imports and fails on row six.
 
    This means the import stops being row-by-row inserts and becomes one
    transactional call, so that the check and the writes cannot be separated by a
    concurrent add in another tab. Restructuring `csv.ts` that way is expected and
-   accepted. A check that can be raced is not a check. *(Author's call.)*
+   accepted. A check that can be raced is not a check. _(Author's call.)_
 
 The database is the gate. The interface may not be the only thing standing
 between an agency and its fifty-first vehicle.
@@ -155,12 +155,12 @@ A counter beside the Vehicles heading — "5 of 5" — visible to anyone who can
 the fleet, from the first day rather than first appearing at the ceiling.
 
 At the limit, one message that names three things: the tier, the number they
-actually have, and both ways out. *"Starter covers 5 vehicles. You have 5.
-Upgrade to Growth for 20 vehicles, or retire one you no longer rent."*
+actually have, and both ways out. _"Starter covers 5 vehicles. You have 5.
+Upgrade to Pro for 20 vehicles, or retire one you no longer rent."_
 
 **Who gets the Upgrade button is a permission question, not a copy question.**
 `billing.manage` is owner-and-admin. A manager or staff member sees the same
-sentence ending in *"ask an owner or admin to upgrade"* and no button. This
+sentence ending in _"ask an owner or admin to upgrade"_ and no button. This
 follows the rule the account-closure work held throughout: never show someone a
 control the database will refuse.
 
@@ -192,21 +192,20 @@ alternative with the cost stated:
 **Upgrading is always available and takes effect immediately.**
 
 **Downgrading is refused while the current fleet exceeds the target tier's
-limit**, with a message naming the gap: *"Starter covers 5 vehicles. You have
-12. Retire 7 to move down."* The refusal is recomputed on every attempt, so it
-clears by itself as the fleet shrinks. Business is always available to a Growth
+limit**, with a message naming the gap: _"Starter covers 5 vehicles. You have 12. Retire 7 to move down."_ The refusal is recomputed on every attempt, so it
+clears by itself as the fleet shrinks. Business is always available to a Pro
 agency; Starter opens the moment they are at 5.
 
 **Changing tier during a trial** uses the same path and keeps the trial's
 remaining days rather than restarting or ending it — the agency is still
 evaluating, and a tier change is part of evaluating. The new tier's limit
-applies from the moment of the change. *(Author's call.)*
+applies from the moment of the change. _(Author's call.)_
 
 **If a lower tier arrives by webhook anyway** — an operator editing the
 subscription in Stripe, or any path outside the product — the agency keeps
 every vehicle it has, because nothing in this design is retroactive. The
 mismatch is surfaced to the operator rather than resolved automatically; no
-code may archive a vehicle to make the numbers agree. *(Author's call.)*
+code may archive a vehicle to make the numbers agree. _(Author's call.)_
 
 An agency is never trapped. Cancelling outright remains available and drops them
 to the existing read-only wind-down, where everything stays visible, searchable
@@ -247,14 +246,14 @@ covered by that, a synced one is not.
 The six plan keys exist in Stripe as of 8 November 2026, and the authored
 mapping is exactly this:
 
-| Plan key | Tier | Vehicles |
-| --- | --- | --- |
-| `starter_monthly` | Starter | 5 |
-| `starter_yearly` | Starter | 5 |
-| `pro_monthly` | middle tier | 20 |
-| `pro_yearly` | middle tier | 20 |
-| `business_monthly` | Business | 50 |
-| `business_yearly` | Business | 50 |
+| Plan key           | Tier     | Vehicles |
+| ------------------ | -------- | -------- |
+| `starter_monthly`  | Starter  | 5        |
+| `starter_yearly`   | Starter  | 5        |
+| `pro_monthly`      | Pro      | 20       |
+| `pro_yearly`       | Pro      | 20       |
+| `business_monthly` | Business | 50       |
+| `business_yearly`  | Business | 50       |
 
 `pro_monthly` and `pro_yearly` are the **existing** keys from the old single
 plan, reused for the middle tier. They now mean $119 and 20 vehicles. That is
@@ -278,7 +277,7 @@ cannot blank it). Whichever shape is chosen, two properties are required:
   later-dated file.
 - **Do not rewrite the existing write gate.** `app.may_write` /
   `app.billing_may_write` has 87 call sites, 75 of them RLS policies. A vehicle
-  limit is a *separate* rule from billing restriction and must not be folded
+  limit is a _separate_ rule from billing restriction and must not be folded
   into that gate: a restricted agency is blocked from writing at all, which is a
   different sentence to the user and a different reason.
 - **`platform_unconfigured` stays exempt.** A deployment with no Stripe keys and
@@ -310,10 +309,10 @@ customers from working; failing open gives the product away.
 alternative punishes a customer for an operator's mistake. Its absence is
 reported through the existing platform-state mechanism (`reportPlatformState`),
 which is the surface already built for "an operator needs to fix something about
-this deployment" — not a log line nobody reads. *(Author's call.)*
+this deployment" — not a log line nobody reads. _(Author's call.)_
 
 The vehicle counter is hidden when there is no limit to count against, rather
-than showing a meaningless denominator. *(Author's call.)*
+than showing a meaningless denominator. _(Author's call.)_
 
 ## What is left to the builder
 
