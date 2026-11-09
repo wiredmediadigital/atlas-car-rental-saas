@@ -26,6 +26,7 @@ import {
   nextSweepBatch,
   parseAuthUserKey,
   runAccountClosure,
+  runIfAuthorized,
   sweepStorage,
   usersToRemove,
   type ClosureDeps,
@@ -122,10 +123,16 @@ describe('nextSweepBatch', () => {
 
 describe('caller and claim helpers', () => {
   it('authorizes only the service key', () => {
-    expect(isAuthorizedRunner('Bearer sk', 'sk')).toBe(true)
-    expect(isAuthorizedRunner('Bearer other', 'sk')).toBe(false)
-    expect(isAuthorizedRunner(null, 'sk')).toBe(false)
+    const secret = 's'.repeat(40)
+    expect(isAuthorizedRunner(`Bearer ${secret}`, secret)).toBe(true)
+    expect(isAuthorizedRunner(`Bearer ${'t'.repeat(40)}`, secret)).toBe(false)
+    expect(isAuthorizedRunner(`Bearer ${secret}x`, secret)).toBe(false)
+    expect(isAuthorizedRunner(`Bearer ${secret.slice(1)}`, secret)).toBe(false)
+    expect(isAuthorizedRunner(null, secret)).toBe(false)
+    expect(isAuthorizedRunner(secret, secret)).toBe(false) // not a Bearer header
+    // An unset or weak configured secret refuses everyone, even a caller who sends it.
     expect(isAuthorizedRunner('Bearer ', '')).toBe(false)
+    expect(isAuthorizedRunner('Bearer short', 'short')).toBe(false)
   })
 
   it('reads a claim: live subscription is a refusal, any other error is thrown', () => {
@@ -469,6 +476,51 @@ describe('resuming', () => {
     world.clock = true
     await run(world)
 
+    expect(await state(a.organizationId)).toBe('closed')
+  }, 60_000)
+})
+
+describe('the caller check', () => {
+  const SECRET = 'r'.repeat(48)
+
+  async function attempt(authorization: string | null, secret: string) {
+    const world = new World()
+    const a = await newAgency(world, 'Mike')
+    await request(a.organizationId)
+    let ran = false
+    const result = await runIfAuthorized(authorization, secret, () => {
+      ran = true
+      return run(world)
+    })
+    return { result, ran, world, a }
+  }
+
+  it('refuses a wrong secret and claims nothing', async () => {
+    const { result, ran, world, a } = await attempt(`Bearer ${'x'.repeat(48)}`, SECRET)
+    expect(result).toEqual({ status: 401 })
+    expect(ran).toBe(false)
+    expect(await state(a.organizationId)).toBe('suspended')
+    expect(world.removeCalls).toEqual([])
+    expect(await count('customer_documents', a.organizationId)).toBe(5)
+  }, 60_000)
+
+  it('refuses an absent secret, and an unconfigured one, and claims nothing', async () => {
+    const cases: [string | null, string][] = [
+      [null, SECRET],
+      [`Bearer ${SECRET}`, ''],
+      ['', SECRET],
+    ]
+    for (const [header, secret] of cases) {
+      const { result, ran, a } = await attempt(header, secret)
+      expect(result).toEqual({ status: 401 })
+      expect(ran).toBe(false)
+      expect(await state(a.organizationId)).toBe('suspended')
+    }
+  }, 60_000)
+
+  it('runs for the right secret', async () => {
+    const { result, a } = await attempt(`Bearer ${SECRET}`, SECRET)
+    expect(result.status).toBe(200)
     expect(await state(a.organizationId)).toBe('closed')
   }, 60_000)
 })

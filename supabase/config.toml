@@ -532,9 +532,14 @@ verify_jwt = false
 # platform check, and calls auth.getUser() itself as well — the platform check is
 # never trusted alone.
 
-# The account-closure runner is NOT public, unlike pricing. It destroys an
-# agency's data, so verify_jwt stays on and the function additionally requires
-# the bearer token to be the service role key (isAuthorizedRunner). It holds no
-# Stripe key: cancelling a closing agency's subscription is a manual step.
+# The account-closure runner is called by a scheduler, not a signed-in user, and
+# it is NOT a public endpoint like pricing: it destroys an agency's data.
+# verify_jwt is off because this project's API keys are the sb_publishable_ /
+# sb_secret_ format, which are not JWTs and could not satisfy the platform check
+# for any caller. What replaces it is a check inside the function: the bearer
+# token must equal ACCOUNT_CLOSURE_RUNNER_SECRET, a dedicated secret only the
+# scheduler holds (not the service key), compared in constant time; anything else
+# is a bare 401 and claims nothing. It holds no Stripe key: cancelling a closing
+# agency's subscription is a manual step.
 [functions.account-closure]
-verify_jwt = true
+verify_jwt = false

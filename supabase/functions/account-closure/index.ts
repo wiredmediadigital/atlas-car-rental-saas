@@ -1,10 +1,14 @@
 /**
  * The account-closure runner boundary.
  *
- * Called from outside the deployment (Task 7 adds the scheduler) with the
- * SERVICE ROLE KEY as the bearer token. `verify_jwt = true` only proves the
- * token is some signed-in user's JWT, which is not enough to destroy an agency,
- * so `isAuthorizedRunner` also requires it to BE the service key.
+ * Called from outside the deployment (Task 7 adds the scheduler). The platform
+ * JWT check is OFF (see config.toml: this project's keys are not JWTs and could
+ * not satisfy it). In its place the caller must send
+ * `Authorization: Bearer <ACCOUNT_CLOSURE_RUNNER_SECRET>`, a secret that only the
+ * scheduler holds and that is NOT the service key: asking "is it time to run"
+ * must not require the key that can read every agency. The comparison is
+ * constant-time (`isAuthorizedRunner`); a refusal is a bare 401 and claims
+ * nothing, because `runIfAuthorized` never calls the runner.
  *
  * This file is a Deno shim and decides nothing: it authenticates, builds
  * `ClosureDeps` from a service client (each method is one call), and hands them
@@ -23,8 +27,8 @@ import {
   AUTH_USERS_BUCKET,
   authUserKey,
   interpretClaim,
-  isAuthorizedRunner,
   runAccountClosure,
+  runIfAuthorized,
   type ClosureDeps,
   type ClosureState,
   type ObjectRow,
@@ -206,20 +210,23 @@ Deno.serve(async (request: Request): Promise<Response> => {
 
   const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? ''
   const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+  const runnerSecret = Deno.env.get('ACCOUNT_CLOSURE_RUNNER_SECRET') ?? ''
+  if (runnerSecret === '')
+    console.error('account-closure: ACCOUNT_CLOSURE_RUNNER_SECRET is not set')
   if (supabaseUrl === '' || serviceKey === '') return json({ error: 'Not configured.' }, 503)
-  if (!isAuthorizedRunner(request.headers.get('Authorization'), serviceKey)) {
-    return json({ error: 'Unauthorized.' }, 401)
-  }
 
   const service = createClient(supabaseUrl, serviceKey, {
     auth: { persistSession: false, autoRefreshToken: false },
   })
   try {
-    const report = await runAccountClosure(buildDeps(service, Date.now() + RUN_BUDGET_MS), {
-      now: new Date(),
-      logError: (message) => console.error(message),
-    })
-    return json(report, report.failures > 0 ? 500 : 200)
+    const result = await runIfAuthorized(request.headers.get('Authorization'), runnerSecret, () =>
+      runAccountClosure(buildDeps(service, Date.now() + RUN_BUDGET_MS), {
+        now: new Date(),
+        logError: (message) => console.error(message),
+      }),
+    )
+    if (result.status === 401) return json({ error: 'Unauthorized.' }, 401)
+    return json(result.report, result.status)
   } catch (error) {
     console.error(`account-closure: run aborted: ${error instanceof Error ? error.message : error}`)
     return json({ error: 'The run aborted before it finished; run it again.' }, 500)

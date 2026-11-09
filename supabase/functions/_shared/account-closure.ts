@@ -77,13 +77,21 @@ export const STORAGE_BUCKETS: readonly string[] = [
 ]
 
 /**
- * `account_closure_objects` is the one resumable ledger the schema gives us, and
- * the member list is gone the moment the purge commits (the memberships are
- * deleted with everything else). So the people to remove are written down BEFORE
- * the purge, in the same ledger, as `<organization_id>/<user_id>` in this
- * pseudo-bucket. It is never a Storage bucket and the sweep never reads it.
+ * THIS TABLE CARRIES TWO KINDS OF ROW. `account_closure_objects` is the one
+ * resumable ledger the schema gives us. Most rows name a real Storage object
+ * (bucket + key). The others name a PERSON still to be removed from `profiles`
+ * and Auth, with `storage_key` = `<organization_id>/<user_id>` and this value as
+ * `bucket`. Why: the purge deletes the memberships that say who belonged to the
+ * agency, so the list has to be written down before it, somewhere that survives
+ * the purge and is resumable; a new table with an organization_id column would
+ * trip `organization_purge_data`'s list check. A deferred item is to give it its
+ * own table.
+ *
+ * The value contains a colon, which no Storage bucket name can, so it can never
+ * be mistaken for a bucket. The sweep only ever deletes from STORAGE_BUCKETS and
+ * never reads these rows.
  */
-export const AUTH_USERS_BUCKET = 'auth-users'
+export const AUTH_USERS_BUCKET = 'closure:accounts-to-remove'
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
@@ -167,9 +175,18 @@ export function parseAuthUserKey(organizationId: string, row: ObjectRow): string
   return UUID.test(userId) ? userId : null
 }
 
-/** Constant-time comparison of the caller's bearer token with the service key. */
-export function isAuthorizedRunner(authorization: string | null, serviceKey: string): boolean {
-  if (serviceKey === '' || authorization === null) return false
+/** Shortest runner secret accepted. An empty or tiny configured value fails closed. */
+export const MIN_RUNNER_SECRET_LENGTH = 32
+
+/**
+ * Constant-time comparison of the caller's bearer token with the runner secret.
+ * The loop runs over the SECRET's length whatever the caller sent, and a length
+ * mismatch is folded into the same accumulator, so timing reveals nothing.
+ * An absent or too-short configured secret refuses everyone.
+ */
+export function isAuthorizedRunner(authorization: string | null, secret: string): boolean {
+  const serviceKey = secret
+  if (serviceKey.length < MIN_RUNNER_SECRET_LENGTH || authorization === null) return false
   const match = /^Bearer (.+)$/i.exec(authorization.trim())
   if (!match) return false
   const given = match[1]!
@@ -178,6 +195,22 @@ export function isAuthorizedRunner(authorization: string | null, serviceKey: str
     diff |= (given.charCodeAt(i) || 0) ^ serviceKey.charCodeAt(i)
   }
   return diff === 0
+}
+
+export type GuardedRun = { status: 401 } | { status: 200 | 500; report: RunReport }
+
+/**
+ * The only way the runner is started. `run` is not called at all unless the
+ * caller proved it holds the secret, so a refused request claims nothing.
+ */
+export async function runIfAuthorized(
+  authorization: string | null,
+  secret: string,
+  run: () => Promise<RunReport>,
+): Promise<GuardedRun> {
+  if (!isAuthorizedRunner(authorization, secret)) return { status: 401 }
+  const report = await run()
+  return { status: report.failures > 0 ? 500 : 200, report }
 }
 
 export type ClaimResult = 'claimed' | 'declined' | 'live-subscription'
