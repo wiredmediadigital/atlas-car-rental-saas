@@ -2657,6 +2657,10 @@ export interface Database {
         Args: { p_organization_id: string }
         Returns: VehicleLimitStatusRow[]
       }
+      vehicles_import_batch: {
+        Args: { p_organization_id: string; p_rows: Json }
+        Returns: Vehicle[]
+      }
       vehicle_usage: {
         Args: { p_vehicle_id: string }
         Returns: VehicleUsageRow[]

@@ -302,6 +302,23 @@ export async function createVehicle(
   return data
 }
 
+/**
+ * Imports a whole batch in one transaction: the database checks the agency's
+ * vehicle limit before writing any row, so the batch lands whole or not at all.
+ */
+export async function importVehicles(
+  organizationId: string,
+  rows: readonly VehicleFormValues[],
+): Promise<Vehicle[]> {
+  const { data, error } = await getSupabaseClient().rpc('vehicles_import_batch', {
+    p_organization_id: organizationId,
+    p_rows: rows.map((values) => ({ ...toRow(values) })),
+  })
+
+  if (error) throw toAppError(error)
+  return data ?? []
+}
+
 export async function updateVehicle(
   vehicleId: string,
   values: VehicleFormValues,

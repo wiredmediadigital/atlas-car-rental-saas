@@ -1,3 +1,5 @@
+import { vehicleLimitCopy } from '@/features/vehicles/limit'
+
 /**
  * Turns database and auth failures into messages a rental agency can act on.
  *
@@ -333,6 +335,42 @@ const AUTH_MESSAGES: ReadonlyArray<readonly [RegExp, string]> = [
   ],
 ]
 
+/**
+ * The fleet limit, raised with errcode 55000 from two places: the per-row trigger
+ * ("Your plan covers % vehicles. You have %.") and the batch import ("This import
+ * has % vehicles but your plan has room for % more (limit %, in use %).").
+ * Both put database sentences in front of a person, so both are rewritten here.
+ * The numbers are read out of the sentence; the wording is ours.
+ */
+function fleetLimitMessage(raw: string): string | null {
+  const batch =
+    /This import has (\d+) vehicles? but your plan has room for (\d+) more \(limit (\d+)/i.exec(raw)
+  if (batch) {
+    const [rows, free, limit] = batch.slice(1).map(Number) as [number, number, number]
+    const fits = free === 0 ? 'no room for more' : `room for ${free} more`
+    return `This import has ${rows} ${rows === 1 ? 'vehicle' : 'vehicles'}, but your agency's limit is ${limit} and there is ${fits}. Nothing was imported. Import fewer vehicles, or retire ones you no longer rent.`
+  }
+
+  const single = /Your plan covers (\d+) vehicles\. You have (\d+)\./i.exec(raw)
+  if (single) {
+    const [limit, count] = single.slice(1).map(Number) as [number, number]
+    // Not owner-aware: this layer cannot know who is reading, so no upgrade button.
+    return vehicleLimitCopy({ limit, count, tier: null }, false)?.sentence ?? null
+  }
+
+  return null
+}
+
+/**
+ * The plate behind a unique-index collision. Postgres puts the offending key in
+ * the error details: Key (organization_id, upper(btrim(...)))=(<org id>, PLATE)
+ * already exists. Null when the details do not carry it.
+ */
+function collidingPlate(details: string | null | undefined): string | null {
+  const match = /=\([0-9a-f-]{36}, (.+)\) already exists/i.exec(details ?? '')
+  return match?.[1]?.trim() || null
+}
+
 export function toAppError(error: unknown): AppError {
   // Already mapped — re-mapping would discard the specific message.
   if (error instanceof AppError) return error
@@ -356,6 +394,20 @@ export function toAppError(error: unknown): AppError {
       'Could not reach the server. Check your connection and try again.',
       { code, cause: error },
     )
+  }
+
+  const limitMessage = fleetLimitMessage(raw)
+  if (limitMessage) return new AppError('validation', limitMessage, { code, cause: error })
+
+  if (/vehicles_plate_unique_idx/i.test(raw)) {
+    const plate = collidingPlate(error.details)
+    if (plate) {
+      return new AppError(
+        'conflict',
+        `A vehicle with the registration plate ${plate} is already in your fleet.`,
+        { code, cause: error },
+      )
+    }
   }
 
   for (const [pattern, message, kind] of CONSTRAINT_MESSAGES) {
