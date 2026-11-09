@@ -717,6 +717,8 @@ describe('the gate, structurally', () => {
       'accept_team_invitation',
       'record_invitation_delivery',
       'create_organization',
+      'organization_request_closure',
+      'organization_restore',
     ]
     const rows = await db.sql<{ proname: string }>(
       `
