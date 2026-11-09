@@ -306,13 +306,10 @@ async function seed(agency: Agency): Promise<Seeded> {
   await db.sql(`insert into storage.objects (bucket_id, name) values ('customer-documents', $1)`, [
     at('customer-documents', 'orphan-upload.jpg'),
   ])
-  for (const { bucket, key } of keys) {
-    await db.sql(
-      `insert into storage.objects (bucket_id, name) select $1, $2
-        where not exists (select 1 from storage.objects where bucket_id = $1 and name = $2)`,
-      [bucket, key],
-    )
-  }
+  // Every other key is deliberately absent from storage.objects: only the rows
+  // name it. That is what makes the collection tests prove the row-column
+  // branches, and the collect-before-delete order, instead of being satisfied by
+  // the prefix scan of storage.objects alone.
 
   return {
     ...agency,
@@ -349,6 +346,48 @@ const requested = (orgId: string, due: boolean) =>
     [orgId],
   )
 
+/** Gives the agency a subscription; returns a function that moves it to another status. */
+async function subscribe(orgId: string, status: string): Promise<(next: string) => Promise<void>> {
+  await db.sql(`select app.billing_replace_catalogue($1::jsonb)`, [
+    JSON.stringify([
+      {
+        plan_key: 'standard',
+        display_name: 'Standard',
+        stripe_price_id: 'price_test_standard',
+        currency: 'EUR',
+        amount_minor: 4900,
+        interval: 'month',
+        interval_count: 1,
+        mode: 'test',
+        sort_order: 0,
+      },
+    ]),
+  ])
+  await db.sql(`select app.billing_claim_customer($1, $2, 'test', 'billing@agency.test')`, [
+    orgId,
+    `cus_test_${orgId.slice(0, 8)}`,
+  ])
+  const apply = async (next: string) => {
+    await db.sql(
+      `select app.billing_apply_subscription(
+         $1, $2, 'test', $3::public.stripe_subscription_status, 'price_test_standard',
+         'EUR', 4900, 'month', 1, 1,
+         now() - interval '5 days', now() + interval '25 days',
+         false, null, null, null, null, null,
+         now(), $4
+       )`,
+      [
+        `sub_test_${orgId.slice(0, 8)}`,
+        `cus_test_${orgId.slice(0, 8)}`,
+        next,
+        `evt_${next}_${orgId.slice(0, 8)}`,
+      ],
+    )
+  }
+  await apply(status)
+  return apply
+}
+
 const claim = async (orgId: string) =>
   (await one<{ ok: boolean }>(`select app.organization_claim_purge($1) as ok`, [orgId])).ok
 
@@ -376,6 +415,7 @@ async function rowsLeft(table: string, orgId: string): Promise<number> {
 let a: Seeded
 let b: Seeded
 let counts: Record<string, number>
+let vaultSecretsBefore = 0
 let purgeTables: string[]
 let retainedTables: string[]
 
@@ -412,43 +452,8 @@ describe('claiming the purge', () => {
 
   it('refuses to claim an agency that still has a live subscription', async () => {
     const paying = await newAgency('Paying Rentals', null)
-    await db.sql(`select app.billing_replace_catalogue($1::jsonb)`, [
-      JSON.stringify([
-        {
-          plan_key: 'standard',
-          display_name: 'Standard',
-          stripe_price_id: 'price_test_standard',
-          currency: 'EUR',
-          amount_minor: 4900,
-          interval: 'month',
-          interval_count: 1,
-          mode: 'test',
-          sort_order: 0,
-        },
-      ]),
-    ])
     const id = paying.organizationId
-    const apply = (status: string) =>
-      db.sql(
-        `select app.billing_apply_subscription(
-           $1, $2, 'test', $3::public.stripe_subscription_status, 'price_test_standard',
-           'EUR', 4900, 'month', 1, 1,
-           now() - interval '5 days', now() + interval '25 days',
-           false, null, null, null, null, null,
-           now(), $4
-         )`,
-        [
-          `sub_test_${id.slice(0, 8)}`,
-          `cus_test_${id.slice(0, 8)}`,
-          status,
-          `evt_${status}_${id.slice(0, 8)}`,
-        ],
-      )
-    await db.sql(`select app.billing_claim_customer($1, $2, 'test', 'billing@agency.test')`, [
-      id,
-      `cus_test_${id.slice(0, 8)}`,
-    ])
-    await apply('active')
+    const setStatus = await subscribe(id, 'active')
     await requested(id, true)
 
     await db.expectRejection(
@@ -461,8 +466,70 @@ describe('claiming the purge', () => {
     )
     expect(row!.p).toBeNull()
 
-    await apply('canceled')
+    await setStatus('canceled')
     expect(await claim(id)).toBe(true)
+  })
+
+  it('refuses to purge a live subscription even when the claim was bypassed', async () => {
+    const paying = await newAgency('Bypassed Rentals', null)
+    const id = paying.organizationId
+    await subscribe(id, 'active')
+    await requested(id, true)
+    // Something other than claim_purge sets purge_started_at.
+    await db.sql(`update public.organizations set purge_started_at = now() where id = $1`, [id])
+
+    await db.expectRejection(
+      () => db.sql(`select app.organization_purge_data($1)`, [id]),
+      /live subscription/i,
+    )
+    expect(await rowsLeft('organization_members', id)).toBeGreaterThan(0)
+  })
+
+  it('will not collect the objects of an agency that is not being purged', async () => {
+    const live = await newAgency('Live Rentals', null)
+    await db.expectRejection(
+      () => db.sql(`select app.organization_collect_objects($1)`, [live.organizationId]),
+      /only collected for an agency that is being purged/i,
+    )
+    await requested(live.organizationId, false)
+    await db.expectRejection(
+      () => db.sql(`select app.organization_collect_objects($1)`, [live.organizationId]),
+      /only collected for an agency that is being purged/i,
+    )
+    const rows = await db.sql(
+      `select 1 from public.account_closure_objects where organization_id = $1`,
+      [live.organizationId],
+    )
+    expect(rows.length).toBe(0)
+  })
+
+  it('does not honour app.account_purge for an agency that is not mid-purge', async () => {
+    const live = await seed(await newAgency('Forged Rentals', null))
+    const voidedId = live.voidedExpenseId
+    // Forge the setting for a live agency: the guards must still refuse. Each
+    // attempt gets its own transaction, because a refusal aborts the one it is in.
+    const forged = async (statement: string, params: unknown[]) => {
+      await db.exec(
+        `begin; select set_config('app.account_purge', '${live.organizationId}', true);`,
+      )
+      try {
+        await db.sql(statement, params)
+      } finally {
+        await db.exec(`rollback;`)
+      }
+    }
+    await db.expectRejection(
+      () => forged(`delete from public.expenses where id = $1`, [voidedId]),
+      /voided expense/i,
+    )
+    await db.expectRejection(
+      () =>
+        forged(`delete from public.organization_team_events where organization_id = $1`, [
+          live.organizationId,
+        ]),
+      /cannot be deleted/i,
+    )
+    expect(await rowsLeft('expenses', live.organizationId)).toBe(2)
   })
 
   it('does not claim an agency that does not exist', async () => {
@@ -552,7 +619,8 @@ describe('purging an agency', () => {
       a.organizationId,
     ])
     const vaultBefore = await one<{ n: number }>(`select count(*)::int as n from vault.secrets`)
-    expect(Number(vaultBefore.n)).toBeGreaterThan(0)
+    vaultSecretsBefore = Number(vaultBefore.n)
+    expect(vaultSecretsBefore).toBeGreaterThan(0)
 
     const result = await one<{ counts: Record<string, number> }>(
       `select app.organization_purge_data($1) as counts`,
@@ -564,7 +632,17 @@ describe('purging an agency', () => {
       `select count(*)::int as n from public.account_closure_objects where organization_id = $1`,
       [a.organizationId],
     )
-    expect(Number(recorded.n)).toBeGreaterThanOrEqual(a.keys.length)
+    expect(Number(recorded.n)).toBe(a.keys.length + 1) // plus the logo
+
+    // Every key the (now deleted) rows named, which the prefix scan cannot have
+    // supplied: only the orphan upload is in storage.objects.
+    const stored = await db.sql<{ storage_key: string }>(
+      `select storage_key from public.account_closure_objects where organization_id = $1`,
+      [a.organizationId],
+    )
+    const keysNow = stored.map((r) => r.storage_key)
+    for (const { key } of a.keys) expect(keysNow).toContain(key)
+    expect(keysNow).toContain(`${a.organizationId}/logo.png`)
   })
 
   it('leaves no row in any table carrying this organization_id', async () => {
@@ -602,11 +680,9 @@ describe('purging an agency', () => {
   })
 
   it('removes the gps provider credential from the vault, not just the row that points at it', async () => {
-    const [left] = await db.sql<{ n: number }>(
-      `select count(*)::int as n from vault.decrypted_secrets where decrypted_secret = 'provider-token-secret'`,
-    )
-    // Agency B still has its own.
-    expect(Number(left!.n)).toBe(1)
+    const [left] = await db.sql<{ n: number }>(`select count(*)::int as n from vault.secrets`)
+    // Exactly one secret went (this agency's), and every other agency keeps its own.
+    expect(vaultSecretsBefore - Number(left!.n)).toBe(1)
     expect(counts['vault.secrets']).toBe(1)
   })
 

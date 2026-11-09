@@ -121,6 +121,30 @@ $$;
 comment on function app.organization_retained_tables() is
   'Tables carrying organization_id that the account purge keeps on purpose: billing records and closure evidence.';
 
+/**
+ * Does the agency still have a subscription that is billing, or may bill?
+ * Same set of live statuses the old organization-delete guard used
+ * (app.guard_organization_billing_on_delete). Shared by the claim and the purge,
+ * so the two cannot drift apart.
+ */
+create or replace function app.organization_has_live_subscription(p_organization_id uuid)
+returns boolean
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select exists (
+    select 1
+      from public.billing_subscriptions s
+     where s.organization_id = p_organization_id
+       and s.status in ('trialing', 'active', 'past_due', 'unpaid', 'paused')
+  );
+$$;
+
+comment on function app.organization_has_live_subscription(uuid) is
+  'True while a trialing, active, past_due, unpaid or paused subscription exists for the agency. Used by the purge claim and the purge itself to refuse a paying customer.';
+
 -- -----------------------------------------------------------------------------
 -- 2. Claiming
 -- -----------------------------------------------------------------------------
@@ -175,12 +199,7 @@ begin
    * organization-delete guard (app.guard_organization_billing_on_delete) made
    * for the same reason, with the same set of live statuses.
    */
-  if exists (
-    select 1
-      from public.billing_subscriptions s
-     where s.organization_id = p_organization_id
-       and s.status in ('trialing', 'active', 'past_due', 'unpaid', 'paused')
-  ) then
+  if app.organization_has_live_subscription(p_organization_id) then
     raise exception
       'This agency still has a live subscription. Cancel it in Stripe before purging.'
       using errcode = '55000';
@@ -225,6 +244,18 @@ as $$
 declare
   v_prefix text := p_organization_id::text || '/';
 begin
+  /*
+   * Only for an agency that is being or has been purged. This writes a complete
+   * inventory of an agency's storage keys, passport and licence scans included,
+   * into the table the Storage sweep deletes from. Run against a live agency it
+   * would hand the sweep a list of a live tenant's documents.
+   */
+  if app.closure_state_of(p_organization_id) not in ('purging', 'closed') then
+    raise exception 'Objects are only collected for an agency that is being purged (state: %).',
+      app.closure_state_of(p_organization_id)
+      using errcode = '55000';
+  end if;
+
   insert into public.account_closure_objects (organization_id, bucket, storage_key)
   select p_organization_id, found.bucket, found.storage_key
     from (
@@ -294,8 +325,10 @@ comment on function app.organization_collect_objects(uuid) is
 --
 -- Each is redefined below with ONE added condition: the delete is also allowed
 -- when the transaction-local setting `app.account_purge` equals the id of the
--- row's own organization. app.organization_purge_data sets it, to the id it is
--- purging, and nothing else does. It cannot be set from a browser: set_config
+-- row's own organization AND that organization is mid-purge (claimed, not yet
+-- closed). app.organization_purge_data sets the setting, to the id it is
+-- purging, and nothing else does; the mid-purge condition means that even a
+-- forged setting unlocks nothing for an agency that is not being purged. It cannot be set from a browser: set_config
 -- lives in pg_catalog and PostgREST exposes only `public`, the same property the
 -- membership guard already relies on for `app.membership_operation`. And it
 -- names one organization, so even a forged value would unlock one agency's rows.
@@ -314,7 +347,8 @@ begin
   -- account purge keeps the row, and says so with app.account_purge.
   if old.status = 'voided'
      and exists (select 1 from public.organizations o where o.id = old.organization_id)
-     and coalesce(current_setting('app.account_purge', true), '') <> old.organization_id::text
+     and not (coalesce(current_setting('app.account_purge', true), '') = old.organization_id::text
+              and exists (select 1 from public.organizations o where o.id = old.organization_id and o.purge_started_at is not null and o.closed_at is null))
   then
     raise exception
       'A voided expense is the record of a correction and cannot be deleted.'
@@ -337,7 +371,8 @@ begin
   -- once the agency is gone the cascade may take its history with it, and the
   -- account purge says the same with app.account_purge.
   if exists (select 1 from public.organizations o where o.id = old.organization_id)
-     and coalesce(current_setting('app.account_purge', true), '') <> old.organization_id::text
+     and not (coalesce(current_setting('app.account_purge', true), '') = old.organization_id::text
+              and exists (select 1 from public.organizations o where o.id = old.organization_id and o.purge_started_at is not null and o.closed_at is null))
   then
     raise exception
       'A financing payment is financial history. Void it instead of deleting it.'
@@ -358,7 +393,9 @@ begin
     return old; -- the agency itself is being torn down
   end if;
 
-  if coalesce(current_setting('app.account_purge', true), '') = old.organization_id::text then
+  if coalesce(current_setting('app.account_purge', true), '') = old.organization_id::text
+     and exists (select 1 from public.organizations o where o.id = old.organization_id and o.purge_started_at is not null and o.closed_at is null)
+  then
     return old; -- the agency is being purged; the row stays, its data does not
   end if;
 
@@ -390,7 +427,8 @@ begin
      * said so with app.account_purge. No client can manufacture either.
      */
     if not exists (select 1 from public.organizations o where o.id = old.organization_id)
-       or coalesce(current_setting('app.account_purge', true), '') = old.organization_id::text
+       or (coalesce(current_setting('app.account_purge', true), '') = old.organization_id::text
+           and exists (select 1 from public.organizations o where o.id = old.organization_id and o.purge_started_at is not null and o.closed_at is null))
     then
       return old;
     end if;
@@ -444,7 +482,8 @@ begin
      * app.account_purge. No client can manufacture either.
      */
     if not exists (select 1 from public.organizations o where o.id = old.organization_id)
-       or coalesce(current_setting('app.account_purge', true), '') = old.organization_id::text
+       or (coalesce(current_setting('app.account_purge', true), '') = old.organization_id::text
+           and exists (select 1 from public.organizations o where o.id = old.organization_id and o.purge_started_at is not null and o.closed_at is null))
     then
       return old;
     end if;
@@ -517,6 +556,18 @@ begin
   if app.closure_state_of(p_organization_id) <> 'purging' then
     raise exception 'This agency has not been claimed for purging (state: %).',
       app.closure_state_of(p_organization_id)
+      using errcode = '55000';
+  end if;
+
+  /*
+   * The same refusal the claim makes, made again here because this is the step
+   * that destroys the data. Something other than app.organization_claim_purge
+   * can set purge_started_at (a service-role UPDATE, a retry helper), and
+   * "purged a paying customer" must be unreachable whatever a caller did.
+   */
+  if app.organization_has_live_subscription(p_organization_id) then
+    raise exception
+      'This agency still has a live subscription. Cancel it in Stripe before purging.'
       using errcode = '55000';
   end if;
 
@@ -607,12 +658,14 @@ comment on function app.organization_purge_data(uuid) is
 
 revoke all on function app.organization_purge_tables() from public, anon, authenticated;
 revoke all on function app.organization_retained_tables() from public, anon, authenticated;
+revoke all on function app.organization_has_live_subscription(uuid) from public, anon, authenticated;
 revoke all on function app.organization_claim_purge(uuid) from public, anon, authenticated;
 revoke all on function app.organization_collect_objects(uuid) from public, anon, authenticated;
 revoke all on function app.organization_purge_data(uuid) from public, anon, authenticated;
 
 grant execute on function app.organization_purge_tables() to service_role;
 grant execute on function app.organization_retained_tables() to service_role;
+grant execute on function app.organization_has_live_subscription(uuid) to service_role;
 grant execute on function app.organization_claim_purge(uuid) to service_role;
 grant execute on function app.organization_collect_objects(uuid) to service_role;
 grant execute on function app.organization_purge_data(uuid) to service_role;
