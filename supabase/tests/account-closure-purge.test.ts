@@ -415,7 +415,8 @@ async function rowsLeft(table: string, orgId: string): Promise<number> {
 let a: Seeded
 let b: Seeded
 let counts: Record<string, number>
-let vaultSecretsBefore = 0
+let secretIdOfA = ''
+let secretIdOfB = ''
 let purgeTables: string[]
 let retainedTables: string[]
 
@@ -529,7 +530,34 @@ describe('claiming the purge', () => {
         ]),
       /cannot be deleted/i,
     )
+    await db.expectRejection(
+      () =>
+        forged(`delete from public.financing_payments where organization_id = $1`, [
+          live.organizationId,
+        ]),
+      /financial history/i,
+    )
+    await db.expectRejection(
+      () => forged(`delete from public.financing_agreements where id = $1`, [live.agreementId]),
+      /only a draft agreement/i,
+    )
+    await db.expectRejection(
+      () =>
+        forged(`delete from public.notification_events where organization_id = $1`, [
+          live.organizationId,
+        ]),
+      /written by the domain/i,
+    )
+    // All five guards held: nothing was removed.
     expect(await rowsLeft('expenses', live.organizationId)).toBe(2)
+    for (const table of [
+      'organization_team_events',
+      'financing_payments',
+      'financing_agreements',
+      'notification_events',
+    ]) {
+      expect(await rowsLeft(table, live.organizationId), table).toBeGreaterThan(0)
+    }
   })
 
   it('does not claim an agency that does not exist', async () => {
@@ -618,9 +646,18 @@ describe('purging an agency', () => {
     await db.sql(`delete from public.account_closure_objects where organization_id = $1`, [
       a.organizationId,
     ])
-    const vaultBefore = await one<{ n: number }>(`select count(*)::int as n from vault.secrets`)
-    vaultSecretsBefore = Number(vaultBefore.n)
-    expect(vaultSecretsBefore).toBeGreaterThan(0)
+    // Identify the vault secrets by id, not by value or by total: only an id
+    // can tell this agency's secret from another's.
+    const secretOf = async (orgId: string) =>
+      (
+        await one<{ secret_ref: string }>(
+          `select secret_ref from public.gps_provider_credentials where organization_id = $1`,
+          [orgId],
+        )
+      ).secret_ref
+    secretIdOfA = await secretOf(a.organizationId)
+    secretIdOfB = await secretOf(b.organizationId)
+    expect(secretIdOfA).not.toBe(secretIdOfB)
 
     const result = await one<{ counts: Record<string, number> }>(
       `select app.organization_purge_data($1) as counts`,
@@ -632,7 +669,10 @@ describe('purging an agency', () => {
       `select count(*)::int as n from public.account_closure_objects where organization_id = $1`,
       [a.organizationId],
     )
-    expect(Number(recorded.n)).toBe(a.keys.length + 1) // plus the logo
+    expect(Number(recorded.n)).toBe(a.keys.length + 1)
+    // a.keys holds every key named by a row or uploaded as an orphan; the logo is
+    // the one key it does not hold, because it is set on the organization row in
+    // newAgency, not through seed()'s at() helper. Hence the + 1.
 
     // Every key the (now deleted) rows named, which the prefix scan cannot have
     // supplied: only the orphan upload is in storage.objects.
@@ -680,9 +720,11 @@ describe('purging an agency', () => {
   })
 
   it('removes the gps provider credential from the vault, not just the row that points at it', async () => {
-    const [left] = await db.sql<{ n: number }>(`select count(*)::int as n from vault.secrets`)
-    // Exactly one secret went (this agency's), and every other agency keeps its own.
-    expect(vaultSecretsBefore - Number(left!.n)).toBe(1)
+    const present = async (id: string) =>
+      (await db.sql(`select 1 from vault.secrets where id = $1`, [id])).length === 1
+    // This agency's secret went, and another agency's is still there.
+    expect(await present(secretIdOfA)).toBe(false)
+    expect(await present(secretIdOfB)).toBe(true)
     expect(counts['vault.secrets']).toBe(1)
   })
 
