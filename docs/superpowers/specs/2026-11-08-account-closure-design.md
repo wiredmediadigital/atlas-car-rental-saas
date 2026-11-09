@@ -92,14 +92,26 @@ foreign key and nothing cascades.
 
 This is simpler than the alternatives it replaces: no detached archive table
 with its own RLS story, and no re-pointing of foreign keys. "Purge" means
-*delete the tenant's data and blank the shell*, not *delete the organization*.
+_delete the tenant's data and blank the shell_, not _delete the organization_.
 
 ## What the user decided
 
-- **Stripe is cancelled immediately on request, with no refund** for the
-  remainder. Read-only access continues free through the grace period. This
-  matches the existing Terms, which already say part-used periods are not
-  refunded.
+- **The Stripe subscription is cancelled by Adera Labs when the request is
+  processed, with no refund** for the remainder. Read-only access continues
+  free through the grace period. This matches the existing Terms, which already
+  say part-used periods are not refunded.
+
+  Cancelling is a manual operator step, decided mid-build rather than
+  automated. The product holds no Stripe write credential on this path, and a
+  cancellation issued automatically by a request that is reversible for 30 days
+  would have to be un-issued on every restore. Instead the purge refuses to
+  claim an agency that still has a live subscription
+  (`app.organization_has_live_subscription`, raising _"This agency still has a
+  live subscription. Cancel it in Stripe before purging."_), which makes the
+  manual step load-bearing rather than a reminder: forget it, and nothing is
+  deleted. The Terms therefore say the subscription is cancelled **when the
+  request is processed**, not the instant the button is pressed.
+
 - **The button requests closure; it does not execute it.** The account
   suspends immediately — read-only, labelled, restorable — so the instruction
   visibly takes effect at once. The purge runs at the end of the 30-day window,
@@ -115,6 +127,7 @@ with its own RLS story, and no re-pointing of foreign keys. "Purge" means
   better than guarding it. Article 28 requires acting on the controller's
   instruction, not providing a button that executes it; suspension within
   seconds and a purge within days is acting on it.
+
 - **The purge is triggered by a scheduled call from outside the deployment** —
   a daily GitHub Action, with a secret, invoking an authenticated Edge
   Function that purges everything past its date. This preserves the project's
@@ -141,7 +154,7 @@ with its own RLS story, and no re-pointing of foreign keys. "Purge" means
   one database transaction; storage and auth are separate steps, which is why
   the work must be resumable.
 - **Closure state is stored separately from billing state.** `billing_access_
-  state_of` already returns `restricted` for a lapsed *or* never-subscribed
+state_of` already returns `restricted` for a lapsed _or_ never-subscribed
   agency, so suspension is indistinguishable from lapse unless recorded
   independently. On restore the account returns to whatever billing says, which
   may still be restricted — the interface must say so rather than imply
@@ -165,17 +178,23 @@ with its own RLS story, and no re-pointing of foreign keys. "Purge" means
 ### Requesting closure
 
 Owner-only, from Settings, enforced in the database rather than the interface
-alone. The request records who asked and when, cancels the Stripe subscription,
-notifies every owner and admin, and moves the account to **suspended**:
+alone. The request records who asked and when, notifies every owner and admin,
+and moves the account to **suspended**:
 read-only, clearly labelled, purge date shown, one-click restore. Nothing is
 destroyed yet.
 
-**Closing is owner-only; restoring is owner *or admin*.** The asymmetry is
+**Adera Labs is notified too, and that notification is operational.** It names
+the agency and says to cancel its Stripe subscription, because the purge will
+refuse the agency until someone does. Without it the manual cancellation has
+nothing to prompt it, and the first sign of a missed step would be an agency
+still holding its data after the window closed.
+
+**Closing is owner-only; restoring is owner _or admin_.** The asymmetry is
 deliberate: make the destructive action narrow and the undo broad. It is what
 covers the hardest case in the threat model — an agency with a single owner
 whose account is compromised. Without it, nobody else can reach the restore
 button during the grace period; with it, any admin can. An admin still cannot
-*close* the account, so widening the undo gives away no authority over the
+_close_ the account, so widening the undo gives away no authority over the
 decision itself.
 
 **30 days by default**, serving the first anti-goal: a mistake must be
