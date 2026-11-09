@@ -34,7 +34,7 @@ declare
   v_rows  integer;
 begin
   if not app.has_min_role(p_organization_id, 'manager'::public.org_role) then
-    raise exception 'Not a member of this organization.' using errcode = '42501';
+    raise exception 'You need the manager role to import vehicles.' using errcode = '42501';
   end if;
 
   perform app.billing_require_write(p_organization_id);

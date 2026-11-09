@@ -8,7 +8,7 @@
  */
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 
-import { TestDatabase, signUp } from './support/harness'
+import { TestDatabase, addMember, signUp } from './support/harness'
 
 let db: TestDatabase
 let organizationId: string
@@ -165,6 +165,7 @@ describe('vehicles_import_batch', () => {
       .then(() => null)
       .catch((error: { code?: string }) => error.code)
     expect(code).toBe('55000')
+    expect(await tableCount()).toBe(5)
   })
 
   it('imports any size when the agency has no limit', async () => {
@@ -182,10 +183,56 @@ describe('vehicles_import_batch', () => {
   })
 
   it('rolls the whole batch back when one row is invalid', async () => {
+    await subscribeStarter()
+    await seed(1)
     const batch = rows(3)
     batch[2] = { ...batch[2]!, make: '' }
-    await db.expectRejection(() => importAs(owner, organizationId, batch))
+    await db.expectRejection(
+      () => importAs(owner, organizationId, batch),
+      /violates check constraint/,
+    )
+    expect(await tableCount()).toBe(1)
+  })
+
+  it('refuses a member below manager, writing nothing', async () => {
+    const staff = await signUp(db, {
+      email: `staff${seq}@import.test`,
+      fullName: 'Staff',
+      organizationName: `Staff Own ${seq}`,
+      currency: 'EUR',
+      timeZone: 'Europe/Paris',
+    })
+    await addMember(db, organizationId, staff.userId, 'staff')
+    await db.expectRejection(() => importAs(staff.userId, organizationId, rows(1)), /manager role/)
     expect(await tableCount()).toBe(0)
+  })
+
+  it('ignores id, organization_id, created_by and archived_at supplied in a row', async () => {
+    await subscribeStarter()
+    const other = await signUp(db, {
+      email: `other${seq}@import.test`,
+      fullName: 'Other',
+      organizationName: `Other Org ${seq}`,
+      currency: 'EUR',
+      timeZone: 'Europe/Paris',
+    })
+    const forged = {
+      ...rows(1)[0]!,
+      id: '00000000-0000-0000-0000-000000000001',
+      organization_id: other.organizationId,
+      created_by: other.userId,
+      archived_at: '2026-01-01T00:00:00Z',
+    }
+    const [row] = await importAs<{
+      id: string
+      organization_id: string
+      created_by: string
+      archived_at: string | null
+    }>(owner, organizationId, [forged])
+    expect(row!.id).not.toBe(forged.id)
+    expect(row!.organization_id).toBe(organizationId)
+    expect(row!.created_by).toBe(owner)
+    expect(row!.archived_at).toBeNull()
   })
 
   it('refuses a caller who is not a member of the organization', async () => {
@@ -198,7 +245,7 @@ describe('vehicles_import_batch', () => {
     })
     await db.expectRejection(
       () => importAs(stranger.userId, organizationId, rows(1)),
-      /Not a member of this organization/,
+      /manager role/,
     )
     expect(await tableCount()).toBe(0)
   })
