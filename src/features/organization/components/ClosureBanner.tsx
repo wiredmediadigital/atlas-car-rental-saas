@@ -6,6 +6,7 @@ import { canRestoreAgency, formatPurgeDate } from '../closure'
 import { useClosureState } from '../queries'
 
 import { RestoreAgencyButton } from './RestoreAgencyButton'
+import { SupportLink } from './SupportLink'
 
 /**
  * What every member sees, on every page, while the agency is closing.
@@ -42,6 +43,7 @@ export function ClosureBanner() {
     return (
       <Alert tone="critical" title="This agency is being deleted" className="mb-6">
         The 30-day window has ended and the deletion has started. It can no longer be restored.
+        Questions? Email <SupportLink />.
       </Alert>
     )
   }
@@ -70,6 +72,9 @@ function SuspendedBanner({ canRestore }: { canRestore: boolean }) {
         {canRestore
           ? 'Restoring the agency takes effect immediately.'
           : 'Ask an owner or administrator of this agency to restore it.'}
+      </p>
+      <p className="mt-1">
+        Questions, or need the data deleted sooner? Email <SupportLink />.
       </p>
     </Alert>
   )

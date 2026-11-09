@@ -25,6 +25,7 @@ import {
 import { useClosureState, useRequestClosure } from '../queries'
 
 import { RestoreAgencyButton } from './RestoreAgencyButton'
+import { SupportLink } from './SupportLink'
 
 /**
  * Closing the agency, and taking it back.
@@ -98,7 +99,8 @@ function ClosingStatus({
         {purgeDate ? ` and its data will be permanently deleted on or after ${purgeDate}.` : '.'}
       </p>
       <p className="text-ink-muted text-[0.8125rem] leading-5">
-        If the data has to be gone sooner, ask us. There is deliberately no button for it.
+        If the data has to be gone sooner, ask us at <SupportLink />. There is deliberately no
+        button for it.
       </p>
       {canRestore ? (
         <div className="flex flex-wrap gap-2">
@@ -171,7 +173,8 @@ function CloseControl({ organization }: { organization: Organization }) {
             </li>
             <li>Before then, an owner or administrator can restore the agency from Settings.</li>
             <li>
-              If the data must be gone sooner, ask us. There is deliberately no button for it.
+              If the data must be gone sooner, ask us at <SupportLink />. There is deliberately no
+              button for it.
             </li>
           </ul>
 

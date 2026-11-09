@@ -6,6 +6,7 @@ import { MemoryRouter } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { ToastProvider } from '@/components/ui'
+import { SUPPORT_EMAIL } from '@/features/help/constants'
 import { formatDate } from '@/lib/datetime/format'
 import {
   WorkspaceContext,
@@ -201,6 +202,10 @@ describe('CloseAccountCard', () => {
 
     expect(within(dialog).getByText(/30 days/i)).toBeInTheDocument()
     expect(within(dialog).getByText(/ask us/i)).toBeInTheDocument()
+    expect(within(dialog).getByRole('link', { name: SUPPORT_EMAIL })).toHaveAttribute(
+      'href',
+      `mailto:${SUPPORT_EMAIL}`,
+    )
     expect(within(dialog).queryByRole('button', { name: /now|immediately|delete/i })).toBeNull()
   })
 
@@ -217,6 +222,14 @@ describe('CloseAccountCard', () => {
     await waitFor(() => expect(requestClosure).toHaveBeenCalledWith('org-1'))
     expect(vi.mocked(requestClosure).mock.calls[0]).toHaveLength(1)
     await waitFor(() => expect(refresh).toHaveBeenCalled())
+  })
+
+  it('gives a one-click route to a person while suspended', () => {
+    renderWith(workspace('owner', 'suspended'), <CloseAccountCard />)
+    expect(screen.getByRole('link', { name: SUPPORT_EMAIL })).toHaveAttribute(
+      'href',
+      `mailto:${SUPPORT_EMAIL}`,
+    )
   })
 
   it('shows the purge date while suspended', () => {
@@ -294,6 +307,17 @@ describe('ClosureBanner', () => {
       const { unmount } = renderWith(workspace(role, 'suspended'), <ClosureBanner />)
       expect(restoreButton()).not.toBeInTheDocument()
       expect(screen.getByText(/ask an owner or administrator/i)).toBeInTheDocument()
+      unmount()
+    }
+  })
+
+  it('gives every role a mailto link to support while suspended', () => {
+    for (const role of ['owner', 'admin', 'manager', 'staff'] as const) {
+      const { unmount } = renderWith(workspace(role, 'suspended'), <ClosureBanner />)
+      expect(screen.getByRole('link', { name: SUPPORT_EMAIL })).toHaveAttribute(
+        'href',
+        `mailto:${SUPPORT_EMAIL}`,
+      )
       unmount()
     }
   })
