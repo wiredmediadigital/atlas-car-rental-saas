@@ -184,6 +184,7 @@ describe('nothing in the schema can bypass RLS', () => {
       'team_invitations',
       'team_seat_summary',
       'transfer_organization_ownership',
+      'vehicles_import_batch',
     ])
   })
 
