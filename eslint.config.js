@@ -23,6 +23,7 @@ export default tseslint.config(
       'supabase/functions/billing/**',
       'supabase/functions/billing-webhook/**',
       'supabase/functions/pricing/**',
+      'supabase/functions/account-closure/**',
     ],
   },
   js.configs.recommended,
