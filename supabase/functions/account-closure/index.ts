@@ -27,6 +27,8 @@ import {
   AUTH_USERS_BUCKET,
   authUserKey,
   interpretClaim,
+  readAllPages,
+  readInChunks,
   runAccountClosure,
   runIfAuthorized,
   type ClosureDeps,
@@ -36,7 +38,9 @@ import {
 } from '../_shared/account-closure.ts'
 
 const RUN_BUDGET_MS = 120_000
-const PAGE = 1000
+// Below config.toml max_rows (1000), so a short page really is the last one.
+const PAGE = 500
+const IN_CHUNK = 100
 const ORG_COLUMNS =
   'id, name, legal_name, closure_requested_at, closure_purge_after, purge_started_at, closed_at'
 
@@ -70,13 +74,19 @@ function buildDeps(service: SupabaseClient, deadline: number): ClosureDeps {
   return {
     listClosingOrganizations: async () =>
       (
-        must(
-          await service
-            .from('organizations')
-            .select(ORG_COLUMNS)
-            .not('closure_requested_at', 'is', null)
-            .is('closed_at', null),
-        ) ?? []
+        await readAllPages(
+          async (from, to) =>
+            must(
+              await service
+                .from('organizations')
+                .select(ORG_COLUMNS)
+                .not('closure_requested_at', 'is', null)
+                .is('closed_at', null)
+                .order('id')
+                .range(from, to),
+            ) ?? [],
+          PAGE,
+        )
       ).map(toOrganization),
 
     listClosedWithPendingWork: async () => {
@@ -118,9 +128,18 @@ function buildDeps(service: SupabaseClient, deadline: number): ClosureDeps {
 
     listMemberIds: async (id) =>
       (
-        must(
-          await service.from('organization_members').select('user_id').eq('organization_id', id),
-        ) ?? []
+        await readAllPages(
+          async (from, to) =>
+            must(
+              await service
+                .from('organization_members')
+                .select('user_id')
+                .eq('organization_id', id)
+                .order('user_id')
+                .range(from, to),
+            ) ?? [],
+          PAGE,
+        )
       ).map((r: { user_id: string }) => r.user_id),
 
     recordRemovalCandidates: async (id, userIds) => {
@@ -181,24 +200,31 @@ function buildDeps(service: SupabaseClient, deadline: number): ClosureDeps {
 
     membershipsOf: async (userIds) =>
       (
-        must(
-          await service
-            .from('organization_members')
-            .select('user_id, organization_id')
-            .in('user_id', userIds),
-        ) ?? []
+        await readInChunks(
+          userIds,
+          IN_CHUNK,
+          async (chunk, from, to) =>
+            must(
+              await service
+                .from('organization_members')
+                .select('user_id, organization_id')
+                .in('user_id', chunk)
+                .order('user_id')
+                .order('organization_id')
+                .range(from, to),
+            ) ?? [],
+          PAGE,
+        )
       ).map((r: { user_id: string; organization_id: string }) => ({
         userId: r.user_id,
         organizationId: r.organization_id,
       })),
 
-    removeUser: async (userId) => {
+    // One call each. The order and the "already gone" ruling are in _shared.
+    deleteAuthUser: async (userId) => (await service.auth.admin.deleteUser(userId)).error,
+
+    deleteProfile: async (userId) => {
       must(await service.from('profiles').delete().eq('id', userId))
-      const { error } = await service.auth.admin.deleteUser(userId)
-      // Already gone is success: a re-run after a crash lands here.
-      if (error && error.status !== 404 && error.code !== 'user_not_found') {
-        throw new Error(`Auth removal failed: ${error.message}`)
-      }
     },
 
     hasTime: () => Date.now() < deadline,

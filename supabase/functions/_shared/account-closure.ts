@@ -96,6 +96,7 @@ export const AUTH_USERS_BUCKET = 'closure:accounts-to-remove'
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 export const DEFAULT_SWEEP_BATCH = 100
+const AUTH_BATCH = 100
 
 /**
  * Agencies that have been asked to close, whose date has passed, and that nobody
@@ -185,14 +186,13 @@ export const MIN_RUNNER_SECRET_LENGTH = 32
  * An absent or too-short configured secret refuses everyone.
  */
 export function isAuthorizedRunner(authorization: string | null, secret: string): boolean {
-  const serviceKey = secret
-  if (serviceKey.length < MIN_RUNNER_SECRET_LENGTH || authorization === null) return false
+  if (secret.length < MIN_RUNNER_SECRET_LENGTH || authorization === null) return false
   const match = /^Bearer (.+)$/i.exec(authorization.trim())
   if (!match) return false
   const given = match[1]!
-  let diff = given.length ^ serviceKey.length
-  for (let i = 0; i < serviceKey.length; i += 1) {
-    diff |= (given.charCodeAt(i) || 0) ^ serviceKey.charCodeAt(i)
+  let diff = given.length ^ secret.length
+  for (let i = 0; i < secret.length; i += 1) {
+    diff |= (given.charCodeAt(i) || 0) ^ secret.charCodeAt(i)
   }
   return diff === 0
 }
@@ -211,6 +211,73 @@ export async function runIfAuthorized(
   if (!isAuthorizedRunner(authorization, secret)) return { status: 401 }
   const report = await run()
   return { status: report.failures > 0 ? 500 : 200, report }
+}
+
+/** What Auth said about a delete. Only `status` and `code` are looked at. */
+export interface AuthDeleteError {
+  status?: number
+  code?: string
+  message?: string
+}
+
+/**
+ * Reads the answer of an Auth user delete. "Not found" is success: it is what a
+ * re-run sees for an account the crashed run already removed. Every other error
+ * is thrown, so the person's record stays pending and the next run retries.
+ */
+export function interpretAuthDelete(error: AuthDeleteError | null): 'removed' | 'already-gone' {
+  if (error === null) return 'removed'
+  if (error.status === 404 || error.code === 'user_not_found') return 'already-gone'
+  throw new Error(`Auth removal failed: ${error.message ?? 'unknown error'}`)
+}
+
+/**
+ * Removes one person. THE AUTH ACCOUNT GOES FIRST: `profiles.id` references
+ * `auth.users` ON DELETE CASCADE, so the profile disappears with it atomically.
+ * Deleting the profile first would open a window in which a crash leaves a
+ * still-loginable account with no profile. The explicit profile delete after it
+ * is idempotent cleanup for a row that should already be gone.
+ */
+export async function removeUser(deps: ClosureDeps, userId: string): Promise<void> {
+  interpretAuthDelete(await deps.deleteAuthUser(userId))
+  await deps.deleteProfile(userId)
+}
+
+/**
+ * Reads every row of a paginated source, failing closed. A page shorter than
+ * `pageSize` is the end; a full page means there may be more, so the next one is
+ * read. `pageSize` MUST be below the server's row cap (config.toml `max_rows`),
+ * or a capped page would look like the end. Exceeding `maxRows` throws rather
+ * than returning a partial list: on a delete path "I read everything" must not
+ * be a guess.
+ */
+export async function readAllPages<T>(
+  fetchPage: (from: number, to: number) => Promise<T[]>,
+  pageSize: number,
+  maxRows: number = 100_000,
+): Promise<T[]> {
+  const all: T[] = []
+  for (let from = 0; ; from += pageSize) {
+    if (from >= maxRows) throw new Error(`Read more than ${maxRows} rows; refusing to continue.`)
+    const page = await fetchPage(from, from + pageSize - 1)
+    all.push(...page)
+    if (page.length < pageSize) return all
+  }
+}
+
+/** `readAllPages` for a lookup keyed by many ids, which must not go in one query string. */
+export async function readInChunks<K, T>(
+  keys: readonly K[],
+  chunkSize: number,
+  fetchPage: (chunk: K[], from: number, to: number) => Promise<T[]>,
+  pageSize: number,
+): Promise<T[]> {
+  const all: T[] = []
+  for (let i = 0; i < keys.length; i += chunkSize) {
+    const chunk = keys.slice(i, i + chunkSize)
+    all.push(...(await readAllPages((from, to) => fetchPage(chunk, from, to), pageSize)))
+  }
+  return all
 }
 
 export type ClaimResult = 'claimed' | 'declined' | 'live-subscription'
@@ -261,8 +328,10 @@ export interface ClosureDeps {
   purgeData(organizationId: string): Promise<Record<string, number>>
   /** Memberships these people still hold, in any agency. */
   membershipsOf(userIds: string[]): Promise<{ userId: string; organizationId: string }[]>
-  /** Removes the `profiles` row, then the auth account. Both already gone is success. */
-  removeUser(userId: string): Promise<void>
+  /** One call to Auth. Resolves with the error it returned, or null; never classifies it. */
+  deleteAuthUser(userId: string): Promise<AuthDeleteError | null>
+  /** Deletes the `profiles` row, if any. A row that is already gone is not an error. */
+  deleteProfile(userId: string): Promise<void>
   /** Called between units of work; false stops the run cleanly. */
   hasTime(): boolean
 }
@@ -325,10 +394,15 @@ export async function sweepStorage(
     if (!SWEEPABLE.includes(state)) {
       throw new Error(`Refusing to sweep Storage for an agency that is ${state}.`)
     }
-    const pending = await deps.listPendingObjects(organizationId, 'storage', batchSize * 5)
+    const listed = await deps.listPendingObjects(organizationId, 'storage', batchSize * 5)
+    // The state checked above is THIS agency's. A row that belongs to another
+    // agency is never deleted here, whatever the adapter returned: it would be
+    // judged by the wrong agency's state. Counted as unsweepable so it is loud.
+    const pending = listed.filter((row) => row.organizationId === organizationId)
+    const foreign = listed.length - pending.length
     const batch = nextSweepBatch(pending, batchSize)
     if (batch.length === 0) {
-      return { deleted, unsweepable: unsweepable(pending).length, complete: true }
+      return { deleted, unsweepable: unsweepable(pending).length + foreign, complete: true }
     }
     if (!deps.hasTime()) return { deleted, unsweepable: 0, complete: false }
 
@@ -369,30 +443,39 @@ export async function removeAuthUsers(
   if (state !== 'closed') {
     throw new Error(`Refusing to remove accounts for an agency that is ${state}.`)
   }
-  const rows = await deps.listPendingObjects(organizationId, 'auth', 1000)
-  const recorded = rows
-    .map((row) => ({ row, userId: parseAuthUserKey(organizationId, row) }))
-    .filter((entry): entry is { row: ObjectRow; userId: string } => entry.userId !== null)
-  if (recorded.length === 0) return { removed: 0, kept: 0 }
-
-  const userIds = recorded.map((entry) => entry.userId)
-  const elsewhere = await deps.membershipsOf(userIds)
-  const toRemove = new Set(
-    usersToRemove([
-      ...userIds.map((userId) => ({ userId, closing: true })),
-      ...elsewhere.map((m) => ({ userId: m.userId, closing: false })),
-    ]),
-  )
-
   let removed = 0
-  for (const entry of recorded) {
-    if (toRemove.has(entry.userId)) {
-      await deps.removeUser(entry.userId)
-      removed += 1
+  let kept = 0
+  for (;;) {
+    const rows = await deps.listPendingObjects(organizationId, 'auth', AUTH_BATCH)
+    if (rows.length === 0) return { removed, kept }
+    const recorded = rows
+      .map((row) => ({ row, userId: parseAuthUserKey(organizationId, row) }))
+      .filter((entry): entry is { row: ObjectRow; userId: string } => entry.userId !== null)
+    // Every pending row is marked done below, so the loop makes progress; a batch
+    // with nothing it understands would never end, so it is a failure instead.
+    if (recorded.length === 0) {
+      throw new Error('Pending account records could not be read; refusing to continue.')
     }
-    await deps.markDone([entry.row.id])
+
+    const userIds = recorded.map((entry) => entry.userId)
+    const elsewhere = await deps.membershipsOf(userIds)
+    const toRemove = new Set(
+      usersToRemove([
+        ...userIds.map((userId) => ({ userId, closing: true })),
+        ...elsewhere.map((m) => ({ userId: m.userId, closing: false })),
+      ]),
+    )
+
+    for (const entry of recorded) {
+      if (toRemove.has(entry.userId)) {
+        await removeUser(deps, entry.userId)
+        removed += 1
+      } else {
+        kept += 1
+      }
+      await deps.markDone([entry.row.id])
+    }
   }
-  return { removed, kept: recorded.length - removed }
 }
 
 function emptyOutcome(org: OrganizationRow): OrganizationOutcome {

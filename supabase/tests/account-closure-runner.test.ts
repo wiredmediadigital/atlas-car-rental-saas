@@ -21,7 +21,12 @@ import {
   AUTH_USERS_BUCKET,
   authUserKey,
   dueForPurge,
+  interpretAuthDelete,
   interpretClaim,
+  readAllPages,
+  readInChunks,
+  removeAuthUsers,
+  removeUser,
   isAuthorizedRunner,
   nextSweepBatch,
   parseAuthUserKey,
@@ -262,10 +267,13 @@ function depsFor(world: World): ClosureDeps {
            from public.organization_members where user_id = any($1::uuid[])`,
         [userIds],
       ),
-    removeUser: async (userId) => {
-      if (world.failUserRemoval) throw new Error('auth unavailable')
-      await q(`delete from public.profiles where id = $1`, [userId])
+    deleteAuthUser: async (userId) => {
+      if (world.failUserRemoval) return { status: 500, message: 'auth unavailable' }
       await q(`delete from auth.users where id = $1`, [userId])
+      return null
+    },
+    deleteProfile: async (userId) => {
+      await q(`delete from public.profiles where id = $1`, [userId])
     },
     hasTime: () => world.clock,
   }
@@ -480,6 +488,92 @@ describe('resuming', () => {
   }, 60_000)
 })
 
+describe('removing an account', () => {
+  const never = () => Promise.reject(new Error('not used'))
+  const stub = (events: string[], authError: Record<string, unknown> | null): ClosureDeps =>
+    ({
+      deleteAuthUser: () => {
+        events.push('auth')
+        return Promise.resolve(authError)
+      },
+      deleteProfile: () => {
+        events.push('profile')
+        return Promise.resolve()
+      },
+      listClosingOrganizations: never,
+    }) as unknown as ClosureDeps
+
+  it('deletes the auth account first, then the profile', async () => {
+    const events: string[] = []
+    await removeUser(stub(events, null), USER)
+    expect(events).toEqual(['auth', 'profile'])
+  })
+
+  it('treats an account that is already gone as removed, and still cleans the profile', async () => {
+    for (const gone of [{ status: 404 }, { code: 'user_not_found' }]) {
+      const events: string[] = []
+      await removeUser(stub(events, gone), USER)
+      expect(events).toEqual(['auth', 'profile'])
+    }
+  })
+
+  it('throws on any other Auth error and leaves the profile alone', async () => {
+    const events: string[] = []
+    await expect(removeUser(stub(events, { status: 500, message: 'boom' }), USER)).rejects.toThrow(
+      /boom/,
+    )
+    await expect(
+      removeUser(stub(events, { status: 403, code: 'not_admin', message: 'nope' }), USER),
+    ).rejects.toThrow(/nope/)
+    expect(events).toEqual(['auth', 'auth'])
+    expect(interpretAuthDelete(null)).toBe('removed')
+  })
+
+  it('stops on a pending record it cannot read instead of looping', async () => {
+    const junk: ObjectRow = object({ bucket: AUTH_USERS_BUCKET, storageKey: `${ORG}/not-a-uuid` })
+    const deps = {
+      closureState: () => Promise.resolve('closed'),
+      listPendingObjects: () => Promise.resolve([junk]),
+    } as unknown as ClosureDeps
+    await expect(removeAuthUsers(deps, ORG)).rejects.toThrow(/could not be read/)
+  })
+})
+
+describe('reading everything, or failing', () => {
+  const source = (n: number, cap: number) => {
+    const rows = Array.from({ length: n }, (_, i) => i)
+    // Like PostgREST: never more than `cap` rows per request.
+    return (from: number, to: number) =>
+      Promise.resolve(rows.slice(from, Math.min(to + 1, from + cap)))
+  }
+
+  it('reads past the server cap, including when the total is an exact multiple', async () => {
+    expect(await readAllPages(source(1234, 1000), 500)).toHaveLength(1234)
+    expect(await readAllPages(source(1000, 1000), 500)).toHaveLength(1000)
+    expect(await readAllPages(source(0, 1000), 500)).toEqual([])
+  })
+
+  it('refuses to return a partial list', async () => {
+    await expect(readAllPages(source(5000, 1000), 500, 2000)).rejects.toThrow(/refusing/)
+  })
+
+  it('looks keys up in chunks, never in one query', async () => {
+    const sizes: number[] = []
+    const keys = Array.from({ length: 250 }, (_, i) => i)
+    const out = await readInChunks(
+      keys,
+      100,
+      (chunk) => {
+        sizes.push(chunk.length)
+        return Promise.resolve(chunk)
+      },
+      500,
+    )
+    expect(sizes).toEqual([100, 100, 50])
+    expect(out).toHaveLength(250)
+  })
+})
+
 describe('the caller check', () => {
   const SECRET = 'r'.repeat(48)
 
@@ -625,6 +719,29 @@ describe('the sweep does not trust the ledger', () => {
     expect(report.failures).toBe(1)
     expect(await count('customer_documents', a.organizationId)).toBe(5)
     expect(await userExists(a.owner)).toBe(true)
+  }, 60_000)
+
+  it('never deletes a row that belongs to another agency, even when handed one', async () => {
+    const world = new World()
+    const purging = await newAgency(world, 'November')
+    const live = await newAgency(world, 'Oscar')
+    await request(purging.organizationId)
+    await db.sql(`select app.organization_claim_purge($1)`, [purging.organizationId])
+    const liveRow = object({
+      organizationId: live.organizationId,
+      storageKey: live.keys[0]!,
+    })
+    const deps: ClosureDeps = {
+      ...depsFor(world),
+      // An adapter regression: another agency's passport scan comes back.
+      listPendingObjects: () => Promise.resolve([liveRow]),
+    }
+
+    const result = await sweepStorage(deps, purging.organizationId)
+
+    expect(world.removeCalls).toEqual([])
+    expect(result.unsweepable).toBe(1)
+    expect(world.storage.has(`customer-documents/${live.keys[0]}`)).toBe(true)
   }, 60_000)
 
   it('refuses a suspended agency too, which can still be restored', async () => {
