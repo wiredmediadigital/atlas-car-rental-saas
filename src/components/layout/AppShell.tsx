@@ -6,6 +6,7 @@ import { Outlet } from 'react-router-dom'
 import { useWorkspace } from '@/features/workspace/workspace-context'
 
 import { RestrictedBanner } from '@/features/billing/components/RestrictedBanner'
+import { ClosureBanner } from '@/features/organization/components/ClosureBanner'
 import { NotificationBell } from '@/features/notifications/components/NotificationBell'
 
 import { OrganizationAvatar } from './OrganizationAvatar'
@@ -117,6 +118,7 @@ export function AppShell() {
               applies to every page. Putting it on a dashboard would mean the
               one person who navigates straight to Rentals never reads it.
             */}
+            <ClosureBanner />
             <RestrictedBanner />
             <Outlet />
           </div>

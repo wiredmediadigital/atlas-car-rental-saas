@@ -1,5 +1,6 @@
 import { createContext, useContext } from 'react'
 
+import { closureStateOf } from '@/features/organization/closure'
 import type { Permission } from '@/lib/authz/permissions'
 import { can, isWithdrawnWhenRestricted } from '@/lib/authz/permissions'
 import type {
@@ -89,8 +90,15 @@ export function useIsBillingRestricted(): boolean {
  * button was never what stopped the write.
  */
 export function usePermission(permission: Permission): boolean {
-  const { role, billingAccessState } = useWorkspace()
+  const { role, billingAccessState, organization } = useWorkspace()
   if (!can(role, permission)) return false
-  if (billingAccessState !== 'restricted') return true
+  /*
+   * A closing agency is read-only for the same reason, and through the same
+   * gate (app.may_write), as a billing-restricted one. The state is read from
+   * the organization row the workspace already holds, so unlike billing there is
+   * no unknown interval: an agency that has not loaded is simply open.
+   */
+  const isReadOnly = billingAccessState === 'restricted' || closureStateOf(organization) !== 'open'
+  if (!isReadOnly) return true
   return !isWithdrawnWhenRestricted(permission)
 }

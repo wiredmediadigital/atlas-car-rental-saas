@@ -74,6 +74,37 @@ describe('toAppError — Auth', () => {
     expect(error.message).not.toBe('You do not have permission to do that.')
   })
 
+  it('explains a closed or closing agency instead of showing SQL', () => {
+    // The sentence app.require_write raises, verbatim.
+    const error = toAppError({
+      code: '42501',
+      message: 'This agency is closed or closing, so its records are read-only.',
+    })
+
+    expect(error.kind).toBe('permission')
+    expect(error.message).toMatch(/suspended for closure/i)
+    expect(error.message).toMatch(/restore/i)
+    expect(error.message).not.toMatch(/subscription/i)
+  })
+
+  it('explains each refusal the closure actions can give', () => {
+    const cases: Array<[string, string, RegExp]> = [
+      ['42501', 'Only an owner can close an agency.', /only an owner can close/i],
+      ['55000', 'This agency is already closed or closing.', /already closing/i],
+      [
+        '55000',
+        'The purge of this agency has started, so it can no longer be restored.',
+        /purge has started/i,
+      ],
+      ['55000', 'This agency is not closing, so there is nothing to restore.', /not closing/i],
+    ]
+    for (const [code, message, expected] of cases) {
+      const error = toAppError({ code, message })
+      expect(error.message).toMatch(expected)
+      expect(error.message).not.toBe('Something went wrong. Please try again.')
+    }
+  })
+
   // A browser can be talking to a project that has not had 20261107100100
   // applied, so both wordings have to reach the same friendly sentence. If the
   // pattern ever stops covering the older one, the raw SQL message goes in

@@ -14,6 +14,8 @@ export interface ConfirmDialogProps {
   cancelLabel?: string
   tone?: 'primary' | 'danger'
   isPending?: boolean
+  /** Holds the confirm button back until something has been understood or typed. */
+  isConfirmDisabled?: boolean
   onConfirm: () => void
 }
 
@@ -34,6 +36,7 @@ export function ConfirmDialog({
   cancelLabel = 'Cancel',
   tone = 'danger',
   isPending = false,
+  isConfirmDisabled = false,
   onConfirm,
 }: ConfirmDialogProps) {
   return (
@@ -47,7 +50,12 @@ export function ConfirmDialog({
             <Button variant="ghost" onClick={() => onOpenChange(false)} disabled={isPending}>
               {cancelLabel}
             </Button>
-            <Button variant={tone} onClick={onConfirm} isLoading={isPending}>
+            <Button
+              variant={tone}
+              onClick={onConfirm}
+              isLoading={isPending}
+              disabled={isConfirmDisabled}
+            >
               {confirmLabel}
             </Button>
           </>

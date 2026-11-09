@@ -16,6 +16,7 @@ import {
   Select,
   useToast,
 } from '@/components/ui'
+import { CloseAccountCard } from '@/features/organization/components/CloseAccountCard'
 import { ContractTermsSection } from '@/features/rentals/components/ContractTermsSection'
 import { NotificationPreferences } from '@/features/notifications/components/NotificationPreferences'
 import { AboutSection } from '@/features/settings/components/AboutSection'
@@ -28,7 +29,7 @@ import {
   usePermission,
   useWorkspace,
 } from '@/features/workspace/workspace-context'
-import { ROLE_LABELS } from '@/lib/authz/permissions'
+import { ROLE_LABELS, hasMinRole } from '@/lib/authz/permissions'
 import { listTimeZones } from '@/lib/datetime/timezone'
 import { SUPPORTED_LOCALES, listCountries, listCurrencies } from '@/lib/i18n/regions'
 import { toErrorMessage } from '@/lib/supabase/errors'
@@ -40,6 +41,7 @@ const SECTION_IDS = [
   'branding',
   'contract',
   'notifications',
+  'account',
   'about',
 ] as const
 
@@ -75,7 +77,12 @@ export function SettingsPage() {
   const [isTermsDirty, setIsTermsDirty] = useState(false)
 
   const hash = location.hash.replace('#', '')
-  const activeSection: SectionId = isSectionId(hash) ? hash : 'general'
+  // Closing the agency is an owner's and an administrator's; for anyone else the
+  // section does not exist, so a pasted #account link falls back to General
+  // rather than opening an empty page.
+  const canSeeAccount = hasMinRole(role, 'admin')
+  const activeSection: SectionId =
+    isSectionId(hash) && (hash !== 'account' || canSeeAccount) ? hash : 'general'
 
   const selectSection = useCallback(
     (id: string) => {
@@ -210,6 +217,7 @@ export function SettingsPage() {
     { id: 'branding', label: 'Branding' },
     { id: 'contract', label: 'Contract terms', isDirty: isTermsDirty },
     { id: 'notifications', label: 'Notifications' },
+    ...(canSeeAccount ? [{ id: 'account', label: 'Close account' }] : []),
     { id: 'about', label: 'About' },
   ]
 
@@ -476,6 +484,17 @@ export function SettingsPage() {
           >
             <NotificationPreferences />
           </Section>
+
+          {canSeeAccount ? (
+            <Section
+              id="account"
+              isActive={activeSection === 'account'}
+              title="Close account"
+              description="Stop using this agency and have its data deleted, or take a pending closure back."
+            >
+              <CloseAccountCard />
+            </Section>
+          ) : null}
 
           {/*
             Last, and about the software rather than the agency. Everything above

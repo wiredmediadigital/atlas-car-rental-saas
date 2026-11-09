@@ -179,6 +179,51 @@ const CONSTRAINT_MESSAGES: ReadonlyArray<readonly [RegExp, string, AppErrorKind]
     'permission',
   ],
 
+  /*
+   * Account closure.
+   *
+   * app.require_write raises this sentence, as 42501, for an agency whose
+   * closure has been requested or begun. It is NOT the billing sentence above,
+   * and must not be folded into it: "no active subscription" would be untrue of
+   * an agency that is paying, and "restart the subscription" would send an
+   * owner to a page that cannot help. Like the billing one, the database's
+   * wording is deliberately stable (20261108100000_account_closure_state.sql).
+   *
+   * The same applies to the three refusals the closure actions themselves give
+   * (20261108100100_account_closure_actions.sql). The 55000 ones have no
+   * SQLSTATE fallback, so unmatched they would read "Something went wrong".
+   */
+  [
+    /closed or closing, so its records are read-only/i,
+    'This agency has been suspended for closure, so its records are read-only. Everything already recorded can still be opened and exported. An owner or administrator can restore the agency until it is deleted.',
+    'permission',
+  ],
+  [
+    /only an owner can close an agency/i,
+    'Only an owner can close an agency. An owner or administrator can restore one.',
+    'permission',
+  ],
+  [
+    /only an owner or an administrator can restore/i,
+    'Only an owner or an administrator can restore an agency.',
+    'permission',
+  ],
+  [
+    /already closed or closing/i,
+    'This agency is already closing. Refresh the page to see its current status.',
+    'conflict',
+  ],
+  [
+    /purge of this agency has started/i,
+    'The purge has started, so this agency can no longer be restored. Its data is being deleted.',
+    'conflict',
+  ],
+  [
+    /not closing, so there is nothing to restore/i,
+    'This agency is not closing, so there is nothing to restore. Refresh the page to see its current status.',
+    'conflict',
+  ],
+
   // The rental lifecycle raises 23514 with wording written for the front desk.
   // Without these, the generic check-constraint fallback would replace a clear
   // sentence with "some of the values entered are not valid".
