@@ -227,7 +227,7 @@ put there for exactly this moment:
 
 It is the natural home for a vehicle limit, and writing the limits into it by
 hand would be wrong. The catalogue sync
-(`app.billing_catalogue_replace`, `20260823100000_billing_model.sql:1600`) ends
+(`app.billing_replace_catalogue`, `20260823100000_billing_model.sql:1600`) ends
 with:
 
 ```sql

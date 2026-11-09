@@ -92,7 +92,7 @@ Add to the same test file:
 test('a catalogue replace leaves plan_vehicle_limits untouched', ...)
 ```
 
-Call `app.billing_catalogue_replace` with a payload for `starter_monthly` and assert the authored limit is still 5 afterwards. This is the trap the spec names; without this test the plan's central decision is unproven.
+Call `app.billing_replace_catalogue` with a payload for `starter_monthly` and assert the authored limit is still 5 afterwards. This is the trap the spec names; without this test the plan's central decision is unproven.
 
 - [ ] **Step 6: Commit**
 
