@@ -410,6 +410,61 @@ describe('claiming the purge', () => {
     expect(await claim(early.organizationId)).toBe(false) // already claimed
   })
 
+  it('refuses to claim an agency that still has a live subscription', async () => {
+    const paying = await newAgency('Paying Rentals', null)
+    await db.sql(`select app.billing_replace_catalogue($1::jsonb)`, [
+      JSON.stringify([
+        {
+          plan_key: 'standard',
+          display_name: 'Standard',
+          stripe_price_id: 'price_test_standard',
+          currency: 'EUR',
+          amount_minor: 4900,
+          interval: 'month',
+          interval_count: 1,
+          mode: 'test',
+          sort_order: 0,
+        },
+      ]),
+    ])
+    const id = paying.organizationId
+    const apply = (status: string) =>
+      db.sql(
+        `select app.billing_apply_subscription(
+           $1, $2, 'test', $3::public.stripe_subscription_status, 'price_test_standard',
+           'EUR', 4900, 'month', 1, 1,
+           now() - interval '5 days', now() + interval '25 days',
+           false, null, null, null, null, null,
+           now(), $4
+         )`,
+        [
+          `sub_test_${id.slice(0, 8)}`,
+          `cus_test_${id.slice(0, 8)}`,
+          status,
+          `evt_${status}_${id.slice(0, 8)}`,
+        ],
+      )
+    await db.sql(`select app.billing_claim_customer($1, $2, 'test', 'billing@agency.test')`, [
+      id,
+      `cus_test_${id.slice(0, 8)}`,
+    ])
+    await apply('active')
+    await requested(id, true)
+
+    await db.expectRejection(
+      () => db.sql(`select app.organization_claim_purge($1)`, [id]),
+      /live subscription/i,
+    )
+    const [row] = await db.sql<{ p: Date | null }>(
+      `select purge_started_at as p from public.organizations where id = $1`,
+      [id],
+    )
+    expect(row!.p).toBeNull()
+
+    await apply('canceled')
+    expect(await claim(id)).toBe(true)
+  })
+
   it('does not claim an agency that does not exist', async () => {
     expect(await claim('00000000-0000-4000-8000-000000000000')).toBe(false)
   })

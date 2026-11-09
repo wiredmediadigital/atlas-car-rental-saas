@@ -163,6 +163,29 @@ begin
     return false;
   end if;
 
+  /*
+   * DELIBERATELY REDUNDANT, AND MEANT TO STAY. The runner that calls this
+   * cancels the agency's Stripe subscription before it claims, so in normal
+   * operation this refusal never fires. It is here anyway, because the claim is
+   * the one step after which the agency's data is destroyed and cannot be
+   * brought back, and "purged a paying customer" must be unreachable no matter
+   * what a caller forgot, got wrong, or was changed to do. The runner is the
+   * braces, this is the belt: if you are reading this and about to delete it
+   * because the runner already cancels, do not. It mirrors the refusal the old
+   * organization-delete guard (app.guard_organization_billing_on_delete) made
+   * for the same reason, with the same set of live statuses.
+   */
+  if exists (
+    select 1
+      from public.billing_subscriptions s
+     where s.organization_id = p_organization_id
+       and s.status in ('trialing', 'active', 'past_due', 'unpaid', 'paused')
+  ) then
+    raise exception
+      'This agency still has a live subscription. Cancel it in Stripe before purging.'
+      using errcode = '55000';
+  end if;
+
   update public.organizations
      set purge_started_at = now()
    where id = p_organization_id;
@@ -172,7 +195,7 @@ end;
 $$;
 
 comment on function app.organization_claim_purge(uuid) is
-  'Sets purge_started_at when the agency is closing and its date has passed. Takes the organizations row lock as its first statement, the same lock organization_restore takes, so a restore and a claim cannot both win. Service role only.';
+  'Sets purge_started_at when the agency is closing and its date has passed; raises if a live subscription remains (deliberately redundant with the runner, which cancels first). Takes the organizations row lock as its first statement, the same lock organization_restore takes, so a restore and a claim cannot both win. Service role only.';
 
 -- -----------------------------------------------------------------------------
 -- 3. Writing down what is in Storage
