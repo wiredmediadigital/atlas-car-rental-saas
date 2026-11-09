@@ -157,7 +157,13 @@ it('returns counts, and writes them to the evidence record', ...)
 - `usersToRemove(memberships): string[]` — only users whose **last** membership this was
 - `nextSweepBatch(objects, batchSize): StorageKey[]`
 
-`index.ts` holds only: authenticate the caller, loop the due organizations, and for each — claim, collect, sweep storage, purge, remove auth users — skipping any stage already done so a re-run completes rather than fails.
+`index.ts` holds only: authenticate the caller, loop the due organizations, and for each — claim, collect, sweep storage, purge, remove auth users and their `profiles` row — skipping any stage already done so a re-run completes rather than fails.
+
+**The runner does not touch Stripe.** Cancelling a closing agency's subscription is a manual step taken in the Stripe dashboard, so this job never holds the Stripe secret: one unattended process that can both delete a tenant's data and move money is a larger blast radius than the 30-second dashboard action it would replace. `claim_purge` already refuses while a subscription is live, so a forgotten cancellation stops the purge rather than billing a purged customer.
+
+**It must report what it refused.** Every run lists organizations that are suspended with a live subscription. The job's job is to make that situation impossible to miss, not to resolve it — an agency being billed for a read-only account it asked to close, with its data still present, is the worst outcome available here and it is silent unless something says so.
+
+**The sweep re-checks closure state** rather than trusting the rows in `account_closure_objects`. Those rows name real storage objects, including identity-document scans; a stale or mistaken row is a live tenant's passport scan deleted.
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -206,9 +212,13 @@ it('offers restore while suspended, and not once purging', ...)
 
 **Files:** Modify `supabase/functions/_shared/team-email.ts` or add a sibling; Modify Task 2's request function to enqueue; Test alongside.
 
-Every owner and admin is emailed the moment closure is requested — this is the layer that makes a quiet deletion impossible. The **immediate** path additionally requires a link clicked from the requesting owner's mailbox, so a stolen session is not enough.
+Every owner and admin is emailed the moment closure is requested, and so is Adera Labs. This is the layer that makes a quiet closure impossible, and the one that starts the retention conversation.
 
-- [ ] **Steps:** failing tests (notification sent to every owner and admin; immediate path refused without a verified token; token single-use and expiring), fail, implement, pass, commit.
+**There is no confirmation-token flow.** It existed only to guard the self-serve immediate purge, which was removed: the button now requests closure rather than executing it.
+
+**The operator's notification must say to cancel the subscription in Stripe**, and name the agency. Cancellation is manual by design, so this message is the only thing standing between a closure request and an agency being billed for an account it asked to close — while its data sits unpurged, because `claim_purge` refuses with a live subscription.
+
+- [ ] **Steps:** failing tests (an email to every owner and admin; one to the operator naming the agency and saying to cancel in Stripe; nothing sent when the caller was refused), fail, implement, pass, commit.
 
 ---
 
@@ -218,7 +228,7 @@ Every owner and admin is emailed the moment closure is requested — this is the
 
 The workflow runs daily and calls the Edge Function with a secret. It must fail loudly — a silently broken scheduler means data retained after a deletion instruction, which is the anti-goal.
 
-The Terms gain closure, the 30-day grace, that purging sooner is by request to Adera Labs, and the no-refund position. The privacy policy points at them. `data-retention.md` Gap 2 is closed, and Gap 1 (`gps_positions`) explicitly is **not** — it stays open.
+The Terms gain closure, the 30-day grace, that purging sooner is by request to Adera Labs, and the no-refund position. The subscription wording must say the subscription is cancelled **when the request is processed**, not immediately — cancellation is a manual step, and the Terms must describe what actually happens rather than the better-sounding version. The privacy policy points at them. `data-retention.md` Gap 2 is closed, and Gap 1 (`gps_positions`) explicitly is **not** — it stays open.
 
 - [ ] **Steps:** add the workflow; update the three documents; run `npm run verify`; commit.
 
