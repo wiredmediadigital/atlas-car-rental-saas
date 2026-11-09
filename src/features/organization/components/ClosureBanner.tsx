@@ -1,8 +1,7 @@
 import { Alert } from '@/components/ui'
-import { useOrganization } from '@/features/workspace/workspace-context'
-import { useWorkspace } from '@/features/workspace/workspace-context'
+import { useOrganization, useWorkspace } from '@/features/workspace/workspace-context'
 
-import { canRestoreAgency, formatPurgeDate } from '../closure'
+import { CLOSURE_WINDOW_DAYS, canRestoreAgency, formatPurgeDate } from '../closure'
 import { useClosureState } from '../queries'
 
 import { RestoreAgencyButton } from './RestoreAgencyButton'
@@ -42,8 +41,8 @@ export function ClosureBanner() {
   if (state === 'purging') {
     return (
       <Alert tone="critical" title="This agency is being deleted" className="mb-6">
-        The 30-day window has ended and the deletion has started. It can no longer be restored.
-        Questions? Email <SupportLink />.
+        The {CLOSURE_WINDOW_DAYS}-day window has ended and the deletion has started. It can no
+        longer be restored. Questions? Email <SupportLink />.
       </Alert>
     )
   }

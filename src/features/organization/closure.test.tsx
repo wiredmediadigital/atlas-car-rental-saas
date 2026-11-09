@@ -6,6 +6,7 @@ import { MemoryRouter } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { ToastProvider } from '@/components/ui'
+import { RestrictedBanner } from '@/features/billing/components/RestrictedBanner'
 import { SUPPORT_EMAIL } from '@/features/help/constants'
 import { formatDate } from '@/lib/datetime/format'
 import {
@@ -332,6 +333,28 @@ describe('ClosureBanner', () => {
     renderWith(workspace('owner', 'closed'), <ClosureBanner />)
     expect(screen.getByText(/has been closed/i)).toBeInTheDocument()
     expect(restoreButton()).not.toBeInTheDocument()
+  })
+})
+
+describe('billing banner and closure banner together', () => {
+  it('lets closure win over a billing restriction, and does not promise paying will restore work', () => {
+    const value = { ...workspace('owner', 'suspended'), billingAccessState: 'restricted' as const }
+    renderWith(
+      value,
+      <>
+        <ClosureBanner />
+        <RestrictedBanner />
+      </>,
+    )
+
+    expect(screen.getByText(/suspended and read-only/i)).toBeInTheDocument()
+    expect(screen.queryByText(/starting a subscription/i)).toBeNull()
+  })
+
+  it('still shows the billing banner for a restricted agency that is open', () => {
+    const value = { ...workspace('owner', 'open'), billingAccessState: 'restricted' as const }
+    renderWith(value, <RestrictedBanner />)
+    expect(screen.getByText(/starting a subscription/i)).toBeInTheDocument()
   })
 })
 

@@ -7,8 +7,6 @@ import { type ClosureState, closureStateOf } from './closure'
 
 export interface ClosureStatus {
   readonly state: ClosureState
-  /** When the purge becomes due, as stored; null unless a closure is pending. */
-  readonly purgeAfter: string | null
 }
 
 /**
@@ -22,10 +20,7 @@ export interface ClosureStatus {
  */
 export function useClosureState(): ClosureStatus {
   const { organization } = useWorkspace()
-  return {
-    state: closureStateOf(organization),
-    purgeAfter: organization?.closure_purge_after ?? null,
-  }
+  return { state: closureStateOf(organization) }
 }
 
 /**
