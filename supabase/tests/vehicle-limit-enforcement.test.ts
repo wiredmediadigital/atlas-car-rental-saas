@@ -149,6 +149,12 @@ describe('adding a vehicle', () => {
     )
   })
 
+  it('allows twenty vehicles on pro and refuses the twenty-first', async () => {
+    await subscribe('pro_monthly')
+    await fill(20)
+    await db.expectRejection(() => insertVehicle(), /Your plan covers 20 vehicles\. You have 20\./)
+  })
+
   it('allows any number when the agency has no limit', async () => {
     await fill(8)
     expect(await activeCount()).toBe(8)
@@ -167,6 +173,34 @@ describe('adding a vehicle', () => {
     await fill(5)
     await insertVehicle(true)
     expect(await activeCount()).toBe(5)
+  })
+})
+
+describe('whose limit is disclosed', () => {
+  it('lets row-level security refuse a non-member, without the limit sentence', async () => {
+    await subscribe('starter_monthly')
+    await fill(5)
+    const stranger = await signUp(db, {
+      email: `stranger${seq}@enforce.test`,
+      fullName: 'Stranger',
+      organizationName: `Stranger ${seq}`,
+      currency: 'EUR',
+      timeZone: 'Europe/Paris',
+    })
+    const message = await db.asUser(stranger.userId, (session) =>
+      session.expectRejection(() => insertVehicle(false, session)),
+    )
+    expect(message).not.toMatch(/Your plan covers/)
+    expect(message).toMatch(/row-level security/i)
+    expect(await activeCount()).toBe(5)
+  })
+
+  it('still gates the service role', async () => {
+    await subscribe('starter_monthly')
+    await fill(5)
+    await db.asServiceRole(owner, (session) =>
+      session.expectRejection(() => insertVehicle(false, session), REFUSAL),
+    )
   })
 })
 
@@ -231,18 +265,16 @@ describe('everything else stays allowed', () => {
 
 describe('where the gate lives', () => {
   // The suite replays every migration on one in-memory connection, so two real
-  // parallel sessions are not available. This proves the gate's LOCATION, not its
-  // behaviour under true parallelism: the check fires on the insert statement
-  // itself, with no client-side pre-check anywhere in the path. Of two inserts
-  // aimed at the last slot, the second is the one refused.
+  // parallel sessions are not available. This is not a race: the two inserts run
+  // in order on one connection, and it shows only that the first takes the last
+  // slot and the second is refused by the write itself.
   it('refuses the second of two concurrent inserts at the last slot', async () => {
     await subscribe('starter_monthly')
     await fill(4)
     const outcomes = await Promise.allSettled([insertVehicle(), insertVehicle()])
-    const refused = outcomes.filter((outcome) => outcome.status === 'rejected')
-    expect(outcomes.filter((outcome) => outcome.status === 'fulfilled')).toHaveLength(1)
-    expect(refused).toHaveLength(1)
-    expect(String((refused[0] as PromiseRejectedResult).reason)).toMatch(REFUSAL)
+    expect(outcomes[0].status).toBe('fulfilled')
+    expect(outcomes[1].status).toBe('rejected')
+    expect(String((outcomes[1] as PromiseRejectedResult).reason)).toMatch(REFUSAL)
     expect(await activeCount()).toBe(5)
   })
 })
