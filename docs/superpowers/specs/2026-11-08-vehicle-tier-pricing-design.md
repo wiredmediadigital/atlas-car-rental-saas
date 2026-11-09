@@ -10,11 +10,12 @@ that with three tiers priced by fleet size, because fleet size is the thing that
 actually varies between a two-car operation and a fifty-car one, and it is the
 thing both sides can count without arguing.
 
-| Tier     | Monthly | Vehicles |
-| -------- | ------- | -------- |
-| Starter  | $59     | up to 5  |
-| Pro      | $119    | up to 20 |
-| Business | $199    | up to 50 |
+| Tier     | Monthly    | Vehicles       |
+| -------- | ---------- | -------------- |
+| Starter  | $59        | up to 5        |
+| Pro      | $119       | up to 20       |
+| Business | $199       | up to 50       |
+| Above 50 | talk to us | by arrangement |
 
 Every tier includes every feature. Nothing in the product is gated by tier except
 how many vehicles an agency may have on its fleet at once. Each tier also sells
@@ -48,7 +49,8 @@ migration path is now.
 - Feature gating. Every tier gets everything.
 - Usage-based or per-rental pricing.
 - Automatic upgrades. Crossing a limit never changes what an agency is charged.
-- A self-serve enterprise tier above 50.
+- A self-serve _priced_ tier above 50. Above 50 is a conversation, not a
+  checkout — see "Above fifty vehicles".
 - Metered overage.
 
 ## Anti-goals — this ships wrong if any of these happen
@@ -80,6 +82,9 @@ migration path is now.
 - **The counter is always visible** (option B of three shown): a quiet
   "5 of 5" beside the Vehicles heading, not a nag strip and not a surprise.
 - **14-day free trial**, of a chosen tier.
+- **Above 50 vehicles is "talk to us"** rather than a fourth price. An agency
+  that size is a conversation worth having before a number is printed, and
+  there is no customer data yet to price one from.
 - **Changing tier happens inside Pevvy.** Asked for explicitly once the builder
   check established that Pevvy cannot otherwise enforce the downgrade rule. See
   "Changing tier" below: this is the largest piece of new work in the design,
@@ -285,6 +290,30 @@ cannot blank it). Whichever shape is chosen, two properties are required:
   out of nowhere.
 - **The limit never applies retroactively.** No migration, trigger or sync may
   archive, hide or restrict an existing vehicle.
+
+## Above fifty vehicles
+
+The pricing page carries a fourth card with no price on it: above 50 vehicles,
+talk to us. It is not a self-serve tier and does not go through checkout.
+
+This is cheap on the page and worth nothing without the mechanism underneath it,
+which is the part that must be designed now rather than retrofitted:
+
+**A per-agency vehicle limit override.** When a deal is agreed with a 150-car
+agency, that agency's limit is 150 regardless of which plan it is on. The
+override wins over the tier's authored limit.
+
+Two conditions, because an override is exactly the kind of mechanism that decays
+into a back door:
+
+- **It is set through the service role, never in the product.** No screen, no
+  role, no self-serve path grants an agency a bigger limit. An agency cannot
+  raise its own ceiling.
+- **It records who set it and when.** A bespoke limit that nobody can explain
+  later is a liability. The same standard the closure evidence records hold:
+  identify by user id, not email.
+
+_(Author's call: both conditions. The user decided the "talk to us" route.)_
 
 ## Which subscription decides the limit
 
