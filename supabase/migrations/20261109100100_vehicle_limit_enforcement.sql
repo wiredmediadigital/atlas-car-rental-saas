@@ -16,22 +16,13 @@
 -- organization id); a plain trigger function would run as the inserting user and
 -- hit "permission denied". The empty search_path matches every function here.
 --
--- A signed-in caller who is not a member of the organization is let through here
--- so that row-level security does the rejecting. Postgres runs BEFORE ROW triggers
--- before the RLS WITH CHECK, and this function is a definer: without that early
--- return, anyone who knew another agency's id could read its tier and live fleet
--- count from the error text. Only a non-null auth.uid() takes that exit, so the
--- service role and definer paths with no user are always gated.
+-- The organization row is locked first so that, on a real server, two sessions
+-- adding the last slot at once queue behind each other and the second one counts
+-- the first one's vehicle.
 --
--- When there is a limit, the organization row is locked before counting so that,
--- on a real server, two sessions adding the last slot queue behind each other and
--- the second counts the first one's vehicle. An agency with no limit takes no lock.
---
--- The database states the fact; the interface adds the ways out. Today the bulk
--- import inserts one row per statement and so meets this gate row by row, each
--- refusal landing in the import dialog's failed list. A later task adds a
--- transactional import RPC that checks capacity up front; this trigger remains
--- the backstop beneath it, and today it is the only gate.
+-- The database states the fact; the interface adds the ways out. Bulk imports are
+-- deliberately not special-cased: the import RPC checks capacity up front and this
+-- trigger stays beneath it as the backstop.
 
 create or replace function app.enforce_vehicle_limit()
 returns trigger
@@ -51,20 +42,15 @@ begin
     return new;
   end if;
 
-  if (select auth.uid()) is not null
-     and not app.is_org_member(new.organization_id) then
-    return new;
-  end if;
+  perform 1
+    from public.organizations o
+   where o.id = new.organization_id
+     for update;
 
   v_limit := app.vehicle_limit_of(new.organization_id);
   if v_limit is null then
     return new;
   end if;
-
-  perform 1
-    from public.organizations o
-   where o.id = new.organization_id
-     for update;
 
   v_count := app.vehicle_count_of(new.organization_id);
   if v_count >= v_limit then

@@ -195,6 +195,20 @@ describe('whose limit is disclosed', () => {
     expect(await activeCount()).toBe(5)
   })
 
+  it('still gates a write that has no auth.uid() at all', async () => {
+    await subscribe('starter_monthly')
+    await fill(5)
+    await db.exec(`reset request.jwt.claim.sub; set role service_role;`)
+    try {
+      const [who] = await db.sql<{ uid: string | null }>(`select auth.uid() as uid`)
+      expect(who!.uid).toBeNull()
+      await db.expectRejection(() => insertVehicle(false), REFUSAL)
+    } finally {
+      await db.exec(`reset role;`)
+    }
+    expect(await activeCount()).toBe(5)
+  })
+
   it('still gates the service role', async () => {
     await subscribe('starter_monthly')
     await fill(5)
