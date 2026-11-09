@@ -164,8 +164,13 @@ actually have, and both ways out. _"Starter covers 5 vehicles. You have 5.
 Upgrade to Pro for 20 vehicles, or retire one you no longer rent."_
 
 **Who gets the Upgrade button is a permission question, not a copy question.**
-`billing.manage` is owner-and-admin. A manager or staff member sees the same
-sentence ending in _"ask an owner or admin to upgrade"_ and no button. This
+`billing.manage` is **owner-only** (`src/lib/authz/permissions.ts`), which the
+role descriptions state deliberately: the owner has "Full control, including
+billing", while an administrator manages team, settings, financing and fleet.
+Everyone below owner sees the same first two sentences ending in _"ask the
+owner to upgrade"_ and no button. An earlier draft of this document said
+owner-and-admin; that was wrong, and widening the permission to match it would
+be a security-boundary change, not a copy change. This
 follows the rule the account-closure work held throughout: never show someone a
 control the database will refuse.
 

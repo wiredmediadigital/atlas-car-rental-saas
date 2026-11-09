@@ -233,7 +233,7 @@ test('tells a staff member to ask an owner or admin, with no button', ...)
 test('says nothing while the fleet is below the limit', ...)
 ```
 
-The copy assertions use the spec's exact wording: `Starter covers 5 vehicles. You have 5. Upgrade to Pro for 20 vehicles, or retire one you no longer rent.` and the staff variant ending `ask an owner or admin to upgrade`.
+The copy assertions use the spec's exact wording: `Starter covers 5 vehicles. You have 5. Upgrade to Pro for 20 vehicles, or retire one you no longer rent.` and the non-owner variant ending `ask the owner to upgrade` (`billing.manage` is owner-only in `src/lib/authz/permissions.ts`; an earlier draft of the spec said owner-and-admin and was wrong).
 
 - [ ] **Step 2: Run them and watch them fail**
 
