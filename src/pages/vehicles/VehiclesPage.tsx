@@ -16,6 +16,10 @@ import { exportVehicles } from '@/features/vehicles/export'
 import { FleetSummary } from '@/features/vehicles/components/FleetSummary'
 import { FleetToolbar, type FleetFilters } from '@/features/vehicles/components/FleetToolbar'
 import { VehicleCardList } from '@/features/vehicles/components/VehicleCardList'
+import {
+  VehicleLimitCounter,
+  VehicleLimitNotice,
+} from '@/features/vehicles/components/VehicleLimit'
 import { VehicleImportDialog } from '@/features/vehicles/components/VehicleImportDialog'
 import { VehicleTable } from '@/features/vehicles/components/VehicleTable'
 import {
@@ -249,10 +253,13 @@ export function VehiclesPage() {
     <div className="space-y-6">
       <PageHeader
         title="Vehicles"
+        titleAddon={<VehicleLimitCounter />}
         eyebrow="Fleet"
         description={`Every vehicle ${organization.name} operates, and what each one is doing right now.`}
         actions={addAction}
       />
+
+      <VehicleLimitNotice />
 
       {/* Six zeros describe nothing. The strip appears with the first vehicle. */}
       {countsQuery.isPending || hasAnyVehicles || isFiltered ? (

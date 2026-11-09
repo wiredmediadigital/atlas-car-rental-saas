@@ -433,6 +433,12 @@ type VehicleFleetRow = {
   acquisition_notes: string | null
 }
 
+export type VehicleLimitStatusRow = {
+  vehicle_limit: number | null
+  vehicle_count: number
+  tier: string | null
+}
+
 export type FleetStatusCountsRow = {
   total: number
   available: number
@@ -2646,6 +2652,10 @@ export interface Database {
       fleet_status_counts: {
         Args: { p_organization_id: string }
         Returns: FleetStatusCountsRow[]
+      }
+      vehicle_limit_status: {
+        Args: { p_organization_id: string }
+        Returns: VehicleLimitStatusRow[]
       }
       vehicle_usage: {
         Args: { p_vehicle_id: string }

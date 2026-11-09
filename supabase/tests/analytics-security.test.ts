@@ -150,6 +150,9 @@ describe('nothing in the schema can bypass RLS', () => {
      * bypasses the vehicles_insert policy it re-checks has_min_role(..., 'manager')
      * and app.billing_require_write itself, and the per-row limit trigger still fires.
      *
+     * And the fleet counter, vehicle_limit_status: definer for the same reason, so it
+     * raises 42501 for a non-member before it returns anything.
+     *
      * Anything else appearing in this list is a leak.
      */
     expect(definerFunctions.map((row) => row.proname).sort()).toEqual([
@@ -189,6 +192,7 @@ describe('nothing in the schema can bypass RLS', () => {
       'team_invitations',
       'team_seat_summary',
       'transfer_organization_ownership',
+      'vehicle_limit_status',
       'vehicles_import_batch',
     ])
   })

@@ -20,6 +20,7 @@ import {
   fetchVehicle,
   fetchVehicleDocuments,
   fetchVehicleImages,
+  fetchVehicleLimit,
   fetchVehicleMakes,
   fetchVehicleUsage,
   fetchVehicles,
@@ -45,6 +46,7 @@ export const vehicleKeys = {
     ['organization', organizationId, 'vehicles', 'list', query] as const,
   counts: (organizationId: string) =>
     ['organization', organizationId, 'vehicles', 'counts'] as const,
+  limit: (organizationId: string) => ['organization', organizationId, 'vehicles', 'limit'] as const,
   makes: (organizationId: string) => ['organization', organizationId, 'vehicles', 'makes'] as const,
   detail: (organizationId: string, vehicleId: string) =>
     ['organization', organizationId, 'vehicles', 'detail', vehicleId] as const,
@@ -89,6 +91,17 @@ export function useFleetCounts() {
   return useQuery({
     queryKey: vehicleKeys.counts(organization.id),
     queryFn: () => fetchFleetCounts(organization.id),
+    staleTime: 30_000,
+  })
+}
+
+/** The fleet against its plan's limit. Invalidated with every other vehicle query. */
+export function useVehicleLimit() {
+  const organization = useOrganization()
+
+  return useQuery({
+    queryKey: vehicleKeys.limit(organization.id),
+    queryFn: () => fetchVehicleLimit(organization.id),
     staleTime: 30_000,
   })
 }

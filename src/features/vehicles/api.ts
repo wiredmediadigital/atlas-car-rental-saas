@@ -16,6 +16,7 @@ import type {
   TransmissionType,
 } from '@/types/database'
 
+import type { VehicleLimitStatus } from './limit'
 import type { VehicleFormValues } from './schemas'
 
 /** Sort orders offered in the fleet list, mapped to a column and direction. */
@@ -192,6 +193,26 @@ export async function fetchFleetCounts(organizationId: string): Promise<FleetSta
       archived: 0,
     }
   )
+}
+
+/**
+ * The fleet against its limit. Goes through public.vehicle_limit_status, which
+ * checks membership itself; the resolver functions behind it are not callable
+ * from the browser.
+ */
+export async function fetchVehicleLimit(organizationId: string): Promise<VehicleLimitStatus> {
+  const { data, error } = await getSupabaseClient().rpc('vehicle_limit_status', {
+    p_organization_id: organizationId,
+  })
+
+  if (error) throw toAppError(error)
+
+  const row = data?.[0]
+  return {
+    limit: row?.vehicle_limit ?? null,
+    count: row?.vehicle_count ?? 0,
+    tier: row?.tier ?? null,
+  }
 }
 
 /**
