@@ -28,18 +28,29 @@ export type AppErrorKind =
  */
 export class AppError extends Error {
   readonly kind: AppErrorKind
-  /** Postgres SQLSTATE or provider error code, kept for logging and support. */
+  /**
+   * Postgres SQLSTATE or provider error code, kept for logging and support. For a
+   * refusal from the billing Edge Function it is that function's error category
+   * (`over_target_limit`, `plan_change_unavailable`, ...).
+   */
   readonly code: string | undefined
+  /** Structured facts the server attached to a refusal, when it attached any. */
+  readonly detail: Readonly<Record<string, unknown>> | undefined
 
   constructor(
     kind: AppErrorKind,
     message: string,
-    options: { code?: string | undefined; cause?: unknown } = {},
+    options: {
+      code?: string | undefined
+      detail?: Readonly<Record<string, unknown>> | undefined
+      cause?: unknown
+    } = {},
   ) {
     super(message, { cause: options.cause })
     this.name = 'AppError'
     this.kind = kind
     this.code = options.code
+    this.detail = options.detail
   }
 }
 

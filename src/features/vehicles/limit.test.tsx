@@ -162,6 +162,14 @@ describe('downgradeRefusalCopy', () => {
     )
   })
 
+  it('never tells anyone to retire zero or a negative number of vehicles', () => {
+    for (const count of [5, 4, 0]) {
+      const copy = downgradeRefusalCopy('starter', 5, count)
+      expect(copy).not.toMatch(/Retire/)
+      expect(copy).not.toMatch(/-\d/)
+    }
+  })
+
   it('shows a display name for every tier', () => {
     expect(downgradeRefusalCopy('pro', 20, 30)).toMatch(/^Pro covers 20 vehicles/)
     expect(downgradeRefusalCopy('business', 50, 60)).toMatch(/^Business covers 50 vehicles/)

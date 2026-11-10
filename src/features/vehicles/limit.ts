@@ -121,5 +121,12 @@ export function downgradeRefusalCopy(
   // catalogue key, not a name.
   const known = VEHICLE_TIERS.find((candidate) => candidate.key === targetTier)
   const subject = known ? known.label : 'That plan'
-  return `${subject} covers ${vehicles(targetLimit)}. You have ${count}. Retire ${count - targetLimit} to move down.`
+  const lead = `${subject} covers ${vehicles(targetLimit)}. You have ${count}.`
+  // GUARD, NOT A LIVE PATH. The server refuses only when count exceeds the limit
+  // it compared, and sends those numbers, so the difference below is positive for
+  // every real caller. A future caller passing anything else must not be told to
+  // retire zero or a negative number of vehicles.
+  const surplus = count - targetLimit
+  if (surplus <= 0) return lead
+  return `${lead} Retire ${surplus} to move down.`
 }

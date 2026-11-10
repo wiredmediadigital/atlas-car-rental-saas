@@ -91,11 +91,11 @@ function overviewOf(over: Partial<BillingOverviewRow> = {}): BillingOverviewRow 
   }
 }
 
-function refusal(category: string, message: string) {
+function refusal(category: string, message: string, detail?: Record<string, unknown>) {
   return {
     data: null,
     error: {
-      context: new Response(JSON.stringify({ ok: false, error: { category, message } }), {
+      context: new Response(JSON.stringify({ ok: false, error: { category, message, detail } }), {
         status: 409,
       }),
     },
@@ -223,7 +223,9 @@ describe('changing tier from the Billing page', () => {
 
 describe('when the server refuses', () => {
   it('shows the gap when a downgrade is refused, in the client wording', async () => {
-    backend.invoke.mockResolvedValue(refusal('over_target_limit', SERVER_SENTENCE))
+    backend.invoke.mockResolvedValue(
+      refusal('over_target_limit', SERVER_SENTENCE, { limit: 5, count: 12, tier: 'starter' }),
+    )
     const user = userEvent.setup()
     await renderAs('owner')
 
@@ -234,6 +236,53 @@ describe('when the server refuses', () => {
     ).toBeTruthy()
     // One source for the sentence: the server's own wording is not displayed.
     expect(screen.queryByText(SERVER_SENTENCE)).toBeNull()
+  })
+
+  it("states the server's numbers when a per-agency override is what refused", async () => {
+    // Starter authors 5 and the page was told 12 vehicles, but the server compared
+    // 4 against an override of 3. Computing from the authored tier would say
+    // "covers 5 ... You have 12 ... Retire 7", or worse a negative number.
+    backend.invoke.mockResolvedValue(
+      refusal('over_target_limit', SERVER_SENTENCE, { limit: 3, count: 4, tier: 'starter' }),
+    )
+    const user = userEvent.setup()
+    await renderAs('owner')
+
+    await user.click(within(card('Starter')).getByRole('button', { name: 'Move to this plan' }))
+
+    expect(
+      await screen.findByText('Starter covers 3 vehicles. You have 4. Retire 1 to move down.'),
+    ).toBeTruthy()
+    expect(screen.queryByText(/covers 5/)).toBeNull()
+    expect(screen.queryByText(/Retire 7/)).toBeNull()
+    expect(screen.queryByText(/Retire -/)).toBeNull()
+  })
+
+  it('falls back to the server message, computing nothing, when the numbers are absent', async () => {
+    backend.invoke.mockResolvedValue(refusal('over_target_limit', SERVER_SENTENCE))
+    const user = userEvent.setup()
+    await renderAs('owner')
+
+    await user.click(within(card('Starter')).getByRole('button', { name: 'Move to this plan' }))
+
+    expect(await screen.findByText(SERVER_SENTENCE)).toBeTruthy()
+    expect(screen.queryByText(/Retire 7/)).toBeNull()
+  })
+
+  it('retires a refusal when the overview changes underneath it', async () => {
+    backend.invoke.mockResolvedValue(
+      refusal('over_target_limit', SERVER_SENTENCE, { limit: 5, count: 12, tier: 'starter' }),
+    )
+    const user = userEvent.setup()
+    await renderAs('owner')
+    await user.click(within(card('Starter')).getByRole('button', { name: 'Move to this plan' }))
+    await screen.findByText(/Retire 7 to move down/)
+
+    // The fleet shrinks; the next read differs.
+    backend.overview = overviewOf({ active_vehicles: 5 })
+    await client.invalidateQueries()
+
+    await waitFor(() => expect(screen.queryByText(/Retire 7 to move down/)).toBeNull())
   })
 
   it('treats an unchangeable subscription as a support matter, not the agency fault', async () => {
@@ -269,6 +318,8 @@ describe('after a change is accepted', () => {
     await user.click(within(card('Business')).getByRole('button', { name: 'Upgrade to this plan' }))
 
     expect(await screen.findByText(/being applied/i)).toBeTruthy()
+    // The escape if the webhook never lands.
+    expect(screen.getByText(/Refresh billing status/)).toBeTruthy()
     // The pre-change tier is not presented as the current one, and nothing reads as failure.
     expect(screen.queryByText('Current')).toBeNull()
     expect(within(card('Business')).getByText('Applying')).toBeTruthy()

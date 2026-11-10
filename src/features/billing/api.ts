@@ -25,7 +25,7 @@ import type {
 const FUNCTION = 'billing'
 
 interface FunctionErrorBody {
-  error?: { category?: string; message?: string }
+  error?: { category?: string; message?: string; detail?: Record<string, unknown> }
 }
 
 /** A billing action's outcome, as the server describes it. */
@@ -61,7 +61,7 @@ async function unwrapFunctionError(error: unknown): Promise<never> {
           body.error.message,
           // The server's category, so a caller can tell one refusal from another
           // without parsing a sentence.
-          { code: body.error.category },
+          { code: body.error.category, detail: body.error.detail },
         )
       }
     } catch (parsed) {

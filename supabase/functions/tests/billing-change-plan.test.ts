@@ -226,6 +226,8 @@ describe('change_plan', () => {
     expect(result.message).toContain('Starter')
     expect(result.message).toContain('5')
     expect(result.message).not.toMatch(/55000|ERROR|SQLSTATE|violates/i)
+    // The numbers the decision used, for the client to word.
+    expect(result.detail).toEqual({ limit: 5, count: 6, tier: 'starter' })
     // Refused before Stripe was asked anything at all.
     expect(stripe.calls).toHaveLength(0)
   })
@@ -253,6 +255,23 @@ describe('change_plan', () => {
 
     expect(result).toEqual({ ok: true })
     expect(stripe.posts()).toHaveLength(1)
+  })
+
+  it('reports the override, not the authored limit, when the override is what refused', async () => {
+    await subscribe('business_monthly')
+    await insertVehicles(4)
+    await db.sql(`update public.organizations set vehicle_limit_override = 3 where id = $1`, [
+      organizationId,
+    ])
+    const stripe = fakeStripe()
+
+    const result = await changePlan(storeOver(db), stripe.client, input('starter_monthly'))
+
+    expect(result).toMatchObject({ ok: false, category: 'over_target_limit', status: 409 })
+    if (result.ok) throw new Error('unreachable')
+    // Starter authors 5, but the override of 3 is what binds: 4 > 3.
+    expect(result.detail).toEqual({ limit: 3, count: 4, tier: 'starter' })
+    expect(stripe.calls).toHaveLength(0)
   })
 
   it('refuses when the agency has no live subscription', async () => {

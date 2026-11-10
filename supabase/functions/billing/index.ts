@@ -86,8 +86,19 @@ function json(body: unknown, status = 200): Response {
   })
 }
 
-function failure(category: string, message: string, status = 400): Response {
-  return json({ ok: false, error: { category, message } }, status)
+function failure(
+  category: string,
+  message: string,
+  status = 400,
+  detail?: Readonly<Record<string, unknown>>,
+): Response {
+  return json(
+    {
+      ok: false,
+      error: detail === undefined ? { category, message } : { category, message, detail },
+    },
+    status,
+  )
 }
 
 function serviceClient(url: string, key: string): SupabaseClient {
@@ -477,7 +488,8 @@ Deno.serve(async (request: Request): Promise<Response> => {
         }
 
         const result = await changePlan(store, stripe, { organizationId, planKey, attempt })
-        if (!result.ok) return failure(result.category, result.message, result.status)
+        if (!result.ok)
+          return failure(result.category, result.message, result.status, result.detail)
         return json({ ok: true })
       }
 

@@ -53,6 +53,8 @@ export type PlanChangeResult =
       readonly category: string
       readonly message: string
       readonly status: number
+      /** Structured facts behind the refusal, for a client that words it itself. */
+      readonly detail?: Readonly<Record<string, unknown>>
     }
 
 export interface PlanChangeInput {
@@ -69,8 +71,15 @@ export interface PlanChangeInput {
 /** The default idempotency window: long enough to absorb a double click only. */
 const ATTEMPT_BUCKET_MS = 60_000
 
-function refuse(category: string, message: string, status: number): PlanChangeResult {
-  return { ok: false, category, message, status }
+function refuse(
+  category: string,
+  message: string,
+  status: number,
+  detail?: Readonly<Record<string, unknown>>,
+): PlanChangeResult {
+  return detail === undefined
+    ? { ok: false, category, message, status }
+    : { ok: false, category, message, status, detail }
 }
 
 function vehicles(count: number): string {
@@ -116,6 +125,9 @@ export async function changePlan(
       `You have ${vehicles(count)} and the ${tier} plan covers ${limit}. ` +
         `Archive ${vehicles(count - limit)} to move to it.`,
       409,
+      // The numbers actually compared: the effective limit (override first), the
+      // count read, and the target tier. The client words the sentence from these.
+      { limit, count, tier: target.tier },
     )
   }
 

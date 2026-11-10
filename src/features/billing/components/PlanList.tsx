@@ -7,6 +7,7 @@ import { SUPPORT_EMAIL } from '@/features/help/constants'
 import { downgradeRefusalCopy, tierKeyOfPlan, VEHICLE_TIERS } from '@/features/vehicles/limit'
 import { usePermission } from '@/features/workspace/workspace-context'
 import { formatMoney } from '@/lib/money/money'
+import { AppError } from '@/lib/supabase/errors'
 import { cn } from '@/lib/utils/cn'
 import type { BillingOverviewRow, BillingPlanRow } from '@/types/database'
 
@@ -48,17 +49,32 @@ const DIRECTION_LABEL: Record<Direction, string> = {
   switch: 'Switch to this plan',
 }
 
-/** The sentence for a refused downgrade, from the client's own copy. */
-function refusalSentence(targetPlanKey: string, vehicleCount: number): string {
-  const key = tierKeyOfPlan(targetPlanKey)
-  const tier = VEHICLE_TIERS.find((candidate) => candidate.key === key)
-  if (!tier) return 'Your fleet is larger than that plan covers. Retire some vehicles to move down.'
-  return downgradeRefusalCopy(key, tier.limit, vehicleCount)
+/**
+ * The sentence for a refused downgrade: the client's wording around the numbers
+ * the SERVER compared (effective limit, override included, and the count it
+ * read). Without those numbers it shows the server's own message rather than
+ * computing figures it cannot verify.
+ */
+function refusalSentence(error: AppError): string {
+  const detail = error.detail
+  if (detail && typeof detail['limit'] === 'number' && typeof detail['count'] === 'number') {
+    const tier = typeof detail['tier'] === 'string' ? detail['tier'] : ''
+    return downgradeRefusalCopy(tier, detail['limit'], detail['count'])
+  }
+  return error.message
+}
+
+/** What the overview looked like when a refusal was shown; a change retires it. */
+function basisOf(overview: BillingOverviewRow): string {
+  return [overview.plan_key, overview.status, overview.active_vehicles, overview.synced_at].join(
+    '|',
+  )
 }
 
 interface Notice {
   readonly planKey: string
   readonly text: string
+  readonly basis: string
 }
 
 interface PlanCardProps {
@@ -167,16 +183,16 @@ export function PlanList({ plans, overview, locale, checkoutBusyKey, onCheckout 
     changePlan.mutate(planKey, {
       onSuccess: () => setRequestedKey(planKey),
       onError: (error) => {
-        const code = (error as { code?: string }).code
+        const code = error instanceof AppError ? error.code : undefined
         const text =
-          code === 'over_target_limit'
-            ? refusalSentence(planKey, overview.active_vehicles)
+          error instanceof AppError && code === 'over_target_limit'
+            ? refusalSentence(error)
             : code === 'plan_change_unavailable'
               ? SUPPORT_MESSAGE
               : code === 'no_subscription'
                 ? NO_SUBSCRIPTION_MESSAGE
                 : GENERIC_MESSAGE
-        setNotice({ planKey, text })
+        setNotice({ planKey, text, basis: basisOf(overview) })
       },
       onSettled: () => setChangingKey(null),
     })
@@ -187,7 +203,7 @@ export function PlanList({ plans, overview, locale, checkoutBusyKey, onCheckout 
       {isApplying ? (
         <p role="status" className="text-ink-muted mb-3 text-[0.8125rem] leading-5">
           Your change is being applied. This page updates as soon as our payment provider confirms
-          it.
+          it. If it does not, use Refresh billing status.
         </p>
       ) : null}
       <ul
@@ -222,7 +238,11 @@ export function PlanList({ plans, overview, locale, checkoutBusyKey, onCheckout 
                     ? 'Current plan'
                     : 'Choose plan'
               }
-              notice={notice?.planKey === plan.plan_key ? notice.text : null}
+              notice={
+                notice?.planKey === plan.plan_key && notice.basis === basisOf(overview)
+                  ? notice.text
+                  : null
+              }
               onChoose={choose}
             />
           )
