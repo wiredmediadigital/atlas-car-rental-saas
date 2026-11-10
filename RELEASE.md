@@ -68,15 +68,16 @@ continuous monitoring.
 | `BILLING_STRIPE_WEBHOOK_SECRET` | The `billing-webhook` endpoint. No unsigned fallback exists.         |
 | `BILLING_APP_URL`               | The trusted origin Checkout and the Customer Portal return to.       |
 | `BILLING_PLAN_CATALOGUE`        | Which Stripe prices this deployment sells. Amounts come from Stripe. |
+| `BILLING_TRIAL_DAYS`            | Free-trial length in days. Unset means no trial; set `14`.           |
 
 Set with `supabase secrets set NAME=value`. **Without them the product is the Free
 build**: every module is unlocked, no entitlement is enforced, and `/billing` shows
 example pricing clearly labelled as an illustration alongside a link to the setup
 guide.
 
-The example figures on that page — Starter $49/$490, Growth $99/$990, Scale
-$199/$1,990 — are presentation only. They create no records, grant nothing and gate
-nothing.
+The example figures on that page — Starter $59/$590, Pro $119/$1,190, Business
+$199/$1,990, with every feature included at every tier — are illustrations only.
+They create no records, grant nothing and gate nothing.
 
 ### Fleet map basemap
 
@@ -105,6 +106,30 @@ no sitemap.
    SPA rewrite is in force.
 6. Sign up once on the live deployment and confirm the agency is provisioned and the
    Overview setup checklist appears.
+
+Billing with Stripe has four more checks. The first is a precondition: run it before
+you deploy, not after.
+
+7. **Every active plan key must be one of the six below. Check this before deploying.**
+   The public pricing page works out each tier's name and vehicle allowance from the
+   plan key, and it drops a plan whose key it cannot name. If no key can be named, the
+   pricing section, the navigation link to it and the FAQ entry all disappear together,
+   and nothing on the page reports an error. The `billing` function does log a warning, and
+   writes it to `billing_platform_state.reported_reason`, naming any active plan with no
+   authored vehicle limit (such a plan allows unlimited vehicles). No screen reads that
+   column, so look in the function logs or run
+   `select reported_reason from public.billing_platform_state;` after the first status refresh.
+8. All six plan keys are present in `BILLING_PLAN_CATALOGUE`: `starter_monthly`,
+   `starter_yearly`, `pro_monthly`, `pro_yearly`, `business_monthly`,
+   `business_yearly`. A missing key means that tier and interval cannot be bought.
+9. `BILLING_TRIAL_DAYS=14`.
+10. **Plan switching is turned OFF in the hosted Stripe Customer Portal** (Stripe
+    Dashboard, Settings, Billing, Customer portal; do it in both test and live mode).
+    The product refuses a downgrade while the agency has more vehicles than the target
+    tier allows, and that refusal only exists when the plan is changed through the
+    app's Billing page. The Customer Portal changes the plan inside Stripe and never
+    asks the app, so leaving switching enabled lets an agency downgrade past the rule
+    that stops it. Cancelling and updating the card can stay on.
 
 ## Deleting an agency
 

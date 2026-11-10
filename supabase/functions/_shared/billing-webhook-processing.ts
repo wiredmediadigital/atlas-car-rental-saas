@@ -112,6 +112,12 @@ export interface WebhookStore {
    * the reminder. This is the moment somebody should be TOLD, which is a
    * different fact from what the subscription currently is.
    */
+  /**
+   * Notes an agency whose fleet exceeds the limit its subscription now carries.
+   * Observation only: nothing is archived or reverted.
+   */
+  checkFleetAgainstTier(organizationId: string): Promise<void>
+
   noteTrialEnding(input: {
     organizationId: string
     subscriptionId: string
@@ -336,6 +342,20 @@ export async function processStripeEvent(
         subscriptionId: normalized.value.stripeSubscriptionId,
         trialEnd: normalized.value.trialEnd,
       })
+    }
+
+    /*
+     * A lower tier can arrive from outside the product (an operator editing
+     * Stripe directly). The agency keeps every vehicle; the mismatch is noted.
+     * Best effort: it must not fail an event whose projection already applied,
+     * and a retry would only note it twice.
+     */
+    if (applied === 'applied' && organizationId !== null) {
+      try {
+        await store.checkFleetAgainstTier(organizationId)
+      } catch {
+        console.error('billing-webhook: fleet check failed')
+      }
     }
 
     await store.finishEvent({ id: event.id, result: outcome, organizationId })

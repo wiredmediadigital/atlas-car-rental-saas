@@ -44,6 +44,11 @@ import {
   type SubscriptionStatus,
 } from '../_shared/billing-domain.ts'
 import { refreshCatalogue } from '../_shared/billing-catalogue.ts'
+import {
+  describePlansWithoutLimit,
+  plansWithoutLimit,
+  type LimitReportStore,
+} from '../_shared/billing-limit-report.ts'
 import { changePlan, type PlanChangeStore } from '../_shared/billing-plan-change.ts'
 import { StripeApiError, StripeClient } from '../_shared/stripe-api.ts'
 import { describeConfigProblem, resolveBillingConfig } from '../_shared/stripe-config.ts'
@@ -140,6 +145,49 @@ async function reportPlatformState(
     p_mode: mode,
     p_reason: reason,
   })
+}
+
+/** The two lists the missing-limit report compares, read with the service role. */
+function limitReportStore(service: SupabaseClient, mode: 'test' | 'live'): LimitReportStore {
+  return {
+    async activePlanKeys() {
+      const { data, error } = await service
+        .from('billing_plans')
+        .select('plan_key')
+        .eq('is_active', true)
+        .eq('mode', mode)
+      if (error) throw new Error('catalogue unreadable')
+      return (data ?? []).map((row) => row.plan_key as string)
+    },
+    async authoredLimitKeys() {
+      const { data, error } = await service.from('plan_vehicle_limits').select('plan_key')
+      if (error) throw new Error('plan limits unreadable')
+      return (data ?? []).map((row) => row.plan_key as string)
+    },
+  }
+}
+
+/**
+ * A sentence for the operator when a sold plan has no authored vehicle limit, else null.
+ *
+ * Best effort: a report must never take the Billing page or a plan change down,
+ * so a failed read is logged as a category and answered with null.
+ */
+async function missingLimitSentence(
+  service: SupabaseClient,
+  mode: 'test' | 'live',
+): Promise<string | null> {
+  try {
+    const missing = await plansWithoutLimit(limitReportStore(service, mode))
+    if (missing.length === 0) return null
+    const sentence = describePlansWithoutLimit(missing)
+    // Also in the function log: the database column is read by no screen.
+    console.warn(`billing: ${sentence}`)
+    return sentence
+  } catch {
+    console.error('billing: missing-limit report could not be read')
+    return null
+  }
 }
 
 /**
@@ -294,13 +342,20 @@ Deno.serve(async (request: Request): Promise<Response> => {
        */
       case 'status': {
         const plans = await refreshCatalogue(service, stripe, config)
+        /*
+         * A sold plan with no authored limit is unlimited, silently. It is also
+         * a plan key the public pricing page cannot name, so it would be dropped
+         * from that page. Said here, where the operator already looks.
+         */
+        const missingLimit = plans > 0 ? await missingLimitSentence(service, config.mode) : null
         await reportPlatformState(
           service,
           true,
           config.mode,
-          plans > 0
-            ? 'Stripe is configured.'
-            : 'Stripe is configured, but no sellable plan was found.',
+          missingLimit ??
+            (plans > 0
+              ? 'Stripe is configured.'
+              : 'Stripe is configured, but no sellable plan was found.'),
         )
         return json({ ok: true, state: 'configured', mode: config.mode, plans })
       }
@@ -433,6 +488,22 @@ Deno.serve(async (request: Request): Promise<Response> => {
         const attempt = typeof body.attempt === 'string' ? body.attempt.slice(0, 64) : undefined
 
         const store: PlanChangeStore = {
+          async reportMissingLimit() {
+            const sentence = await missingLimitSentence(service, config.mode)
+            if (sentence !== null) await reportPlatformState(service, true, config.mode, sentence)
+          },
+          async noteChange({ organizationId: id, planKey: key, subscriptionId, actorUserId }) {
+            const { error } = await service.schema('app').rpc('billing_note_event', {
+              p_organization_id: id,
+              // Not 'plan_changed': the webhook records that kind, with a
+              // notification, when Stripe confirms. This is the request.
+              p_kind: 'subscription_updated',
+              p_summary: `A change to the ${key} plan was requested.`,
+              p_actor_user_id: actorUserId,
+              p_stripe_object_id: subscriptionId,
+            })
+            if (error) throw new Error('note_failed')
+          },
           async resolvePlan(key) {
             const { data: resolved, error: resolveError } = await service
               .schema('app')
@@ -487,7 +558,12 @@ Deno.serve(async (request: Request): Promise<Response> => {
           },
         }
 
-        const result = await changePlan(store, stripe, { organizationId, planKey, attempt })
+        const result = await changePlan(store, stripe, {
+          organizationId,
+          planKey,
+          attempt,
+          actorUserId: auth.user.id,
+        })
         if (!result.ok)
           return failure(result.category, result.message, result.status, result.detail)
         return json({ ok: true })

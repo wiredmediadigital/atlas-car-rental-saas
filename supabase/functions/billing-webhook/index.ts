@@ -33,6 +33,7 @@ import {
   type StripeEvent,
   type StripeSubscription,
 } from '../_shared/billing-domain.ts'
+import { checkFleetAgainstTier } from '../_shared/billing-limit-report.ts'
 import {
   processStripeEvent,
   type WebhookOutcome,
@@ -168,6 +169,38 @@ function makeStore(service: SupabaseClient, stripe: StripeClient): WebhookStore 
         .eq('stripe_customer_id', customerId)
         .maybeSingle()
       return (data?.organization_id as string | undefined) ?? null
+    },
+
+    async checkFleetAgainstTier(organizationId) {
+      await checkFleetAgainstTier(
+        {
+          async vehicleLimit(id) {
+            const { data, error } = await service
+              .schema('app')
+              .rpc('vehicle_limit_of', { p_organization_id: id })
+            if (error) throw new Error('limit unreadable')
+            return typeof data === 'number' ? data : null
+          },
+          async vehicleCount(id) {
+            const { data, error } = await service
+              .schema('app')
+              .rpc('vehicle_count_of', { p_organization_id: id })
+            if (error || typeof data !== 'number') throw new Error('count unreadable')
+            return data
+          },
+          async note(id, summary) {
+            const { error } = await service.schema('app').rpc('billing_note_event', {
+              p_organization_id: id,
+              p_kind: 'subscription_updated',
+              p_summary: summary,
+              p_actor_user_id: null,
+              p_stripe_object_id: null,
+            })
+            if (error) throw new Error('note_failed')
+          },
+        },
+        organizationId,
+      )
     },
 
     async noteTrialEnding({ organizationId, subscriptionId, trialEnd }) {

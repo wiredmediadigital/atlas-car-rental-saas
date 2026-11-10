@@ -15,6 +15,12 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { TestDatabase, signUp } from '../../tests/support/harness'
+import {
+  checkFleetAgainstTier,
+  describePlansWithoutLimit,
+  plansWithoutLimit,
+  type LimitReportStore,
+} from '../_shared/billing-limit-report.ts'
 import { changePlan, type PlanChangeStore } from '../_shared/billing-plan-change.ts'
 import { StripeClient } from '../_shared/stripe-api.ts'
 
@@ -22,6 +28,7 @@ let db: TestDatabase
 let organizationId: string
 let seq = 0
 let plate = 0
+let ownerId: string
 
 const PLAN_KEYS = ['starter_monthly', 'pro_monthly', 'business_monthly']
 const ITEM_ID = 'si_changeplan'
@@ -72,8 +79,23 @@ async function insertVehicles(count: number): Promise<void> {
 }
 
 /** Reads what the Edge Function's service-role store reads, with the same meaning. */
-function storeOver(database: TestDatabase): PlanChangeStore {
+function storeOver(
+  database: TestDatabase,
+  recorded: { missingLimit: string[] } = { missingLimit: [] },
+): PlanChangeStore {
   return {
+    reportMissingLimit(planKey) {
+      recorded.missingLimit.push(planKey)
+      return Promise.resolve()
+    },
+    async noteChange({ organizationId: id, planKey, subscriptionId, actorUserId }) {
+      await database.sql(`select app.billing_note_event($1, 'subscription_updated', $2, $3, $4)`, [
+        id,
+        `A plan change to ${planKey} was requested.`,
+        actorUserId,
+        subscriptionId,
+      ])
+    },
     async resolvePlan(planKey) {
       const [row] = await database.sql<{
         stripe_price_id: string | null
@@ -190,6 +212,7 @@ beforeEach(async () => {
   })
   if (!account.organizationId) throw new Error('provisioning failed')
   organizationId = account.organizationId
+  ownerId = account.userId
   const tag = organizationId.slice(0, 8)
   await db.sql(`select app.billing_claim_customer($1, $2, 'test', $3)`, [
     organizationId,
@@ -361,5 +384,136 @@ describe('change_plan', () => {
 
     expect(result).toMatchObject({ ok: false, category: 'plan_change_unavailable' })
     expect(calls).toEqual(['GET'])
+  })
+})
+
+function limitReportStoreOver(database: TestDatabase): LimitReportStore {
+  return {
+    async activePlanKeys() {
+      const rows = await database.sql<{ plan_key: string }>(
+        `select plan_key from public.billing_plans where is_active and mode = 'test'`,
+      )
+      return rows.map((r) => r.plan_key)
+    },
+    async authoredLimitKeys() {
+      const rows = await database.sql<{ plan_key: string }>(
+        `select plan_key from public.plan_vehicle_limits`,
+      )
+      return rows.map((r) => r.plan_key)
+    },
+  }
+}
+
+describe('reports for configurations that silently misbehave', () => {
+  it('reports an active plan with no authored vehicle limit', async () => {
+    await subscribe('starter_monthly')
+    const recorded = { missingLimit: [] as string[] }
+    const store = storeOver(db, recorded)
+
+    // Control: every key the catalogue sells has a limit, so nothing is reported.
+    expect(await plansWithoutLimit(limitReportStoreOver(db))).toEqual([])
+    expect(await changePlan(store, fakeStripe().client, input('business_monthly'))).toEqual({
+      ok: true,
+    })
+    expect(recorded.missingLimit).toEqual([])
+
+    const [saved] = await db.sql<{ tier: string; vehicle_limit: number }>(
+      `delete from public.plan_vehicle_limits where plan_key = 'pro_monthly'
+       returning tier, vehicle_limit`,
+    )
+    try {
+      // The zero-row case: the plan RESOLVES (it is sold), but no limit row exists.
+      // Fail-open is the specified behaviour and stays: the change is allowed...
+      const result = await changePlan(store, fakeStripe().client, input('pro_monthly'))
+      expect(result).toEqual({ ok: true })
+      // ...but the operator is told which plan is unlimited.
+      expect(recorded.missingLimit).toEqual(['pro_monthly'])
+
+      const missing = await plansWithoutLimit(limitReportStoreOver(db))
+      expect(missing).toEqual(['pro_monthly'])
+      const sentence = describePlansWithoutLimit(missing)
+      expect(sentence).toContain('pro_monthly')
+      expect(sentence.length).toBeLessThanOrEqual(200)
+    } finally {
+      await db.sql(
+        `insert into public.plan_vehicle_limits (plan_key, tier, vehicle_limit)
+         values ('pro_monthly', $1, $2)`,
+        [saved!.tier, saved!.vehicle_limit],
+      )
+    }
+  })
+
+  it('reports a subscription whose tier is below the agency fleet size', async () => {
+    await subscribe('pro_monthly')
+    await insertVehicles(6)
+    // An operator edits Stripe directly: the webhook lands the lower tier.
+    await subscribe('starter_monthly')
+
+    const notes: string[] = []
+    const fleet = {
+      vehicleLimit: async (id: string) => {
+        const [row] = await db.sql<{ l: number | null }>(`select app.vehicle_limit_of($1) as l`, [
+          id,
+        ])
+        return row!.l
+      },
+      vehicleCount: (id: string) => storeOver(db).vehicleCount(id),
+      note: async (id: string, summary: string) => {
+        notes.push(summary)
+        await db.sql(`select app.billing_note_event($1, 'subscription_updated', $2)`, [id, summary])
+      },
+    }
+
+    const result = await checkFleetAgainstTier(fleet, organizationId)
+
+    expect(result).toEqual({ limit: 5, count: 6 })
+    expect(notes).toHaveLength(1)
+    expect(notes[0]).toContain('6 vehicles')
+    expect(notes[0]).toContain('5')
+    const events = await db.sql<{ summary: string }>(
+      `select summary from public.billing_events
+        where organization_id = $1 and summary = $2`,
+      [organizationId, notes[0]],
+    )
+    expect(events).toHaveLength(1)
+    // Nothing is retroactive: every vehicle is still there and none was archived.
+    const [kept] = await db.sql<{ total: number; archived: number }>(
+      `select count(*)::int as total, count(archived_at)::int as archived
+         from public.vehicles where organization_id = $1`,
+      [organizationId],
+    )
+    expect(kept).toEqual({ total: 6, archived: 0 })
+
+    // Control: a fleet that fits the tier is not reported.
+    await db.sql(
+      `update public.vehicles set archived_at = now()
+        where id = (select id from public.vehicles where organization_id = $1 limit 1)`,
+      [organizationId],
+    )
+    notes.length = 0
+    expect(await checkFleetAgainstTier(fleet, organizationId)).toBeNull()
+    expect(notes).toEqual([])
+  })
+
+  it('records who asked for a plan change', async () => {
+    await subscribe('starter_monthly')
+
+    const result = await changePlan(storeOver(db), fakeStripe().client, {
+      ...input('pro_monthly'),
+      actorUserId: ownerId,
+    })
+
+    expect(result).toEqual({ ok: true })
+    const [event] = await db.sql<{ kind: string; actor_user_id: string; stripe_object_id: string }>(
+      `select kind::text as kind, actor_user_id, stripe_object_id
+         from public.billing_events
+        where organization_id = $1 and summary like '%pro_monthly%'`,
+      [organizationId],
+    )
+    expect(event).toMatchObject({
+      kind: 'subscription_updated',
+      actor_user_id: ownerId,
+      stripe_object_id: `sub_test_${organizationId.slice(0, 8)}`,
+    })
   })
 })

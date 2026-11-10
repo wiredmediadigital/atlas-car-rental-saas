@@ -44,6 +44,15 @@ export interface PlanChangeStore {
   vehicleLimitOverride(organizationId: string): Promise<number | null>
   /** app.vehicle_count_of. */
   vehicleCount(organizationId: string): Promise<number>
+  /** Tells the operator a sold plan has no authored vehicle limit. */
+  reportMissingLimit(planKey: string): Promise<void>
+  /** Records who asked for the change, in the billing history. */
+  noteChange(input: {
+    organizationId: string
+    planKey: string
+    subscriptionId: string
+    actorUserId: string | null
+  }): Promise<void>
 }
 
 export type PlanChangeResult =
@@ -60,6 +69,8 @@ export type PlanChangeResult =
 export interface PlanChangeInput {
   readonly organizationId: string
   readonly planKey: string
+  /** Who asked, for the billing history. */
+  readonly actorUserId?: string
   /**
    * Optional. Absent, it defaults to the current minute, so a repeat of an earlier
    * change (A to B, back to A, to B again) is a new Stripe operation rather than
@@ -99,6 +110,12 @@ export async function changePlan(
 
   const target = await store.resolvePlan(planKey)
   if (target === null) return refuse('plan_unavailable', 'That plan is not available.', 404)
+
+  /*
+   * Sold, but with no authored limit: it will be treated as unlimited. That is the
+   * specified fail-open behaviour and it is not changed here; the operator is told.
+   */
+  if (target.vehicleLimit === null) await store.reportMissingLimit(planKey)
 
   const subscription = await store.effectiveSubscription(organizationId)
   if (subscription === null || !isLiveStatus(subscription.status)) {
@@ -159,6 +176,21 @@ export async function changePlan(
       ),
     },
   )
+
+  /*
+   * The change has happened at Stripe, so a failure to note it must not be
+   * reported to the owner as a failed change.
+   */
+  try {
+    await store.noteChange({
+      organizationId,
+      planKey,
+      subscriptionId: subscription.stripeSubscriptionId,
+      actorUserId: input.actorUserId ?? null,
+    })
+  } catch {
+    console.error('billing: plan change could not be noted')
+  }
 
   return { ok: true }
 }

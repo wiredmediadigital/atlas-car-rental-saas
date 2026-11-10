@@ -75,6 +75,14 @@ The renewal dates — insurance, technical inspection, registration and road tax
 next service — are on the same form. Recording them here is what makes the
 warnings work later, and none of them is compulsory.
 
+Your plan covers a set number of vehicles, and a counter beside the page title
+shows how many you have against it, for example **4 of 5**. Retired vehicles do
+not count. The counter is hidden when your agency has no limit. When you reach
+the limit, **Add vehicle** and **Import** are no longer offered and a message
+explains the options: retire a vehicle you no longer rent, or move to a larger
+plan (an owner can do that from Billing). A vehicle that would go past the limit
+is refused, and nothing is added.
+
 ## Import a fleet from a spreadsheet
 <!-- permission: vehicles.create -->
 
@@ -91,6 +99,11 @@ help rather than a guarantee: on a large fleet it does not check every existing
 vehicle, so a duplicate can reach the import and be refused there instead. The
 refusal is safe — nothing is overwritten — and the row is reported with its
 line number like any other.
+
+The import counts against your plan's vehicle limit as a whole. If adding every
+row would take you past it, the batch is refused and the message says **Nothing
+was imported.** Not even the first rows go in. Retire some vehicles or reduce the
+file, and import again.
 
 A part-successful import is a real outcome, not a failure: the rows that passed
 are added, and the ones that did not are listed with their line numbers so you
@@ -170,8 +183,12 @@ happened, not here.
 stops appearing in the fleet and cannot be booked, but every contract, payment
 and expense that refers to it stays exactly as it is.
 
+A retired vehicle stops counting against your plan's vehicle limit, so retiring
+is how you free a place when you are at it. The place is available as soon as the
+vehicle is retired.
+
 It is reversible: a retired vehicle shows a banner on its page with **Return to
-fleet** on it, and the toolbar's **Include retired vehicles** brings it back
+fleet** on it (which needs a free place under your limit), and the toolbar's **Include retired vehicles** brings it back
 into the list so you can find it.
 
 ## Delete a vehicle permanently
@@ -182,9 +199,15 @@ contracts, no expenses, no financing. If anything does, the option is not
 there, and retiring is what you want.
 
 When it is offered, it takes the vehicle's photographs and documents with it
-and cannot be undone.
+and cannot be undone. It also frees a place under your limit, but retiring does
+the same and keeps the history, so it is the usual choice.
 
 ## If it goes wrong
+
+**I cannot add or import a vehicle, or it says my plan covers a number of
+vehicles.** You are at your plan's limit. Retired vehicles do not count, so
+retire one you no longer rent and try again, or ask the owner about a larger
+plan. Your existing vehicles are never removed or retired because of a limit.
 
 **A vehicle is missing from a booking's vehicle list.** It is committed to
 another contract across some part of that period, or it is in maintenance, off
