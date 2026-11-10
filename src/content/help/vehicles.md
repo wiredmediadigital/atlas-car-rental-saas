@@ -79,9 +79,10 @@ Your plan covers a set number of vehicles, and a counter beside the page title
 shows how many you have against it, for example **4 of 5**. Retired vehicles do
 not count. The counter is hidden when your agency has no limit. When you reach
 the limit, **Add vehicle** and **Import** are no longer offered and a message
-explains the options: retire a vehicle you no longer rent, or move to a larger
-plan (an owner can do that from Billing). A vehicle that would go past the limit
-is refused, and nothing is added.
+explains the options: retire a vehicle you no longer rent or, where your plan has
+a larger one, upgrade it (the owner can do that from Billing). On the largest
+plan, or where your limit was set for you, the message asks you to contact us
+instead. A vehicle that would go past the limit is refused, and nothing is added.
 
 ## Import a fleet from a spreadsheet
 <!-- permission: vehicles.create -->
@@ -188,8 +189,8 @@ is how you free a place when you are at it. The place is available as soon as th
 vehicle is retired.
 
 It is reversible: a retired vehicle shows a banner on its page with **Return to
-fleet** on it (which needs a free place under your limit), and the toolbar's **Include retired vehicles** brings it back
-into the list so you can find it.
+fleet** on it (which needs a free place under your limit), and the toolbar's
+**Include retired vehicles** brings it back into the list so you can find it.
 
 ## Delete a vehicle permanently
 <!-- permission: vehicles.delete -->
@@ -206,8 +207,10 @@ the same and keeps the history, so it is the usual choice.
 
 **I cannot add or import a vehicle, or it says my plan covers a number of
 vehicles.** You are at your plan's limit. Retired vehicles do not count, so
-retire one you no longer rent and try again, or ask the owner about a larger
-plan. Your existing vehicles are never removed or retired because of a limit.
+retire one you no longer rent and try again, or follow the message on the page:
+the owner can upgrade where a larger plan exists, and otherwise you are asked to
+contact us. Your existing vehicles are never removed or retired because of a
+limit.
 
 **A vehicle is missing from a booking's vehicle list.** It is committed to
 another contract across some part of that period, or it is in maintenance, off

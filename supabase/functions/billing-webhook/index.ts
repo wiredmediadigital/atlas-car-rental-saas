@@ -188,6 +188,17 @@ function makeStore(service: SupabaseClient, stripe: StripeClient): WebhookStore 
             if (error || typeof data !== 'number') throw new Error('count unreadable')
             return data
           },
+          async lastNote(id) {
+            const { data, error } = await service
+              .from('billing_events')
+              .select('summary')
+              .eq('organization_id', id)
+              .eq('kind', 'subscription_updated')
+              .order('occurred_at', { ascending: false })
+              .limit(1)
+            if (error) throw new Error('history unreadable')
+            return (data?.[0]?.summary as string | undefined) ?? null
+          },
           async note(id, summary) {
             const { error } = await service.schema('app').rpc('billing_note_event', {
               p_organization_id: id,

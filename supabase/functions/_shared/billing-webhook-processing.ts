@@ -112,17 +112,18 @@ export interface WebhookStore {
    * the reminder. This is the moment somebody should be TOLD, which is a
    * different fact from what the subscription currently is.
    */
-  /**
-   * Notes an agency whose fleet exceeds the limit its subscription now carries.
-   * Observation only: nothing is archived or reverted.
-   */
-  checkFleetAgainstTier(organizationId: string): Promise<void>
-
   noteTrialEnding(input: {
     organizationId: string
     subscriptionId: string
     trialEnd: string | null
   }): Promise<void>
+
+  /**
+   * Notes an agency whose fleet exceeds the limit its subscription now carries,
+   * once per distinct observation. Observation only: nothing is archived or
+   * reverted.
+   */
+  checkFleetAgainstTier(organizationId: string): Promise<void>
 }
 
 /**
@@ -347,8 +348,8 @@ export async function processStripeEvent(
     /*
      * A lower tier can arrive from outside the product (an operator editing
      * Stripe directly). The agency keeps every vehicle; the mismatch is noted.
-     * Best effort: it must not fail an event whose projection already applied,
-     * and a retry would only note it twice.
+     * Best effort: it must not fail an event whose projection already applied.
+     * It runs on every applied event, so the store writes only a changed observation.
      */
     if (applied === 'applied' && organizationId !== null) {
       try {

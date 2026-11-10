@@ -458,6 +458,15 @@ describe('reports for configurations that silently misbehave', () => {
         return row!.l
       },
       vehicleCount: (id: string) => storeOver(db).vehicleCount(id),
+      lastNote: async (id: string) => {
+        const [row] = await db.sql<{ summary: string }>(
+          `select summary from public.billing_events
+            where organization_id = $1 and kind = 'subscription_updated'
+            order by occurred_at desc, id desc limit 1`,
+          [id],
+        )
+        return row?.summary ?? null
+      },
       note: async (id: string, summary: string) => {
         notes.push(summary)
         await db.sql(`select app.billing_note_event($1, 'subscription_updated', $2)`, [id, summary])
@@ -483,6 +492,20 @@ describe('reports for configurations that silently misbehave', () => {
       [organizationId],
     )
     expect(kept).toEqual({ total: 6, archived: 0 })
+
+    // A second applied event with the same observation (a renewal, say) adds nothing.
+    expect(await checkFleetAgainstTier(fleet, organizationId)).toEqual({ limit: 5, count: 6 })
+    expect(notes).toHaveLength(1)
+    // A changed observation is a new fact and is noted.
+    await db.sql(`update public.organizations set vehicle_limit_override = 4 where id = $1`, [
+      organizationId,
+    ])
+    expect(await checkFleetAgainstTier(fleet, organizationId)).toEqual({ limit: 4, count: 6 })
+    expect(notes).toHaveLength(2)
+    expect(notes[1]).toContain('covers 4')
+    await db.sql(`update public.organizations set vehicle_limit_override = null where id = $1`, [
+      organizationId,
+    ])
 
     // Control: a fleet that fits the tier is not reported.
     await db.sql(

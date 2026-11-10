@@ -488,9 +488,11 @@ Deno.serve(async (request: Request): Promise<Response> => {
         const attempt = typeof body.attempt === 'string' ? body.attempt.slice(0, 64) : undefined
 
         const store: PlanChangeStore = {
-          async reportMissingLimit() {
-            const sentence = await missingLimitSentence(service, config.mode)
-            if (sentence !== null) await reportPlatformState(service, true, config.mode, sentence)
+          async reportMissingLimit(key) {
+            // The triggering key is always reported, even if the catalogue read fails.
+            const sentence =
+              (await missingLimitSentence(service, config.mode)) ?? describePlansWithoutLimit([key])
+            await reportPlatformState(service, true, config.mode, sentence)
           },
           async noteChange({ organizationId: id, planKey: key, subscriptionId, actorUserId }) {
             const { error } = await service.schema('app').rpc('billing_note_event', {

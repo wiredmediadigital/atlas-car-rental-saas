@@ -46,6 +46,11 @@ export interface FleetStore {
   vehicleLimit(organizationId: string): Promise<number | null>
   /** app.vehicle_count_of. */
   vehicleCount(organizationId: string): Promise<number>
+  /**
+   * The summary of the agency's most recent billing note of the kind `note` writes,
+   * or null. Used so an unchanged observation is not written again.
+   */
+  lastNote(organizationId: string): Promise<string | null>
   /** Writes the observation to the agency's billing history. */
   note(organizationId: string, summary: string): Promise<void>
 }
@@ -67,9 +72,14 @@ export async function checkFleetAgainstTier(
   const count = await store.vehicleCount(organizationId)
   if (count <= limit) return null
   const vehicles = count === 1 ? 'vehicle' : 'vehicles'
-  await store.note(
-    organizationId,
-    `The plan now covers ${limit} but the agency has ${count} ${vehicles}. Nothing was archived.`,
-  )
+  const summary = `The plan now covers ${limit} but the agency has ${count} ${vehicles}. Nothing was archived.`
+  /*
+   * Over the limit is a condition that persists for months, and this runs on every
+   * applied subscription event (each renewal, each update) in a history the agency
+   * reads. Only a CHANGED observation is a new fact. The comparison is with the
+   * latest note of this kind, so an unrelated note in between lets it be said again.
+   */
+  if ((await store.lastNote(organizationId)) === summary) return { limit, count }
+  await store.note(organizationId, summary)
   return { limit, count }
 }
