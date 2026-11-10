@@ -419,14 +419,17 @@ Deno.serve(async (request: Request): Promise<Response> => {
       case 'change_plan': {
         const planKey = typeof body.planKey === 'string' ? body.planKey : ''
         if (planKey === '') return failure('malformed_request', 'No plan was chosen.')
-        const attempt = typeof body.attempt === 'string' ? body.attempt.slice(0, 64) : 'default'
+        const attempt = typeof body.attempt === 'string' ? body.attempt.slice(0, 64) : undefined
 
         const store: PlanChangeStore = {
           async resolvePlan(key) {
-            const { data: resolved } = await service.schema('app').rpc('billing_resolve_plan', {
-              p_plan_key: key,
-              p_mode: config.mode,
-            })
+            const { data: resolved, error: resolveError } = await service
+              .schema('app')
+              .rpc('billing_resolve_plan', {
+                p_plan_key: key,
+                p_mode: config.mode,
+              })
+            if (resolveError) throw new Error('plan unreadable')
             const plan = Array.isArray(resolved) ? resolved[0] : resolved
             if (!plan?.stripe_price_id) return null
 

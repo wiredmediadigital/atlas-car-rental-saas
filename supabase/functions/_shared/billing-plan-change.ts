@@ -58,8 +58,16 @@ export type PlanChangeResult =
 export interface PlanChangeInput {
   readonly organizationId: string
   readonly planKey: string
-  readonly attempt: string
+  /**
+   * Optional. Absent, it defaults to the current minute, so a repeat of an earlier
+   * change (A to B, back to A, to B again) is a new Stripe operation rather than
+   * a replay of a cached one that would report success and change nothing.
+   */
+  readonly attempt?: string
 }
+
+/** The default idempotency window: long enough to absorb a double click only. */
+const ATTEMPT_BUCKET_MS = 60_000
 
 function refuse(category: string, message: string, status: number): PlanChangeResult {
   return { ok: false, category, message, status }
@@ -119,7 +127,7 @@ export async function changePlan(
   const current = await stripe.request<StripeSubscription>('GET', subscriptionPath)
   const items = current.items?.data ?? []
   const item = items[0]
-  if (items.length !== 1 || !item?.id) {
+  if (items.length !== 1 || !item?.id || !item.price?.id) {
     return refuse('plan_change_unavailable', 'This plan cannot be changed here right now.', 409)
   }
 
@@ -133,9 +141,9 @@ export async function changePlan(
     {
       idempotencyKey: changePlanIdempotencyKey(
         subscription.stripeSubscriptionId,
-        item.price?.id ?? 'unknown',
+        item.price.id,
         target.stripePriceId,
-        input.attempt,
+        input.attempt ?? String(Math.floor(Date.now() / ATTEMPT_BUCKET_MS)),
       ),
     },
   )

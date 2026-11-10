@@ -12,7 +12,7 @@
  * which cannot be imported here: its owner-only gate, the way it reads the
  * request body, and the supabase-js store adapter are covered by inspection.
  */
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { TestDatabase, signUp } from '../../tests/support/harness'
 import { changePlan, type PlanChangeStore } from '../_shared/billing-plan-change.ts'
@@ -125,19 +125,34 @@ interface Recorded {
 }
 
 /** The real StripeClient over a fake network; the subscription it serves is trialing or not. */
-function fakeStripe(options: { trialEnd?: number } = {}) {
+function fakeStripe(options: { trialEnd?: number; initialPrice?: string } = {}) {
+  let currentPrice = options.initialPrice ?? 'price_test_current'
+  const applied = new Set<string>()
+  const changes: string[] = []
   const calls: Recorded[] = []
   const fetchImpl = ((input: RequestInfo | URL, init?: RequestInit) => {
+    const headers = new Headers(init?.headers)
+    const key = headers.get('Idempotency-Key')
     calls.push({
       method: init?.method ?? 'GET',
       url: typeof input === 'string' ? input : input instanceof URL ? input.href : input.url,
       body: new URLSearchParams(typeof init?.body === 'string' ? init.body : ''),
     })
+    // Stripe replays a cached response for a repeated idempotency key and does not
+    // perform the update again; model that, because it is the failure under test.
+    if (init?.method === 'POST' && !(key && applied.has(key))) {
+      if (key) applied.add(key)
+      const next = new URLSearchParams(init.body as string).get('items[0][price]')
+      if (next) {
+        currentPrice = next
+        changes.push(next)
+      }
+    }
     const subscription = {
       id: 'sub_stripe_side',
       status: options.trialEnd ? 'trialing' : 'active',
       trial_end: options.trialEnd ?? null,
-      items: { data: [{ id: ITEM_ID, price: { id: 'price_test_current' } }] },
+      items: { data: [{ id: ITEM_ID, price: { id: currentPrice } }] },
     }
     return Promise.resolve(
       new Response(JSON.stringify(subscription), {
@@ -147,7 +162,7 @@ function fakeStripe(options: { trialEnd?: number } = {}) {
     )
   }) as typeof fetch
   const client = new StripeClient({ secretKey: 'sk_test_x', mode: 'test', fetchImpl })
-  return { client, calls, posts: () => calls.filter((c) => c.method === 'POST') }
+  return { client, calls, changes, posts: () => calls.filter((c) => c.method === 'POST') }
 }
 
 const input = (planKey: string) => ({ organizationId, planKey, attempt: 'a1' })
@@ -284,5 +299,48 @@ describe('change_plan', () => {
     // trial, and Stripe rejects a literal zero.
     expect(post?.body.has('trial_end')).toBe(false)
     expect(post?.body.has('trial_period_days')).toBe(false)
+    // Proration stays at Stripe's default: 'none' would give an upgrading agency free
+    // time and a downgrading one no credit.
+    expect(post?.body.has('proration_behavior')).toBe(false)
+  })
+
+  it('performs a repeated change A to B to A to B instead of replaying the first', async () => {
+    await subscribe('starter_monthly')
+    const stripe = fakeStripe({ initialPrice: 'price_test_starter_monthly' })
+    const store = storeOver(db)
+    const base = Date.now()
+    vi.useFakeTimers({ toFake: ['Date'] })
+    try {
+      // No attempt token: the default must not make these the same operation.
+      for (const [index, planKey] of ['pro_monthly', 'starter_monthly', 'pro_monthly'].entries()) {
+        vi.setSystemTime(base + index * 61_000)
+        const result = await changePlan(store, stripe.client, { organizationId, planKey })
+        expect(result).toEqual({ ok: true })
+      }
+    } finally {
+      vi.useRealTimers()
+    }
+
+    expect(stripe.changes).toEqual([
+      'price_test_pro_monthly',
+      'price_test_starter_monthly',
+      'price_test_pro_monthly',
+    ])
+  })
+
+  it('refuses rather than build a key when the subscription item has no price', async () => {
+    await subscribe('starter_monthly')
+    const calls: string[] = []
+    const stripe = {
+      request: (method: string) => {
+        calls.push(method)
+        return Promise.resolve({ id: 'sub_x', items: { data: [{ id: ITEM_ID }] } })
+      },
+    }
+
+    const result = await changePlan(storeOver(db), stripe as never, input('pro_monthly'))
+
+    expect(result).toMatchObject({ ok: false, category: 'plan_change_unavailable' })
+    expect(calls).toEqual(['GET'])
   })
 })
