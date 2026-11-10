@@ -156,6 +156,22 @@ describe('three tiers', () => {
     expect(screen.queryByText(/save/i)).not.toBeInTheDocument()
   })
 
+  it('offers no yearly toggle when a tier has no yearly plan, and keeps all three cards', () => {
+    renderSection(pricing(TIERED.filter((p) => p.planKey !== 'starter_yearly')))
+
+    // Starter would vanish on Yearly, so Yearly is not offered at all.
+    expect(screen.queryByRole('button', { name: /yearly/i })).not.toBeInTheDocument()
+    expect(screen.getAllByRole('link', { name: 'Start your free trial' })).toHaveLength(3)
+    expect(within(card('Starter')).getByText('$59.00')).toBeInTheDocument()
+  })
+
+  it('still switches when every tier has both cadences, with every card kept', async () => {
+    const user = userEvent.setup()
+    renderSection(pricing(TIERED))
+    await user.click(screen.getByRole('button', { name: /yearly/i }))
+    expect(screen.getAllByRole('link', { name: 'Start your free trial' })).toHaveLength(3)
+  })
+
   it('does not render a plan whose tier it cannot name', () => {
     renderSection(pricing([...TIERED, { ...MONTHLY, planKey: 'enterprise_monthly' }]))
     expect(screen.getAllByRole('link', { name: 'Start your free trial' })).toHaveLength(3)

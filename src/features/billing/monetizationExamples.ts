@@ -27,11 +27,11 @@
  * sending one produces `plan_unavailable` — a test asserts exactly that. There is
  * no code path from these numbers to a charge.
  *
- * The packaging is likewise a suggestion. None of it is enforced: every module
- * listed under every tier is available to every role that its own permission
- * allows, exactly as before Billing existed. If the person who receives this
- * project wants three different tiers, or one, or none, they change this file and
- * nothing else breaks.
+ * The tiers are likewise a suggestion, and they differ by fleet size only: the
+ * product sells every module at every tier, so nothing here is a feature ladder.
+ * Nothing is enforced by this file; every module is available to every role that
+ * its own permission allows. If the person who receives this project wants other
+ * tiers, or one, or none, they change this file and nothing else breaks.
  */
 
 import { VEHICLE_TIERS } from '@/features/vehicles/limit'
@@ -59,8 +59,8 @@ export interface MonetizationExample {
   /** ISO 4217, for formatting. Not the currency of any subscription. */
   readonly displayCurrency: 'USD'
   /**
-   * Suggested packaging. NOT ENFORCED ANYWHERE — see the module comment. Listed
-   * so somebody can see how the existing modules might be split commercially.
+   * What a tier says it covers: the vehicle allowance, then the statement that
+   * every module is included. NOT ENFORCED HERE — see the module comment.
    */
   readonly includes: readonly string[]
   /**
@@ -76,7 +76,9 @@ export interface MonetizationExample {
  */
 function allowance(key: MonetizationExample['id']): string {
   const tier = VEHICLE_TIERS.find((candidate) => candidate.key === key)
-  return `Up to ${tier?.limit} vehicles`
+  // Unreachable for the three ids; if a tier is ever renamed, say something true
+  // rather than print "undefined".
+  return tier ? `Up to ${tier.limit} vehicles` : 'Sized by fleet'
 }
 
 /*

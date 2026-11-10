@@ -64,14 +64,23 @@ function defaultCadence(plans: readonly PublicPlan[]): string | undefined {
   return plan && cadenceKey(plan)
 }
 
-/** One toggle option per distinct cadence, in the order the payload first shows them. */
+/**
+ * One toggle option per cadence that EVERY tier on the page has, in the order the
+ * payload first shows them. A cadence some tier lacks is not offered: choosing it
+ * would make that tier's card vanish, or (the alternative) put "$59 per month"
+ * beside "$1,190 per year" and invite a comparison that is not like for like.
+ */
 function cadenceOptions(plans: readonly PublicPlan[]): PublicPlan[] {
+  const tiers = new Set(plans.map((plan) => tierOfPlan(plan)?.key))
   const seen = new Set<string>()
   return plans.filter((plan) => {
     const key = cadenceKey(plan)
     if (seen.has(key)) return false
     seen.add(key)
-    return true
+    const covered = new Set(
+      plans.filter((p) => cadenceKey(p) === key).map((p) => tierOfPlan(p)?.key),
+    )
+    return covered.size === tiers.size
   })
 }
 
@@ -81,7 +90,8 @@ function tierOrder(plan: PublicPlan): number {
   return tier ? VEHICLE_TIERS.indexOf(tier) : VEHICLE_TIERS.length
 }
 
-const POPULAR_TIER = 'pro'
+// The middle tier of VEHICLE_TIERS, so renaming a key cannot silently unmark it.
+const POPULAR_TIER = VEHICLE_TIERS[Math.floor(VEHICLE_TIERS.length / 2)]?.key
 const LARGEST_TIER = VEHICLE_TIERS[VEHICLE_TIERS.length - 1]
 
 interface PlanCardProps {
@@ -178,7 +188,9 @@ export function PricingSection({ pricing }: PricingSectionProps) {
   const plans = renderablePlans(pricing)
 
   const options = cadenceOptions(plans)
-  const chosen = options.some((o) => cadenceKey(o) === selected) ? selected : defaultCadence(plans)
+  // No cadence covers every tier: show what there is, with no toggle to switch it.
+  const pool = options.length > 0 ? options : plans
+  const chosen = options.some((o) => cadenceKey(o) === selected) ? selected : defaultCadence(pool)
   if (chosen === undefined) return null
 
   const shown = plans
