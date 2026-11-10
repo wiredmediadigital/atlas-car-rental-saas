@@ -269,9 +269,7 @@ describe('change_plan', () => {
   it('does not refuse a downgrade for an agency whose per-agency override covers its fleet', async () => {
     await subscribe('pro_monthly')
     await insertVehicles(6)
-    await db.sql(`update public.organizations set vehicle_limit_override = 10 where id = $1`, [
-      organizationId,
-    ])
+    await db.sql(`select app.set_vehicle_limit_override($1, 10, $2)`, [organizationId, ownerId])
     const stripe = fakeStripe()
 
     const result = await changePlan(storeOver(db), stripe.client, input('starter_monthly'))
@@ -283,9 +281,7 @@ describe('change_plan', () => {
   it('reports the override, not the authored limit, when the override is what refused', async () => {
     await subscribe('business_monthly')
     await insertVehicles(4)
-    await db.sql(`update public.organizations set vehicle_limit_override = 3 where id = $1`, [
-      organizationId,
-    ])
+    await db.sql(`select app.set_vehicle_limit_override($1, 3, $2)`, [organizationId, ownerId])
     const stripe = fakeStripe()
 
     const result = await changePlan(storeOver(db), stripe.client, input('starter_monthly'))
@@ -497,15 +493,11 @@ describe('reports for configurations that silently misbehave', () => {
     expect(await checkFleetAgainstTier(fleet, organizationId)).toEqual({ limit: 5, count: 6 })
     expect(notes).toHaveLength(1)
     // A changed observation is a new fact and is noted.
-    await db.sql(`update public.organizations set vehicle_limit_override = 4 where id = $1`, [
-      organizationId,
-    ])
+    await db.sql(`select app.set_vehicle_limit_override($1, 4, $2)`, [organizationId, ownerId])
     expect(await checkFleetAgainstTier(fleet, organizationId)).toEqual({ limit: 4, count: 6 })
     expect(notes).toHaveLength(2)
     expect(notes[1]).toContain('covers 4')
-    await db.sql(`update public.organizations set vehicle_limit_override = null where id = $1`, [
-      organizationId,
-    ])
+    await db.sql(`select app.set_vehicle_limit_override($1, null, null)`, [organizationId])
 
     // Control: a fleet that fits the tier is not reported.
     await db.sql(

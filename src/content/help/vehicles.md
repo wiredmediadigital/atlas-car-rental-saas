@@ -22,13 +22,13 @@ spreadsheet — the file always contains the same rows the page is showing.
 
 ### What a vehicle's status means
 
-| Status | What it means |
-|---|---|
-| Available | On the lot and ready to hire out. |
-| Rented | Currently out with a customer. |
-| Reserved | Committed to a booking that has started. |
+| Status         | What it means                             |
+| -------------- | ----------------------------------------- |
+| Available      | On the lot and ready to hire out.         |
+| Rented         | Currently out with a customer.            |
+| Reserved       | Committed to a booking that has started.  |
 | In maintenance | Being serviced or repaired; not bookable. |
-| Off the road | Withdrawn from service; not bookable. |
+| Off the road   | Withdrawn from service; not bookable.     |
 
 Only three of those are yours to set, and the dropdown that sets them calls the
 first one **In service** rather than Available. **Rented** and **Reserved** are
@@ -39,7 +39,7 @@ They follow the contract, not the clock. **Rented** starts when you check the
 vehicle out and lasts until you complete the contract — whatever the booking
 said was supposed to happen. Hand a vehicle over early and it reads **Rented**
 early. Let a hire run past its return time and it keeps reading **Rented**.
-Record the vehicle back and it *still* reads **Rented**, because the contract
+Record the vehicle back and it _still_ reads **Rented**, because the contract
 is not closed yet.
 
 That last one catches people out, and it is deliberate: a vehicle nobody has
@@ -52,6 +52,7 @@ A vehicle is offered to a new booking only when it is in service, not retired,
 and free for the whole period requested.
 
 ## Add a vehicle
+
 <!-- permission: vehicles.create -->
 
 **Add vehicle** asks for make, model, registration plate, current odometer
@@ -85,6 +86,7 @@ plan, or where your limit was set for you, the message asks you to contact us
 instead. A vehicle that would go past the limit is refused, and nothing is added.
 
 ## Import a fleet from a spreadsheet
+
 <!-- permission: vehicles.create -->
 
 **Import** reads a CSV, up to 5 MB and 500 rows at a time. It matches your
@@ -98,19 +100,20 @@ would fail and why.
 The preview also tries to flag plates you already have, but treat that as a
 help rather than a guarantee: on a large fleet it does not check every existing
 vehicle, so a duplicate can reach the import and be refused there instead. The
-refusal is safe — nothing is overwritten — and the row is reported with its
-line number like any other.
+refusal is safe — nothing is overwritten, and nothing at all is written. The
+message names the plate that collided, so you can find that row in your file.
 
 The import counts against your plan's vehicle limit as a whole. If adding every
 row would take you past it, the batch is refused and the message says **Nothing
 was imported.** Not even the first rows go in. Retire some vehicles or reduce the
 file, and import again.
 
-A part-successful import is a real outcome, not a failure: the rows that passed
-are added, and the ones that did not are listed with their line numbers so you
-can fix those and import again.
+**An import lands whole or not at all.** There is no part-successful import: if
+a single row is refused, nothing is written and you still have the fleet you
+started with. Correct that row in the spreadsheet and import the file again.
 
 ## Change what a vehicle is doing
+
 <!-- permission: vehicles.update -->
 
 On a vehicle's own page, **Operational status** switches it between in service,
@@ -122,6 +125,7 @@ road and it is committed to a contract, deal with the contract as well —
 substitute the vehicle on it, or move the booking.
 
 ## Record an odometer reading
+
 <!-- permission: vehicles.update -->
 
 **Record odometer** is in the menu on the vehicle's page. A reading may never be
@@ -133,6 +137,7 @@ return writes the reading through to the vehicle automatically, so this is for
 the readings taken outside a hire.
 
 ## Keep the compliance dates current
+
 <!-- permission: vehicles.update -->
 
 The compliance panel shows four dates: insurance, technical inspection,
@@ -151,6 +156,7 @@ To find the gaps across the whole fleet, use the compliance filter in the
 toolbar: **Has an expired document** and **Missing a compliance date**.
 
 ## Attach a document
+
 <!-- permission: vehicleDocuments.create -->
 
 The documents panel holds the paperwork itself: insurance, registration,
@@ -166,6 +172,7 @@ Expiry on a document means exactly what it means on the compliance panel — it
 is the same rule, asked twice.
 
 ## Add photographs
+
 <!-- permission: vehicles.update -->
 
 Photographs go on the vehicle's own page: PNG, JPEG or WebP, up to 8 MB each.
@@ -178,6 +185,7 @@ pickers. Pictures of a scratch belong on the contract that was running when it
 happened, not here.
 
 ## Retire a vehicle
+
 <!-- permission: vehicles.update -->
 
 **Retire from fleet** is the answer for a vehicle you no longer operate. It
@@ -193,6 +201,7 @@ fleet** on it (which needs a free place under your limit), and the toolbar's
 **Include retired vehicles** brings it back into the list so you can find it.
 
 ## Delete a vehicle permanently
+
 <!-- permission: vehicles.delete -->
 
 Deleting is offered only when nothing financial refers to the vehicle — no

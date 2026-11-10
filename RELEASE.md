@@ -107,7 +107,7 @@ no sitemap.
 6. Sign up once on the live deployment and confirm the agency is provisioned and the
    Overview setup checklist appears.
 
-Billing with Stripe has four more checks. The first is a precondition: run it before
+Billing with Stripe has five more checks. The first is a precondition: run it before
 you deploy, not after.
 
 7. **Every active plan key must be one of the six below. Check this before deploying.**
@@ -130,6 +130,42 @@ you deploy, not after.
     app's Billing page. The Customer Portal changes the plan inside Stripe and never
     asks the app, so leaving switching enabled lets an agency downgrade past the rule
     that stops it. Cancelling and updating the card can stay on.
+11. **Change one plan in Stripe test mode after deploying, before the first real
+    one.** `change_plan` reads `public.plan_vehicle_limits` with the service client,
+    on a table that revokes every grant from `public, anon, authenticated` and
+    carries a deny-all RLS policy. `service_role` keeps its grant and bypasses RLS,
+    so this is correct by reasoning — but no test executes it with a real key, and
+    if that read fails the function raises `plan limit unreadable` and the whole
+    plan change fails closed. One test-mode change through the app's Billing page
+    proves the grant. A refusal over the vehicle limit counts as a pass: it means
+    the table was read.
+
+## Giving one agency a bespoke vehicle limit
+
+A limit outside the three tiers — a 150-car fleet that no plan covers — is an
+operator act, not a self-serve one. No screen, role or RPC can raise an agency's
+own ceiling; a database trigger refuses any change to the override columns made as
+a browser role.
+
+Grant it with the one function that exists for it, as the service role:
+
+```sql
+select app.set_vehicle_limit_override(
+  '<organization-id>'::uuid,   -- the agency
+  150,                         -- the new ceiling, or null to withdraw it
+  '<operator-user-id>'::uuid   -- p_actor: YOUR OWN auth.users id
+);
+```
+
+`p_actor` is the `auth.users` id of the person granting it — the operator, not the
+agency's owner, unless the owner really did decide it. It is recorded alongside the
+limit and the time, because a bespoke limit nobody can explain later is a liability.
+A bare `update organizations set vehicle_limit_override = 150` is refused by
+`organizations_vehicle_limit_override_provenance`: there is one way in.
+
+Null withdraws the limit and clears the provenance with it, and the agency goes back
+to its plan's allowance. Nothing is retroactive either way: an agency over its new
+ceiling keeps every vehicle it has and simply cannot add another.
 
 ## Deleting an agency
 

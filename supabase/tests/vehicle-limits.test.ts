@@ -79,6 +79,15 @@ async function limitOf(): Promise<number | null> {
   return row!.limit
 }
 
+/** The supported way in: all three columns together, or all three cleared. */
+async function grantOverride(limit: number | null): Promise<void> {
+  await db.sql(`select app.set_vehicle_limit_override($1, $2, $3)`, [
+    organizationId,
+    limit,
+    limit === null ? null : owner,
+  ])
+}
+
 async function addVehicle(plate: string, archived = false): Promise<void> {
   await db.sql(
     `insert into public.vehicles (organization_id, make, model, registration_plate, currency, archived_at)
@@ -171,14 +180,90 @@ describe('the per-agency override', () => {
   it('prefers the per-agency override over the plan limit', async () => {
     await subscribe('starter_monthly')
     expect(await limitOf()).toBe(5)
-    await db.sql(
-      `update public.organizations
-          set vehicle_limit_override = 150, vehicle_limit_override_set_by = $2,
-              vehicle_limit_override_set_at = now()
-        where id = $1`,
-      [organizationId, owner],
-    )
+    await grantOverride(150)
     expect(await limitOf()).toBe(150)
+  })
+
+  // The spec: "it records who set it and when". The function writes all three
+  // columns or none, so provenance cannot be left behind by a hurried operator.
+  it('records who granted the limit and when, in one call', async () => {
+    await grantOverride(150)
+    const [row] = await db.sql<{
+      vehicle_limit_override: number | null
+      vehicle_limit_override_set_by: string | null
+      recent: boolean | null
+    }>(
+      `select vehicle_limit_override, vehicle_limit_override_set_by,
+              vehicle_limit_override_set_at > now() - interval '1 minute' as recent
+         from public.organizations where id = $1`,
+      [organizationId],
+    )
+    expect(row).toEqual({
+      vehicle_limit_override: 150,
+      vehicle_limit_override_set_by: owner,
+      recent: true,
+    })
+  })
+
+  it('clears all three columns when the limit is withdrawn', async () => {
+    await grantOverride(150)
+    await grantOverride(null)
+    const [row] = await db.sql<{
+      vehicle_limit_override: number | null
+      vehicle_limit_override_set_by: string | null
+      vehicle_limit_override_set_at: string | null
+    }>(
+      `select vehicle_limit_override, vehicle_limit_override_set_by, vehicle_limit_override_set_at
+         from public.organizations where id = $1`,
+      [organizationId],
+    )
+    expect(row).toEqual({
+      vehicle_limit_override: null,
+      vehicle_limit_override_set_by: null,
+      vehicle_limit_override_set_at: null,
+    })
+    expect(await limitOf()).toBeNull()
+  })
+
+  /*
+   * The hole this closes. `update organizations set vehicle_limit_override = 150`
+   * used to succeed with both provenance columns null, which is a bespoke limit
+   * nobody can explain later. Only the WHEN is in the constraint: the WHO is a
+   * foreign key with ON DELETE SET NULL, so demanding it beside a live override
+   * would turn deleting an operator's account into a failed DELETE.
+   */
+  it('refuses a bare update that leaves the limit unexplained', async () => {
+    await db.expectRejection(
+      () =>
+        db.sql(`update public.organizations set vehicle_limit_override = 150 where id = $1`, [
+          organizationId,
+        ]),
+      /organizations_vehicle_limit_override_provenance/i,
+    )
+    expect(await limitOf()).toBeNull()
+  })
+
+  it('refuses a grant with no actor, and a limit of zero or less', async () => {
+    await db.expectRejection(
+      () => db.sql(`select app.set_vehicle_limit_override($1, 150, null)`, [organizationId]),
+      /p_actor is required/i,
+    )
+    await db.expectRejection(
+      () => db.sql(`select app.set_vehicle_limit_override($1, 0, $2)`, [organizationId, owner]),
+      /greater than zero/i,
+    )
+    expect(await limitOf()).toBeNull()
+  })
+
+  it('is granted to the service role and to no browser role', async () => {
+    const signature = 'app.set_vehicle_limit_override(uuid, integer, uuid)'
+    const [row] = await db.sql<{ authenticated: boolean; anon: boolean; service: boolean }>(
+      `select has_function_privilege('authenticated', $1, 'execute') as authenticated,
+              has_function_privilege('anon', $1, 'execute') as anon,
+              has_function_privilege('service_role', $1, 'execute') as service`,
+      [signature],
+    )
+    expect(row).toEqual({ authenticated: false, anon: false, service: true })
   })
 
   it('refuses an authenticated write to vehicle_limit_override', async () => {
@@ -213,11 +298,9 @@ describe('the per-agency override', () => {
     expect(await limitOf()).toBeNull()
   })
 
-  it('lets the service role set the override', async () => {
+  it('lets the service role set the override through the function', async () => {
     await db.asServiceRole(owner, (session) =>
-      session.sql(`update public.organizations set vehicle_limit_override = 75 where id = $1`, [
-        organizationId,
-      ]),
+      session.sql(`select app.set_vehicle_limit_override($1, 75, $2)`, [organizationId, owner]),
     )
     expect(await limitOf()).toBe(75)
   })
@@ -259,13 +342,7 @@ describe('a deployment whose billing is not configured', () => {
 
   it('still honours a per-agency override', async () => {
     await subscribe('starter_monthly')
-    await db.sql(
-      `update public.organizations
-          set vehicle_limit_override = 150, vehicle_limit_override_set_by = $2,
-              vehicle_limit_override_set_at = now()
-        where id = $1`,
-      [organizationId, owner],
-    )
+    await grantOverride(150)
     await setPlatformConfigured(false)
     try {
       expect(await limitOf()).toBe(150)
