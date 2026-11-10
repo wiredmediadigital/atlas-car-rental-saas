@@ -97,9 +97,9 @@ describe('example pricing', () => {
     renderPreview()
 
     for (const [name, price, audience] of [
-      ['Starter', '$49', 'For small rental agencies'],
-      ['Growth', '$99', 'For growing rental businesses'],
-      ['Scale', '$199', 'For larger fleet operations'],
+      ['Starter', '$59', 'For small fleets'],
+      ['Pro', '$119', 'For growing fleets'],
+      ['Business', '$199', 'For larger fleets'],
     ] as const) {
       const card = screen.getByRole('heading', { name }).closest('li')!
       expect(within(card).getByText(price)).toBeInTheDocument()
@@ -112,10 +112,10 @@ describe('example pricing', () => {
     renderPreview()
     await userEvent.click(screen.getByRole('radio', { name: 'Yearly' }))
 
-    expect(screen.getByText('$490')).toBeInTheDocument()
-    expect(screen.getByText('$990')).toBeInTheDocument()
+    expect(screen.getByText('$590')).toBeInTheDocument()
+    expect(screen.getByText('$1,190')).toBeInTheDocument()
     expect(screen.getByText('$1,990')).toBeInTheDocument()
-    expect(screen.queryByText('$49')).not.toBeInTheDocument()
+    expect(screen.queryByText('$59')).not.toBeInTheDocument()
     expect(screen.getAllByText('per year')).toHaveLength(3)
   })
 
@@ -141,7 +141,7 @@ describe('example pricing', () => {
     expect(yearly).toHaveFocus()
     await userEvent.keyboard('{Enter}')
     expect(yearly).toHaveAttribute('aria-checked', 'true')
-    expect(screen.getByText('$990')).toBeInTheDocument()
+    expect(screen.getByText('$1,190')).toBeInTheDocument()
   })
 
   it('says the prices are examples without repeating it ten times', () => {
@@ -153,11 +153,11 @@ describe('example pricing', () => {
     expect(screen.getByText(/Nothing here is charged/)).toBeInTheDocument()
   })
 
-  it('marks Growth as suggested, and nothing as most popular', () => {
+  it('marks Pro as suggested, and nothing as most popular', () => {
     renderPreview()
 
-    const growth = screen.getByRole('heading', { name: 'Growth' }).closest('li')!
-    expect(within(growth).getByText('Suggested')).toBeInTheDocument()
+    const pro = screen.getByRole('heading', { name: 'Pro' }).closest('li')!
+    expect(within(pro).getByText('Suggested')).toBeInTheDocument()
     expect(screen.queryByText(/most popular/i)).not.toBeInTheDocument()
   })
 })

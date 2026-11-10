@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -50,6 +50,123 @@ function renderSection(value: PublicPricing | undefined) {
 }
 
 const SECOND_MONTHLY: PublicPlan = { ...MONTHLY, planKey: 'pro_monthly_eur', amountMinor: 5900 }
+
+function tierPlan(tier: string, interval: 'month' | 'year', amountMinor: number): PublicPlan {
+  return {
+    planKey: `${tier}_${interval === 'month' ? 'monthly' : 'yearly'}`,
+    amountMinor,
+    currency: 'usd',
+    interval,
+    intervalCount: 1,
+  }
+}
+
+/** Starter, Pro and Business, each monthly and yearly, in a deliberately shuffled order. */
+const TIERED: PublicPlan[] = [
+  tierPlan('business', 'year', 199000),
+  tierPlan('pro', 'month', 11900),
+  tierPlan('starter', 'year', 59000),
+  tierPlan('business', 'month', 19900),
+  tierPlan('starter', 'month', 5900),
+  tierPlan('pro', 'year', 119000),
+]
+
+function card(name: string): HTMLElement {
+  return screen.getByRole('heading', { name }).closest('li')!
+}
+
+describe('three tiers', () => {
+  it('renders three tiers with their vehicle allowances', () => {
+    renderSection(pricing(TIERED))
+
+    for (const [name, allowance, price] of [
+      ['Starter', 'Up to 5 vehicles', '$59.00'],
+      ['Pro', 'Up to 20 vehicles', '$119.00'],
+      ['Business', 'Up to 50 vehicles', '$199.00'],
+    ] as const) {
+      expect(within(card(name)).getByText(allowance)).toBeInTheDocument()
+      expect(within(card(name)).getByText(price)).toBeInTheDocument()
+    }
+    // Smallest first, whatever order the payload arrived in.
+    const names = screen.getAllByRole('heading', { level: 3 }).map((h) => h.textContent)
+    expect(names.slice(0, 3)).toEqual(['Starter', 'Pro', 'Business'])
+  })
+
+  it('switches every card between monthly and yearly', async () => {
+    const user = userEvent.setup()
+    renderSection(pricing(TIERED))
+    await user.click(screen.getByRole('button', { name: /yearly/i }))
+
+    for (const [name, price] of [
+      ['Starter', '$590.00'],
+      ['Pro', '$1,190.00'],
+      ['Business', '$1,990.00'],
+    ] as const) {
+      expect(within(card(name)).getByText(price)).toBeInTheDocument()
+      expect(within(card(name)).getByText(/per year/i)).toBeInTheDocument()
+    }
+    expect(screen.queryByText('$59.00')).not.toBeInTheDocument()
+    // One toggle for the whole section, not one per plan.
+    expect(screen.getAllByRole('button', { name: /monthly|yearly/i })).toHaveLength(2)
+  })
+
+  it('marks Pro as the popular tier', () => {
+    renderSection(pricing(TIERED))
+    expect(within(card('Pro')).getByText('Most popular')).toBeInTheDocument()
+    expect(within(card('Starter')).queryByText(/popular/i)).not.toBeInTheDocument()
+    expect(within(card('Business')).queryByText(/popular/i)).not.toBeInTheDocument()
+    expect(screen.getAllByText(/popular/i)).toHaveLength(1)
+  })
+
+  it('renders a talk-to-us card above 50 vehicles with no price', async () => {
+    const user = userEvent.setup()
+    renderSection(pricing(TIERED))
+
+    const talk = card('More than 50 vehicles')
+    const link = within(talk).getByRole('link', { name: /talk to us/i })
+    expect(link).toHaveAttribute('href', 'mailto:help@pevvy.io')
+    expect(talk.textContent).not.toMatch(/[$€£]|\d{2,}\.\d\d/)
+
+    // It is not a plan: three plans, three trial buttons, and the toggle leaves it alone.
+    expect(screen.getAllByRole('link', { name: 'Start your free trial' })).toHaveLength(3)
+    await user.click(screen.getByRole('button', { name: /yearly/i }))
+    expect(within(card('More than 50 vehicles')).getByRole('link', { name: /talk to us/i })).toBe(
+      link,
+    )
+  })
+
+  it('says the trial once, not once per card', () => {
+    renderSection(pricing(TIERED))
+    expect(screen.getAllByText(/free for 14 days/i)).toHaveLength(1)
+  })
+
+  it('advertises the smallest saving across the tiers', () => {
+    // Starter saves 25%, Pro and Business 16%: the claim must hold for all three.
+    renderSection(
+      pricing(
+        TIERED.map((p) => (p.planKey === 'starter_yearly' ? { ...p, amountMinor: 44250 } : p)),
+      ),
+    )
+    expect(screen.getByText(/save 16%/i)).toBeInTheDocument()
+    expect(screen.queryByText(/save 25%/i)).not.toBeInTheDocument()
+  })
+
+  it('advertises no saving when a tier has no yearly price to compare', () => {
+    renderSection(pricing(TIERED.filter((p) => p.planKey !== 'business_yearly')))
+    expect(screen.queryByText(/save/i)).not.toBeInTheDocument()
+  })
+
+  it('does not render a plan whose tier it cannot name', () => {
+    renderSection(pricing([...TIERED, { ...MONTHLY, planKey: 'enterprise_monthly' }]))
+    expect(screen.getAllByRole('link', { name: 'Start your free trial' })).toHaveLength(3)
+    expect(screen.queryByText(/enterprise/i)).not.toBeInTheDocument()
+  })
+
+  it('renders nothing when the only plan belongs to an unknown tier', () => {
+    const { container } = renderSection(pricing([{ ...MONTHLY, planKey: 'enterprise_monthly' }]))
+    expect(container).toBeEmptyDOMElement()
+  })
+})
 
 describe('PricingSection', () => {
   it('renders nothing while loading', () => {
@@ -216,20 +333,14 @@ describe('PricingSection', () => {
     expect(screen.getByText('$49.00')).toBeInTheDocument()
   })
 
-  it('keeps two plans that share a cadence apart', async () => {
-    const user = userEvent.setup()
+  it('keeps two plans that share a tier and a cadence apart', () => {
     renderSection(pricing([MONTHLY, SECOND_MONTHLY]))
 
-    const buttons = screen.getAllByRole('button', { name: /monthly/i })
-    expect(buttons).toHaveLength(2)
-    expect(buttons.filter((b) => b.getAttribute('aria-pressed') === 'true')).toHaveLength(1)
-
-    const second = buttons[1]!
-    await user.click(second)
-    expect(second).toHaveAttribute('aria-pressed', 'true')
-    expect(buttons[0]).toHaveAttribute('aria-pressed', 'false')
+    // One toggle option for the shared cadence; both plans shown, neither swallowed.
+    expect(screen.queryByRole('button', { name: /monthly|yearly/i })).not.toBeInTheDocument()
+    expect(screen.getByText('$49.00')).toBeInTheDocument()
     expect(screen.getByText('$59.00')).toBeInTheDocument()
-    expect(screen.queryByText('$49.00')).not.toBeInTheDocument()
+    expect(screen.getAllByRole('heading', { name: 'Pro' })).toHaveLength(2)
   })
 
   describe('deep link', () => {
