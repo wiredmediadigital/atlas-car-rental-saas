@@ -88,7 +88,11 @@ export default defineConfig(({ mode }) => {
       globals: true,
       setupFiles: ['./src/test/setup.ts'],
       css: false,
-      include: ['src/**/*.{test,spec}.{ts,tsx}', 'supabase/tests/**/*.test.ts'],
+      include: [
+        'src/**/*.{test,spec}.{ts,tsx}',
+        'supabase/tests/**/*.test.ts',
+        'supabase/functions/tests/**/*.test.ts',
+      ],
       // Schema tests boot a real PostgreSQL (WASM) instance and apply every migration.
       testTimeout: 30_000,
       hookTimeout: 180_000,

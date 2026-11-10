@@ -44,6 +44,7 @@ import {
   type SubscriptionStatus,
 } from '../_shared/billing-domain.ts'
 import { refreshCatalogue } from '../_shared/billing-catalogue.ts'
+import { changePlan, type PlanChangeStore } from '../_shared/billing-plan-change.ts'
 import { StripeApiError, StripeClient } from '../_shared/stripe-api.ts'
 import { describeConfigProblem, resolveBillingConfig } from '../_shared/stripe-config.ts'
 
@@ -402,6 +403,79 @@ Deno.serve(async (request: Request): Promise<Response> => {
           return failure('checkout_unavailable', 'Checkout could not be opened.', 502)
         }
         return json({ ok: true, url: session.url, reused: false })
+      }
+
+      /*
+       * Moving an existing subscription to another plan, in the app, so that the
+       * rule "never move to a tier below the vehicles you have" can be enforced.
+       *
+       * Sits inside the switch and therefore AFTER the owner-only check above:
+       * an admin may not change the plan, and this case adds no role check of
+       * its own. It is deliberately not behind a billing write gate - an agency
+       * in a restricted state must still be able to fix its own billing.
+       *
+       * As with checkout, only the plan KEY is read from the body.
+       */
+      case 'change_plan': {
+        const planKey = typeof body.planKey === 'string' ? body.planKey : ''
+        if (planKey === '') return failure('malformed_request', 'No plan was chosen.')
+        const attempt = typeof body.attempt === 'string' ? body.attempt.slice(0, 64) : 'default'
+
+        const store: PlanChangeStore = {
+          async resolvePlan(key) {
+            const { data: resolved } = await service.schema('app').rpc('billing_resolve_plan', {
+              p_plan_key: key,
+              p_mode: config.mode,
+            })
+            const plan = Array.isArray(resolved) ? resolved[0] : resolved
+            if (!plan?.stripe_price_id) return null
+
+            const { data: limits, error: limitError } = await service
+              .from('plan_vehicle_limits')
+              .select('vehicle_limit, tier')
+              .eq('plan_key', key)
+            // Fails closed: not knowing the limit is not a reason to allow the move.
+            if (limitError) throw new Error('plan limit unreadable')
+            const limit = (limits ?? [])[0] as { vehicle_limit: number; tier: string } | undefined
+            return {
+              stripePriceId: plan.stripe_price_id as string,
+              vehicleLimit: limit?.vehicle_limit ?? null,
+              tier: limit?.tier ?? null,
+            }
+          },
+          async effectiveSubscription(id) {
+            const { data, error } = await service
+              .schema('app')
+              .rpc('billing_effective_subscription', { p_organization_id: id })
+            if (error) throw new Error('subscription unreadable')
+            const row = Array.isArray(data) ? data[0] : data
+            if (!row?.stripe_subscription_id) return null
+            return {
+              stripeSubscriptionId: row.stripe_subscription_id as string,
+              status: row.status as SubscriptionStatus,
+            }
+          },
+          async vehicleLimitOverride(id) {
+            const { data, error } = await service
+              .from('organizations')
+              .select('vehicle_limit_override')
+              .eq('id', id)
+              .maybeSingle()
+            if (error) throw new Error('override unreadable')
+            return (data?.vehicle_limit_override as number | null | undefined) ?? null
+          },
+          async vehicleCount(id) {
+            const { data, error } = await service
+              .schema('app')
+              .rpc('vehicle_count_of', { p_organization_id: id })
+            if (error || typeof data !== 'number') throw new Error('vehicle count unreadable')
+            return data
+          },
+        }
+
+        const result = await changePlan(store, stripe, { organizationId, planKey, attempt })
+        if (!result.ok) return failure(result.category, result.message, result.status)
+        return json({ ok: true })
       }
 
       case 'portal': {
