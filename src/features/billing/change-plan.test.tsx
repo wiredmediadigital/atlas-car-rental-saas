@@ -285,6 +285,37 @@ describe('when the server refuses', () => {
     await waitFor(() => expect(screen.queryByText(/Retire 7 to move down/)).toBeNull())
   })
 
+  it('still shows a refusal that arrives after the overview changed underneath the request', async () => {
+    let refuse: (value: unknown) => void = () => undefined
+    backend.invoke.mockReturnValue(
+      new Promise((resolve) => {
+        refuse = resolve
+      }),
+    )
+    const user = userEvent.setup()
+    await renderAs('owner')
+    await user.click(within(card('Starter')).getByRole('button', { name: 'Move to this plan' }))
+    await waitFor(() => expect(backend.invoke).toHaveBeenCalledTimes(1))
+
+    // The page refetches (a refocus, say) while the request is in flight, and the
+    // fleet has changed.
+    backend.overview = overviewOf({ active_vehicles: 13 })
+    await client.invalidateQueries()
+    await waitFor(() =>
+      expect(
+        (client.getQueriesData<BillingOverviewRow>({ queryKey: ['organization'] }) ?? [])
+          .map(([, data]) => data)
+          .some((data) => data?.active_vehicles === 13),
+      ).toBe(true),
+    )
+
+    refuse(refusal('over_target_limit', SERVER_SENTENCE, { limit: 5, count: 13, tier: 'starter' }))
+
+    expect(
+      await screen.findByText('Starter covers 5 vehicles. You have 13. Retire 8 to move down.'),
+    ).toBeTruthy()
+  })
+
   it('treats an unchangeable subscription as a support matter, not the agency fault', async () => {
     backend.invoke.mockResolvedValue(
       refusal('plan_change_unavailable', 'This plan cannot be changed here right now.'),

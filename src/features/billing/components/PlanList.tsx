@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 import { Badge, Button } from '@/components/ui'
 import { hasLiveSubscription, intervalPhrase } from '@/features/billing/domain'
@@ -165,6 +165,18 @@ export function PlanList({ plans, overview, locale, checkoutBusyKey, onCheckout 
   const [notice, setNotice] = useState<Notice | null>(null)
 
   /*
+   * The overview as of the latest render. A refusal is stamped with THIS, read
+   * when the error arrives, not with the overview of the render in which the
+   * button was clicked: if the page refetched while the request was in flight,
+   * a stamp from the click would never match the live overview and the refusal
+   * would be hidden for good.
+   */
+  const latestOverview = useRef(overview)
+  useEffect(() => {
+    latestOverview.current = overview
+  }, [overview])
+
+  /*
    * The change was accepted but the projection (written by the webhook) still
    * names the old plan. Derived on every render, so it clears by itself the
    * moment the row catches up.
@@ -192,7 +204,7 @@ export function PlanList({ plans, overview, locale, checkoutBusyKey, onCheckout 
               : code === 'no_subscription'
                 ? NO_SUBSCRIPTION_MESSAGE
                 : GENERIC_MESSAGE
-        setNotice({ planKey, text, basis: basisOf(overview) })
+        setNotice({ planKey, text, basis: basisOf(latestOverview.current) })
       },
       onSettled: () => setChangingKey(null),
     })
