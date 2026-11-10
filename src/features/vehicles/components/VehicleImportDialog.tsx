@@ -118,7 +118,11 @@ function ImportDialogContent({ open, onOpenChange }: VehicleImportDialogProps) {
     }
     if (result.rows.length > MAX_ROWS) {
       setError(
-        `That file has ${result.rows.length} rows. Import up to ${MAX_ROWS} at a time so a failure part-way through stays easy to unpick.`,
+        // The customer and expense dialogs word this cap as keeping a part-way
+        // failure easy to unpick, which is true of their row-by-row imports. A
+        // vehicle import is one transaction and never lands part-way, so that
+        // reason would be false here; the cap is about the preview you check.
+        `That file has ${result.rows.length} rows. Import up to ${MAX_ROWS} at a time so the preview stays quick to check.`,
       )
       return
     }
