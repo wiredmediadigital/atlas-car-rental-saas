@@ -123,13 +123,23 @@ you deploy, not after.
    `starter_yearly`, `pro_monthly`, `pro_yearly`, `business_monthly`,
    `business_yearly`. A missing key means that tier and interval cannot be bought.
 9. `BILLING_TRIAL_DAYS=14`.
-10. **Plan switching is turned OFF in the hosted Stripe Customer Portal** (Stripe
-    Dashboard, Settings, Billing, Customer portal; do it in both test and live mode).
-    The product refuses a downgrade while the agency has more vehicles than the target
-    tier allows, and that refusal only exists when the plan is changed through the
-    app's Billing page. The Customer Portal changes the plan inside Stripe and never
-    asks the app, so leaving switching enabled lets an agency downgrade past the rule
-    that stops it. Cancelling and updating the card can stay on.
+10. **Plan switching is off for every portal session Pevvy opens; turn it off in the
+    Stripe Dashboard too.** The product refuses a downgrade while the agency has more
+    vehicles than the target tier allows, and that refusal only exists when the plan is
+    changed through the app's Billing page. The Customer Portal changes the plan
+    inside Stripe and never asks the app. So the billing function opens every portal
+    session on its own configuration: a copy of the account's default portal
+    configuration with plan switching disabled, found again by its
+    `pevvy_portal=no_plan_switching` metadata, so cancelling, invoices, payment
+    methods and everything else the default offers are unchanged. It is created
+    automatically on the first portal open in each Stripe mode; no setup is needed.
+    Still switch plan switching off in the Dashboard (Settings, Billing, Customer
+    portal; in both test and live mode) as defence in depth, because a portal link
+    reached any other way still uses the account default. If the configuration
+    cannot be created or read, the portal opens on the account default (a customer
+    must always be able to fix a card) and the reason appears in
+    `public.billing_platform_state.reported_reason` after the next portal open; treat
+    that message as the bypass being open until it is resolved.
 11. **Change one plan in Stripe test mode after deploying, before the first real
     one.** `change_plan` reads `public.plan_vehicle_limits` with the service client,
     on a table that revokes every grant from `public, anon, authenticated` and

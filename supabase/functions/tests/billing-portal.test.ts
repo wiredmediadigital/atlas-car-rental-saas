@@ -60,10 +60,30 @@ const listsOf = (sent: Sent[]) =>
 const createsOf = (sent: Sent[]) =>
   sent.filter((s) => s.method === 'POST' && s.path === '/billing_portal/configurations')
 
-function stripeWith(existing: unknown[]) {
+/** What the account's own default portal looks like: more than the minimal set names. */
+const DEFAULT_CONFIG = {
+  id: 'bpc_default',
+  is_default: true,
+  metadata: {},
+  business_profile: {
+    headline: 'Manage billing',
+    privacy_policy_url: 'https://pevvy.io/privacy',
+    terms_of_service_url: 'https://pevvy.io/terms',
+  },
+  features: {
+    subscription_update: { enabled: true, default_allowed_updates: ['price'], products: [] },
+    subscription_cancel: { enabled: true, mode: 'immediately' },
+    invoice_history: { enabled: true },
+    payment_method_update: { enabled: true },
+    customer_update: { enabled: true, allowed_updates: ['address', 'tax_id'] },
+  },
+}
+
+function stripeWith(existing: unknown[], withDefault = true) {
+  const all = withDefault ? [DEFAULT_CONFIG, ...existing] : existing
   return harness((s) => {
     if (s.path === '/billing_portal/configurations' && s.method === 'GET') {
-      return { status: 200, body: { data: existing, has_more: false } }
+      return { status: 200, body: { data: all, has_more: false } }
     }
     if (s.path === '/billing_portal/configurations') {
       return { status: 200, body: { id: 'bpc_created' } }
@@ -75,9 +95,9 @@ function stripeWith(existing: unknown[]) {
 describe('portal session with plan switching disabled', () => {
   beforeEach(() => resetPortalConfigurationCache())
 
-  it('creates a configuration with subscription_update off and opens the session on it', async () => {
-    const { sent, client } = stripeWith([])
-    const report = vi.fn(async () => {})
+  it('with no default to copy, falls back to the minimal set and reports the guess', async () => {
+    const { sent, client } = stripeWith([], false)
+    const report = vi.fn(async (_reason: string) => {})
 
     const result = await openPortalSession(client, 'cus_1', APP, report)
 
@@ -93,7 +113,72 @@ describe('portal session with plan switching disabled', () => {
     const session = nth(sessionsOf(sent), 0)
     expect(session.form.get('configuration')).toBe('bpc_created')
     expect(session.form.get('customer')).toBe('cus_1')
+    expect(report).toHaveBeenCalledTimes(1)
+    expect(first(report.mock.calls)[0]).toMatch(/default.*(not found|could not)/i)
+  })
+
+  it('copies the default configuration verbatim and flips only plan switching', async () => {
+    const { sent, client } = stripeWith([])
+    const report = vi.fn(async (_reason: string) => {})
+
+    await openPortalSession(client, 'cus_1', APP, report)
+
+    const form = first(createsOf(sent)).form
+    expect(form.get('features[subscription_update][enabled]')).toBe('false')
+    expect(form.get('metadata[pevvy_portal]')).toBe(MARKER)
+    // Not in the minimal set, so only a copy can have carried them across.
+    expect(form.get('features[customer_update][enabled]')).toBe('true')
+    expect(form.get('features[customer_update][allowed_updates][1]')).toBe('tax_id')
+    // The account's own cancel semantics, not our guess.
+    expect(form.get('features[subscription_cancel][mode]')).toBe('immediately')
+    expect(form.get('business_profile[privacy_policy_url]')).toBe('https://pevvy.io/privacy')
+    // The default is not mutated into ours: no is_default / id leaks into the body.
+    expect(form.has('id')).toBe(false)
+    expect(form.has('is_default')).toBe(false)
     expect(report).not.toHaveBeenCalled()
+  })
+
+  it('finds our marked configuration on a later page instead of creating a duplicate', async () => {
+    const ours = {
+      id: 'bpc_page2',
+      metadata: { pevvy_portal: MARKER },
+      features: { subscription_update: { enabled: false } },
+    }
+    const { sent, client } = harness((s) => {
+      if (s.path === '/billing_portal/configurations' && s.method === 'GET') {
+        return s.form.get('starting_after') === 'bpc_default'
+          ? { status: 200, body: { data: [ours], has_more: false } }
+          : { status: 200, body: { data: [DEFAULT_CONFIG], has_more: true } }
+      }
+      return { status: 200, body: { url: 'https://billing.stripe.com/p/p2' } }
+    })
+
+    await openPortalSession(
+      client,
+      'cus_1',
+      APP,
+      vi.fn(async (_reason: string) => {}),
+    )
+
+    expect(listsOf(sent)).toHaveLength(2)
+    expect(createsOf(sent)).toHaveLength(0)
+    expect(nth(sessionsOf(sent), 0).form.get('configuration')).toBe('bpc_page2')
+  })
+
+  it('opens on the default and reports rather than paging forever', async () => {
+    const { sent, client } = harness((s) =>
+      s.path === '/billing_portal/configurations' && s.method === 'GET'
+        ? { status: 200, body: { data: [{ id: 'bpc_x', metadata: {} }], has_more: true } }
+        : { status: 200, body: { url: 'https://billing.stripe.com/p/x' } },
+    )
+    const report = vi.fn(async (_reason: string) => {})
+
+    const result = await openPortalSession(client, 'cus_1', APP, report)
+
+    expect(result).not.toBeNull()
+    expect(listsOf(sent).length).toBeLessThanOrEqual(20)
+    expect(createsOf(sent)).toHaveLength(0)
+    expect(report).toHaveBeenCalledTimes(1)
   })
 
   it('reuses an existing marked configuration instead of creating another', async () => {
@@ -110,7 +195,7 @@ describe('portal session with plan switching disabled', () => {
       client,
       'cus_1',
       APP,
-      vi.fn(async () => {}),
+      vi.fn(async (_reason: string) => {}),
     )
 
     expect(createsOf(sent)).toHaveLength(0)
@@ -131,7 +216,7 @@ describe('portal session with plan switching disabled', () => {
       client,
       'cus_1',
       APP,
-      vi.fn(async () => {}),
+      vi.fn(async (_reason: string) => {}),
     )
 
     expect(createsOf(sent)).toHaveLength(1)
@@ -140,7 +225,7 @@ describe('portal session with plan switching disabled', () => {
 
   it('lists only once across opens in a warm instance', async () => {
     const { sent, client } = stripeWith([])
-    const report = vi.fn(async () => {})
+    const report = vi.fn(async (_reason: string) => {})
 
     await openPortalSession(client, 'cus_1', APP, report)
     await openPortalSession(client, 'cus_1', APP, report)
@@ -171,7 +256,7 @@ describe('portal session with plan switching disabled', () => {
   it('still opens the portal, on the default, and reports when the create fails', async () => {
     const { sent, client } = harness((s) => {
       if (s.path === '/billing_portal/configurations' && s.method === 'GET') {
-        return { status: 200, body: { data: [], has_more: false } }
+        return { status: 200, body: { data: [DEFAULT_CONFIG], has_more: false } }
       }
       if (s.path === '/billing_portal/configurations') {
         return { status: 400, body: { error: { message: 'business profile' } } }
@@ -206,7 +291,7 @@ describe('portal session with plan switching disabled', () => {
     let rejectConfiguration = false
     const { sent, client } = harness((s) => {
       if (s.path === '/billing_portal/configurations' && s.method === 'GET') {
-        return { status: 200, body: { data: [], has_more: false } }
+        return { status: 200, body: { data: [DEFAULT_CONFIG], has_more: false } }
       }
       if (s.path === '/billing_portal/configurations') return { status: 200, body: { id: 'bpc_1' } }
       if (rejectConfiguration && s.form.has('configuration')) {
@@ -214,7 +299,7 @@ describe('portal session with plan switching disabled', () => {
       }
       return { status: 200, body: { url: 'https://billing.stripe.com/p/s' } }
     })
-    const report = vi.fn(async () => {})
+    const report = vi.fn(async (_reason: string) => {})
     await openPortalSession(client, 'cus_1', APP, report)
 
     rejectConfiguration = true
@@ -231,7 +316,7 @@ describe('portal session with plan switching disabled', () => {
       client,
       'cus_1',
       'ftp://x',
-      vi.fn(async () => {}),
+      vi.fn(async (_reason: string) => {}),
     )
     expect(result).toBeNull()
     expect(sent).toHaveLength(0)
