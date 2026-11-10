@@ -160,8 +160,11 @@ describe('VehicleImportDialog', () => {
     expect(vi.mocked(importVehicles).mock.calls[0]![1]).toHaveLength(2)
   })
 
-  // Fails if the Import button is enabled for an empty set and the call is made
-  // anyway: needs both the disabled state and the guard in the mutation removed.
+  // Pins the disabled Import button: if `disabled={importable.length === 0}` goes,
+  // the toBeDisabled assertion fails. The mutation's own early return for an empty
+  // set is defence in depth and is NOT independently pinned here, because the
+  // disabled button means the UI cannot reach it; with only that return removed
+  // this test still passes.
   it('does not call the importer at all when no rows are valid', async () => {
     vi.mocked(importVehicles).mockClear()
     const { user } = renderDialog()

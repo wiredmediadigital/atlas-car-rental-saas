@@ -134,6 +134,8 @@ function ImportDialogContent({ open, onOpenChange }: VehicleImportDialogProps) {
     // per-row progress to report and no half-loaded fleet to explain.
     mutationFn: async (rows: VehicleImportRow[]): Promise<ImportOutcome> => {
       const values = rows.flatMap((row) => (row.values ? [row.values] : []))
+      // Defence in depth: the Import button is disabled for an empty set, so this
+      // is not reachable from the UI. An empty batch must never go to the server.
       if (values.length === 0) return { imported: 0 }
 
       const created = await importVehicles(organization.id, values)
