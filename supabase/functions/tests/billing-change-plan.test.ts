@@ -21,11 +21,7 @@ import {
   plansWithoutLimit,
   type LimitReportStore,
 } from '../_shared/billing-limit-report.ts'
-import {
-  changePlan,
-  planChangeNote,
-  type PlanChangeStore,
-} from '../_shared/billing-plan-change.ts'
+import { changePlan, planChangeNote, type PlanChangeStore } from '../_shared/billing-plan-change.ts'
 import { StripeClient } from '../_shared/stripe-api.ts'
 
 let db: TestDatabase

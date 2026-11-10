@@ -49,11 +49,7 @@ import {
   plansWithoutLimit,
   type LimitReportStore,
 } from '../_shared/billing-limit-report.ts'
-import {
-  changePlan,
-  planChangeNote,
-  type PlanChangeStore,
-} from '../_shared/billing-plan-change.ts'
+import { changePlan, planChangeNote, type PlanChangeStore } from '../_shared/billing-plan-change.ts'
 import { StripeApiError, StripeClient } from '../_shared/stripe-api.ts'
 import { describeConfigProblem, resolveBillingConfig } from '../_shared/stripe-config.ts'
 
