@@ -135,6 +135,21 @@ describe('three tiers', () => {
     )
   })
 
+  /*
+   * The threshold is the largest tier ON THE PAGE, not the largest tier the
+   * ladder knows. With only Starter and Pro sold, "More than 50 vehicles" told a
+   * visitor with 30 cars that nothing here is for them, and implied 21-50 is
+   * self-serve somewhere it is not.
+   */
+  it('talks to us above the largest tier it is actually selling', () => {
+    renderSection(pricing(TIERED.filter((p) => !p.planKey.startsWith('business'))))
+
+    expect(screen.getByRole('heading', { name: 'More than 20 vehicles' })).toBeInTheDocument()
+    expect(screen.queryByText(/more than 50/i)).not.toBeInTheDocument()
+    // Two plans and the card, and the card is still not a plan.
+    expect(screen.getAllByRole('link', { name: 'Start your free trial' })).toHaveLength(2)
+  })
+
   it('says the trial once, not once per card', () => {
     renderSection(pricing(TIERED))
     expect(screen.getAllByText(/free for 14 days/i)).toHaveLength(1)

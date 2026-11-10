@@ -65,7 +65,20 @@ function tierOrder(plan: PublicPlan): number {
 
 // Chosen by name, typed against the tier keys: renaming a key is a compile error here.
 const POPULAR_TIER: TierKey = 'pro'
-const LARGEST_TIER = VEHICLE_TIERS[VEHICLE_TIERS.length - 1]
+
+/**
+ * The allowance of the largest tier ON THIS PAGE, which is not the largest tier
+ * the ladder knows: a deployment selling only Starter and Pro renders 5 and 20,
+ * and a card reading "More than 50 vehicles" beside them would tell a visitor
+ * with 30 cars that nothing here is for them, and imply 21-50 is self-serve
+ * somewhere it is not. `null` when nothing nameable is shown.
+ */
+function largestShownAllowance(plans: readonly PublicPlan[]): number | null {
+  const allowances = plans
+    .map((plan) => tierOfPlan(plan)?.limit)
+    .filter((limit): limit is number => limit !== undefined)
+  return allowances.length === 0 ? null : Math.max(...allowances)
+}
 
 interface PlanCardProps {
   plan: PublicPlan
@@ -119,14 +132,18 @@ function PlanCard({ plan, hasTrial }: PlanCardProps) {
   )
 }
 
+interface TalkToUsCardProps {
+  /** The largest allowance the page is selling; the card begins above it. */
+  aboveVehicles: number
+}
+
 /** Static: not a plan, no price, and nothing downstream should treat it as one. */
-function TalkToUsCard() {
-  if (!LARGEST_TIER) return null
+function TalkToUsCard({ aboveVehicles }: TalkToUsCardProps) {
   return (
     <li className="border-line rounded-xl border p-6 text-center">
       <p className="h-5" />
       <h3 className="text-ink mt-1 text-[1.25rem] font-semibold tracking-tight">
-        More than {LARGEST_TIER.limit} vehicles
+        More than {aboveVehicles} vehicles
       </h3>
       <p className="text-ink-muted mt-1 text-[0.9375rem]">Tell us about your fleet.</p>
       <div className="mt-6 flex justify-center">
@@ -170,6 +187,7 @@ export function PricingSection({ pricing }: PricingSectionProps) {
     .filter((p) => cadenceKey(p) === chosen)
     .sort((x, y) => tierOrder(x) - tierOrder(y))
 
+  const largestShown = largestShownAllowance(shown)
   const saving = tierSaving(plans)
   const hasChoice = options.length > 1
   const hasTrial = pricing.trialDays > 0
@@ -240,7 +258,7 @@ export function PricingSection({ pricing }: PricingSectionProps) {
           {shown.map((plan) => (
             <PlanCard key={plan.planKey} plan={plan} hasTrial={hasTrial} />
           ))}
-          <TalkToUsCard />
+          {largestShown !== null && <TalkToUsCard aboveVehicles={largestShown} />}
         </ul>
       </div>
     </section>

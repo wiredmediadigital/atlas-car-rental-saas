@@ -9,6 +9,8 @@ import {
 } from '@/features/workspace/workspace-context'
 import type { BillingOverviewRow, BillingPlanRow, OrgRole } from '@/types/database'
 
+import { vehicleKeys } from '@/features/vehicles/queries'
+
 import { changePlan } from './api'
 import { PlanList } from './components/PlanList'
 import { useBillingOverview, useBillingPlans } from './queries'
@@ -164,6 +166,25 @@ beforeEach(() => {
 })
 
 describe('changing tier from the Billing page', () => {
+  /*
+   * The Vehicles page caches its counter under the fleet keys with a 30s
+   * staleTime. Invalidating only the billing subtree left an owner who had just
+   * upgraded looking at "5 of 5", the at-limit notice and no Add button for half
+   * a minute -- on a plan that now covers 50.
+   */
+  it('refreshes the fleet limit as well as billing', async () => {
+    const user = userEvent.setup()
+    client.setQueryData(vehicleKeys.limit('org-1'), { limit: 5, count: 5, tier: 'starter' })
+    await renderAs('owner')
+
+    await user.click(within(card('Business')).getByRole('button', { name: 'Upgrade to this plan' }))
+
+    await waitFor(() => expect(backend.invoke).toHaveBeenCalledTimes(1))
+    await waitFor(() =>
+      expect(client.getQueryState(vehicleKeys.limit('org-1'))?.isInvalidated).toBe(true),
+    )
+  })
+
   it('offers a higher tier to an owner, and changes the plan in place', async () => {
     const user = userEvent.setup()
     await renderAs('owner')

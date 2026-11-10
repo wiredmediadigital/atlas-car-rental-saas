@@ -21,7 +21,11 @@ import {
   plansWithoutLimit,
   type LimitReportStore,
 } from '../_shared/billing-limit-report.ts'
-import { changePlan, type PlanChangeStore } from '../_shared/billing-plan-change.ts'
+import {
+  changePlan,
+  planChangeNote,
+  type PlanChangeStore,
+} from '../_shared/billing-plan-change.ts'
 import { StripeClient } from '../_shared/stripe-api.ts'
 
 let db: TestDatabase
@@ -88,10 +92,11 @@ function storeOver(
       recorded.missingLimit.push(planKey)
       return Promise.resolve()
     },
-    async noteChange({ organizationId: id, planKey, subscriptionId, actorUserId }) {
+    // Worded exactly as billing/index.ts words it: the tier, never the key.
+    async noteChange({ organizationId: id, tier, subscriptionId, actorUserId }) {
       await database.sql(`select app.billing_note_event($1, 'subscription_updated', $2, $3, $4)`, [
         id,
-        `A plan change to ${planKey} was requested.`,
+        planChangeNote(tier),
         actorUserId,
         subscriptionId,
       ])
@@ -473,8 +478,16 @@ describe('reports for configurations that silently misbehave', () => {
 
     expect(result).toEqual({ limit: 5, count: 6 })
     expect(notes).toHaveLength(1)
-    expect(notes[0]).toContain('6 vehicles')
-    expect(notes[0]).toContain('5')
+    /*
+     * billing_events is the AGENCY's history: billing_events_select grants it to
+     * every owner and the Billing page renders the summary verbatim. So it is
+     * written to its reader -- second person, a unit on the number, and an action
+     * that exists -- and it agrees with what the Vehicles page says.
+     */
+    expect(notes[0]).toBe(
+      'Your plan now covers 5 vehicles and you have 6. Nothing was retired — retire 1, or move up a plan.',
+    )
+    expect(notes[0]).not.toMatch(/the agency/i)
     const events = await db.sql<{ summary: string }>(
       `select summary from public.billing_events
         where organization_id = $1 and summary = $2`,
@@ -496,7 +509,9 @@ describe('reports for configurations that silently misbehave', () => {
     await db.sql(`select app.set_vehicle_limit_override($1, 4, $2)`, [organizationId, ownerId])
     expect(await checkFleetAgainstTier(fleet, organizationId)).toEqual({ limit: 4, count: 6 })
     expect(notes).toHaveLength(2)
-    expect(notes[1]).toContain('covers 4')
+    expect(notes[1]).toBe(
+      'Your plan now covers 4 vehicles and you have 6. Nothing was retired — retire 2, or move up a plan.',
+    )
     await db.sql(`select app.set_vehicle_limit_override($1, null, null)`, [organizationId])
 
     // Control: a fleet that fits the tier is not reported.
@@ -519,16 +534,37 @@ describe('reports for configurations that silently misbehave', () => {
     })
 
     expect(result).toEqual({ ok: true })
-    const [event] = await db.sql<{ kind: string; actor_user_id: string; stripe_object_id: string }>(
-      `select kind::text as kind, actor_user_id, stripe_object_id
+    const [event] = await db.sql<{
+      kind: string
+      actor_user_id: string
+      stripe_object_id: string
+      summary: string
+    }>(
+      `select kind::text as kind, actor_user_id, stripe_object_id, summary
          from public.billing_events
-        where organization_id = $1 and summary like '%pro_monthly%'`,
+        where organization_id = $1 and kind = 'subscription_updated'`,
       [organizationId],
     )
     expect(event).toMatchObject({
       kind: 'subscription_updated',
       actor_user_id: ownerId,
       stripe_object_id: `sub_test_${organizationId.slice(0, 8)}`,
+      // billing_events_select grants this row to every owner, so it is read by
+      // the agency, not by an operator: a catalogue key has no business in it.
+      summary: 'A change to the Pro plan was requested.',
+    })
+    expect(event!.summary).not.toMatch(/pro_monthly/)
+  })
+
+  describe('how the change is named in the history the owner reads', () => {
+    it('names the tier, never the catalogue key', () => {
+      expect(planChangeNote('pro')).toBe('A change to the Pro plan was requested.')
+      expect(planChangeNote('business')).toBe('A change to the Business plan was requested.')
+    })
+
+    // A plan with no authored limit has no tier here. The key is still not printed.
+    it('says "another plan" rather than a key it cannot name', () => {
+      expect(planChangeNote(null)).toBe('A change to another plan was requested.')
     })
   })
 })

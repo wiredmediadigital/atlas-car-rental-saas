@@ -5,6 +5,12 @@
  * means 'no limit', and a subscription that lands below the agency's fleet is
  * kept as it is, because nothing here is retroactive. Neither is an error, so
  * neither stops anything - which is exactly why somebody has to be TOLD.
+ *
+ * WHO IS TOLD DIFFERS, and so does the voice. `describePlansWithoutLimit` goes to
+ * `billing_platform_state.reported_reason`, which only an operator reads, and it
+ * prints plan keys. `checkFleetAgainstTier` writes to `billing_events`, which
+ * `billing_events_select` grants to every owner and the Billing page renders
+ * verbatim: that one is written to the agency.
  */
 
 /** What the reports read. Every answer is the server's. */
@@ -71,8 +77,20 @@ export async function checkFleetAgainstTier(
   if (limit === null) return null
   const count = await store.vehicleCount(organizationId)
   if (count <= limit) return null
-  const vehicles = count === 1 ? 'vehicle' : 'vehicles'
-  const summary = `The plan now covers ${limit} but the agency has ${count} ${vehicles}. Nothing was archived.`
+  /*
+   * Written for its actual reader. `billing_events_select` grants this row to
+   * every owner and the Billing page prints the summary verbatim, so it is the
+   * AGENCY's history, not an operator's log: second person, a unit on the number,
+   * and the two things that can be done about it -- the same pair the Vehicles
+   * page offers for the same fact.
+   *
+   * `count` is never 1 here (it is greater than `limit`, which is at least 1) so
+   * only `limit` is pluralised; there is no dead singular arm to keep correct.
+   */
+  const covered = `${limit} ${limit === 1 ? 'vehicle' : 'vehicles'}`
+  const summary =
+    `Your plan now covers ${covered} and you have ${count}. ` +
+    `Nothing was retired — retire ${count - limit}, or move up a plan.`
   /*
    * Over the limit is a condition that persists for months, and this runs on every
    * applied subscription event (each renewal, each update) in a history the agency

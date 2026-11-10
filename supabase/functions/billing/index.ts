@@ -49,7 +49,11 @@ import {
   plansWithoutLimit,
   type LimitReportStore,
 } from '../_shared/billing-limit-report.ts'
-import { changePlan, type PlanChangeStore } from '../_shared/billing-plan-change.ts'
+import {
+  changePlan,
+  planChangeNote,
+  type PlanChangeStore,
+} from '../_shared/billing-plan-change.ts'
 import { StripeApiError, StripeClient } from '../_shared/stripe-api.ts'
 import { describeConfigProblem, resolveBillingConfig } from '../_shared/stripe-config.ts'
 
@@ -494,13 +498,15 @@ Deno.serve(async (request: Request): Promise<Response> => {
               (await missingLimitSentence(service, config.mode)) ?? describePlansWithoutLimit([key])
             await reportPlatformState(service, true, config.mode, sentence)
           },
-          async noteChange({ organizationId: id, planKey: key, subscriptionId, actorUserId }) {
+          async noteChange({ organizationId: id, tier, subscriptionId, actorUserId }) {
             const { error } = await service.schema('app').rpc('billing_note_event', {
               p_organization_id: id,
               // Not 'plan_changed': the webhook records that kind, with a
               // notification, when Stripe confirms. This is the request.
               p_kind: 'subscription_updated',
-              p_summary: `A change to the ${key} plan was requested.`,
+              // An owner reads this row on the Billing page, so it names the
+              // tier; `pro_monthly` is a catalogue key, not a name.
+              p_summary: planChangeNote(tier),
               p_actor_user_id: actorUserId,
               p_stripe_object_id: subscriptionId,
             })

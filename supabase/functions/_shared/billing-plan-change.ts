@@ -50,6 +50,11 @@ export interface PlanChangeStore {
   noteChange(input: {
     organizationId: string
     planKey: string
+    /**
+     * The target plan's tier, so the note can NAME the plan. The agency reads
+     * this history; a catalogue key is not a name.
+     */
+    tier: string | null
     subscriptionId: string
     actorUserId: string | null
   }): Promise<void>
@@ -99,6 +104,19 @@ function vehicles(count: number): string {
 
 function titleCase(tier: string): string {
   return tier.charAt(0).toUpperCase() + tier.slice(1)
+}
+
+/**
+ * The note left in the agency's billing history when a change is requested.
+ *
+ * `billing_events` is granted to every owner by `billing_events_select` and the
+ * Billing page renders the summary verbatim, so this is copy, not a log line. A
+ * plan is named by its tier; a plan with no tier is "another plan", because
+ * `pro_monthly` is a catalogue key and the product never prints one at a reader.
+ */
+export function planChangeNote(tier: string | null): string {
+  const named = tier === null ? 'another plan' : `the ${titleCase(tier)} plan`
+  return `A change to ${named} was requested.`
 }
 
 export async function changePlan(
@@ -185,6 +203,7 @@ export async function changePlan(
     await store.noteChange({
       organizationId,
       planKey,
+      tier: target.tier,
       subscriptionId: subscription.stripeSubscriptionId,
       actorUserId: input.actorUserId ?? null,
     })
