@@ -39,10 +39,10 @@ import {
   customerIdempotencyKey,
   isLiveStatus,
   normalizeSubscription,
-  portalSessionParams,
   type StripeSubscription,
   type SubscriptionStatus,
 } from '../_shared/billing-domain.ts'
+import { openPortalSession } from '../_shared/billing-portal.ts'
 import { refreshCatalogue } from '../_shared/billing-catalogue.ts'
 import {
   describePlansWithoutLimit,
@@ -589,17 +589,19 @@ Deno.serve(async (request: Request): Promise<Response> => {
           return failure('no_billing_account', 'This agency has no billing account yet.', 404)
         }
 
-        const params = portalSessionParams(mapping.stripe_customer_id as string, config.appUrl)
-        if (params === null) {
-          return failure('not_configured', 'Billing is not configured correctly.', 500)
-        }
-
-        const session = await stripe.request<{ url?: string }>(
-          'POST',
-          '/billing_portal/sessions',
-          params as Record<string, never>,
+        /*
+         * Opened on a configuration with plan switching off, so a tier change
+         * cannot bypass the fleet check in change_plan. If that configuration
+         * cannot be ensured the portal still opens, on the account default, and
+         * the operator is told: a customer must always be able to fix a card.
+         */
+        const session = await openPortalSession(
+          stripe,
+          mapping.stripe_customer_id as string,
+          config.appUrl,
+          (reason) => reportPlatformState(service, true, config.mode, reason),
         )
-        if (typeof session.url !== 'string') {
+        if (session === null) {
           return failure('portal_unavailable', 'The billing portal could not be opened.', 502)
         }
         return json({ ok: true, url: session.url })
