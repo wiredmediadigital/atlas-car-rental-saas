@@ -248,9 +248,11 @@ recorded. If the last one was wrong, the correction has to go in as a reading
 that is at least as high.
 
 **Rows were skipped during an import.** The preview lists each one with its line
-number and the reason. Fix those rows in the spreadsheet and import the file
-again; the rows that already went in are refused as duplicate plates rather
-than added twice.
+number and the reason, and **Import** sends only the rows that passed — so those
+went in and the skipped ones did not. Fix the skipped rows, then import a file
+containing only those rows. Do not import the whole file again: it is refused at
+the first plate you already have, and because an import lands whole or not at
+all, nothing in it is written.
 
 **The compliance warning is not appearing when I expect it.** The window is an
 agency setting, shown in the panel's own heading. A document with no date
