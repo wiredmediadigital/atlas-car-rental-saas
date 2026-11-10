@@ -5,7 +5,9 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { PageHeader } from '@/components/ui'
 
 import { VehicleLimitCounter, VehicleLimitNotice } from './components/VehicleLimit'
-import { downgradeRefusalCopy, vehicleLimitCopy, type VehicleLimitStatus } from './limit'
+import { downgradeRefusalCopy } from '@/features/billing/tiers'
+
+import { vehicleLimitCopy, type VehicleLimitStatus } from './limit'
 
 const state = vi.hoisted(() => ({
   status: undefined as { limit: number | null; count: number; tier: string | null } | undefined,

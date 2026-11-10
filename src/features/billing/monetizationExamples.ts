@@ -34,7 +34,7 @@
  * tiers, or one, or none, they change this file and nothing else breaks.
  */
 
-import { VEHICLE_TIERS } from '@/features/vehicles/limit'
+import { VEHICLE_TIERS } from '@/features/billing/tiers'
 
 /** A tier's billing period, for the preview toggle only. */
 export type ExampleInterval = 'monthly' | 'yearly'

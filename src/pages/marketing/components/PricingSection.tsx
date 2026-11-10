@@ -11,7 +11,7 @@ import {
   tierOfPlan,
   tierSaving,
 } from '@/features/marketing/renderable-pricing'
-import { VEHICLE_TIERS, type TierKey } from '@/features/vehicles/limit'
+import { VEHICLE_TIERS, type TierKey } from '@/features/billing/tiers'
 
 import { PrimaryCta } from './PrimaryCta'
 

@@ -1,5 +1,3 @@
-import { vehicleLimitCopy } from '@/features/vehicles/limit'
-
 /**
  * Turns database and auth failures into messages a rental agency can act on.
  *
@@ -346,27 +344,51 @@ const AUTH_MESSAGES: ReadonlyArray<readonly [RegExp, string]> = [
   ],
 ]
 
+/** `${n} vehicle` or `${n} vehicles`, so no sentence here reads "1 vehicles". */
+function vehicles(count: number): string {
+  return `${count} ${count === 1 ? 'vehicle' : 'vehicles'}`
+}
+
+interface FleetLimitRefusal {
+  readonly message: string
+  /**
+   * The two numbers the server compared. Attached so a caller that knows the
+   * agency's tier can word the sentence better than this layer can.
+   */
+  readonly detail?: Readonly<{ limit: number; count: number }>
+}
+
 /**
  * The fleet limit, raised with errcode 55000 from two places: the per-row trigger
  * ("Your plan covers % vehicles. You have %.") and the batch import ("This import
  * has % vehicles but your plan has room for % more (limit %, in use %).").
  * Both put database sentences in front of a person, so both are rewritten here.
  * The numbers are read out of the sentence; the wording is ours.
+ *
+ * THIS LAYER HAS NO AGENCY AND NO READER. It cannot know the tier, so it must not
+ * name one, must not assert a bespoke limit the agency may not have, and must not
+ * send anyone to a support mailbox over something Billing fixes in a click. The
+ * sentence it produces is deliberately tier-neutral; `useCreateVehicle` and
+ * `useRestoreVehicle` re-word it from `detail` plus the tier they have cached.
  */
-function fleetLimitMessage(raw: string): string | null {
+function fleetLimitRefusal(raw: string): FleetLimitRefusal | null {
   const batch =
     /This import has (\d+) vehicles? but your plan has room for (\d+) more \(limit (\d+)/i.exec(raw)
   if (batch) {
     const [rows, free, limit] = batch.slice(1).map(Number) as [number, number, number]
     const fits = free === 0 ? 'no room for more' : `room for ${free} more`
-    return `This import has ${rows} ${rows === 1 ? 'vehicle' : 'vehicles'}, but your agency's limit is ${limit} and there is ${fits}. Nothing was imported. Import fewer vehicles, or retire ones you no longer rent.`
+    return {
+      message: `This import has ${vehicles(rows)}, but your agency's limit is ${limit} and there is ${fits}. Nothing was imported. Import fewer vehicles, or retire ones you no longer rent.`,
+    }
   }
 
   const single = /Your plan covers (\d+) vehicles\. You have (\d+)\./i.exec(raw)
   if (single) {
     const [limit, count] = single.slice(1).map(Number) as [number, number]
-    // Not owner-aware: this layer cannot know who is reading, so no upgrade button.
-    return vehicleLimitCopy({ limit, count, tier: null }, false)?.sentence ?? null
+    return {
+      message: `Your plan covers ${vehicles(limit)} and you have ${count}. Retire one you no longer rent, or see Billing to move up.`,
+      detail: { limit, count },
+    }
   }
 
   return null
@@ -407,8 +429,10 @@ export function toAppError(error: unknown): AppError {
     )
   }
 
-  const limitMessage = fleetLimitMessage(raw)
-  if (limitMessage) return new AppError('validation', limitMessage, { code, cause: error })
+  const limit = fleetLimitRefusal(raw)
+  if (limit) {
+    return new AppError('validation', limit.message, { code, detail: limit.detail, cause: error })
+  }
 
   if (/vehicles_plate_unique_idx/i.test(raw)) {
     const plate = collidingPlate(error.details)

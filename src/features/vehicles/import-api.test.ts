@@ -41,6 +41,9 @@ describe('importVehicles', () => {
     })
 
     await expect(importVehicles('org-1', [])).rejects.toMatchObject({ name: 'AppError' })
-    await expect(importVehicles('org-1', [])).rejects.not.toThrow(/plan covers/)
+    // The database's own sentence, verbatim: "covers 1 vehicles" at a limit of one.
+    await expect(importVehicles('org-1', [])).rejects.not.toThrow(
+      /covers \d+ vehicles\. You have/,
+    )
   })
 })

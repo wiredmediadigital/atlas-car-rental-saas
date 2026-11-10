@@ -1,4 +1,4 @@
-import { VEHICLE_TIERS, tierKeyOfPlan } from '@/features/vehicles/limit'
+import { VEHICLE_TIERS, tierKeyOfPlan } from '@/features/billing/tiers'
 
 import { annualSaving, type PublicPlan, type PublicPricing } from './api'
 

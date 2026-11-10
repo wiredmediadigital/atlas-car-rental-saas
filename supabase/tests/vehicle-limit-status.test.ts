@@ -10,7 +10,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 
 // Importing from src/ is deliberate: it is what lets this test catch the interface's
 // tier ladder drifting from the authored limits. Do not tidy it away.
-import { VEHICLE_TIERS } from '../../src/features/vehicles/limit'
+import { VEHICLE_TIERS, tierKeyOfPlan } from '../../src/features/billing/tiers'
 
 import { TestDatabase, signUp } from './support/harness'
 
@@ -125,5 +125,23 @@ describe('the tiers the interface knows', () => {
     expect(rows).toEqual(
       VEHICLE_TIERS.map((tier) => ({ tier: tier.key, vehicle_limit: tier.limit })),
     )
+  })
+
+  /*
+   * The pair above agrees today by luck of naming: nothing makes the tier the
+   * interface READS OUT OF A PLAN KEY equal the tier authored beside that key.
+   * Author `enterprise_plus_monthly` with tier `enterprise_plus` and
+   * `tierKeyOfPlan` answers `enterprise` -- whereupon the pricing page silently
+   * drops the plan, the Billing list calls every move to it a "switch", and the
+   * Vehicles notice falls into the contact-us branch. One loop closes the class.
+   */
+  it('read the same tier out of every authored plan key as the row names', async () => {
+    const rows = await db.sql<{ plan_key: string; tier: string }>(
+      `select plan_key, tier from public.plan_vehicle_limits order by plan_key`,
+    )
+    expect(rows.length).toBeGreaterThan(0)
+    for (const row of rows) {
+      expect([row.plan_key, tierKeyOfPlan(row.plan_key)]).toEqual([row.plan_key, row.tier])
+    }
   })
 })

@@ -105,9 +105,41 @@ describe('toAppError — the vehicle limit', () => {
     })
 
     expect(error.message).toBe(
-      "Your agency's limit is 1 vehicle. You have 1. Retire one you no longer rent, or contact us to raise it.",
+      'Your plan covers 1 vehicle and you have 1. Retire one you no longer rent, or see Billing to move up.',
     )
-    expect(error.message).not.toMatch(/plan covers/)
+    expect(error.message).not.toMatch(/1 vehicles/)
+  })
+
+  /*
+   * This layer sees an error and nothing else: no agency, no tier, no reader. At
+   * limit 1 "Your agency's limit is 1 vehicle" read naturally and hid that it was
+   * asserting a bespoke limit. At 5, for an agency on Starter, it was simply
+   * untrue -- and it sent an owner to a support mailbox for something one click
+   * on Billing fixes. The sentence names no tier, claims no bespoke limit, and
+   * points at Billing; the Vehicles page's own hooks replace it with the tiered
+   * sentence (src/features/vehicles/limit-refusal.test.tsx pins that they agree).
+   */
+  it('claims no bespoke limit and names no mailbox for an ordinary Starter agency', () => {
+    const error = toAppError({
+      code: '55000',
+      message: 'Your plan covers 5 vehicles. You have 5.',
+    })
+
+    expect(error.message).toBe(
+      'Your plan covers 5 vehicles and you have 5. Retire one you no longer rent, or see Billing to move up.',
+    )
+    expect(error.message).not.toMatch(/agency's limit/i)
+    expect(error.message).not.toMatch(/contact us/i)
+  })
+
+  // The two numbers the server compared, for the caller that knows the tier.
+  it('carries the limit and the count it read', () => {
+    const error = toAppError({
+      code: '55000',
+      message: 'Your plan covers 5 vehicles. You have 5.',
+    })
+
+    expect(error.detail).toEqual({ limit: 5, count: 5 })
   })
 
   // Fails if the batch sentence is left unmapped, or if the free-slot count is
