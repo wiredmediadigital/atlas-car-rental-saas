@@ -79,6 +79,21 @@ async function limitOf(): Promise<number | null> {
   return row!.limit
 }
 
+/** What a member's browser is shown: the limit, the count and the plan tier. */
+async function statusOf(): Promise<{
+  vehicle_limit: number | null
+  vehicle_count: number
+  tier: string | null
+}> {
+  const [row] = await db.asUser(owner, (session) =>
+    session.sql<{ vehicle_limit: number | null; vehicle_count: number; tier: string | null }>(
+      `select * from public.vehicle_limit_status($1)`,
+      [organizationId],
+    ),
+  )
+  return row!
+}
+
 /** The supported way in: all three columns together, or all three cleared. */
 async function grantOverride(limit: number | null): Promise<void> {
   await db.sql(`select app.set_vehicle_limit_override($1, $2, $3)`, [
@@ -337,6 +352,27 @@ describe('a deployment whose billing is not configured', () => {
       expect(await limitOf()).toBeNull()
     } finally {
       await replaceCatalogue(PLAN_KEYS)
+    }
+  })
+
+  /*
+   * vehicle_limit_status reads the limit through app.vehicle_limit_of, which is
+   * gated on billing_platform_configured. The tier beside it was read straight
+   * from plan_vehicle_limits and was not, so an unconfigured platform holding a
+   * stale subscription row answered `limit: null, tier: 'starter'` -- a tier the
+   * resolver had just refused to honour. Nothing reads it today (a null limit
+   * hides the counter), which is why this is closed before something does.
+   */
+  it('reports no tier either, so no reader inherits one the resolver suppressed', async () => {
+    await subscribe('starter_monthly')
+    const before = await statusOf()
+    expect(before).toEqual({ vehicle_limit: 5, vehicle_count: 0, tier: 'starter' })
+
+    await setPlatformConfigured(false)
+    try {
+      expect(await statusOf()).toEqual({ vehicle_limit: null, vehicle_count: 0, tier: null })
+    } finally {
+      await setPlatformConfigured(true)
     }
   })
 
