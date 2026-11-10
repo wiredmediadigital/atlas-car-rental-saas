@@ -122,12 +122,39 @@ export function tierSaving(plans: readonly PublicPlan[]): number | null {
   return Math.min(...(savings as number[]))
 }
 
+/** What a visitor picks between: a plan's interval and count. */
+export function cadenceKey(plan: PublicPlan): string {
+  return `${plan.interval}:${plan.intervalCount}`
+}
+
+/**
+ * One plan per cadence that EVERY tier on the page has, in the order the payload
+ * first shows them. A cadence some tier lacks is never offered: choosing it would
+ * make that tier's card vanish, and falling back to that tier's own cadence would
+ * put "$59 per month" beside "$1,190 per year", a comparison that is not like for
+ * like. When no cadence covers every tier there is nothing true to show.
+ */
+export function commonCadences(plans: readonly PublicPlan[]): PublicPlan[] {
+  const tiers = new Set(plans.map((plan) => tierOfPlan(plan)?.key))
+  const seen = new Set<string>()
+  return plans.filter((plan) => {
+    const key = cadenceKey(plan)
+    if (seen.has(key)) return false
+    seen.add(key)
+    const covered = new Set(
+      plans.filter((p) => cadenceKey(p) === key).map((p) => tierOfPlan(p)?.key),
+    )
+    return covered.size === tiers.size
+  })
+}
+
 /**
  * The single definition of "there is a pricing section to show". The section
- * renders on exactly this condition, and so must anything that points at it
- * (nav link, FAQ entry) — never `plans.length`, which can be non-zero while
- * the section renders nothing.
+ * renders on exactly this condition, and so do the nav link and the FAQ entry
+ * (both call this) -- never `plans.length`, which can be non-zero while the
+ * section renders nothing. It requires a cadence that covers every tier: a page
+ * with no pricing is honest, a ladder with a missing rung is not.
  */
 export function hasRenderablePricing(pricing: PublicPricing | undefined): boolean {
-  return renderablePlans(pricing).length > 0
+  return commonCadences(renderablePlans(pricing)).length > 0
 }

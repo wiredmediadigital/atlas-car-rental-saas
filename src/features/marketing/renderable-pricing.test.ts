@@ -5,6 +5,7 @@ import {
   formatPlanAmount,
   hasRenderablePricing,
   renderablePlans,
+  commonCadences,
   tierOfPlan,
   tierSaving,
 } from './renderable-pricing'
@@ -104,6 +105,21 @@ describe('renderablePlans', () => {
     const unknown = plan('enterprise_monthly', 'month', 9900)
     expect(renderablePlans(pricing([unknown, MONTHLY]))).toEqual([MONTHLY])
     expect(hasRenderablePricing(pricing([unknown]))).toBe(false)
+  })
+})
+
+describe('no cadence covers every tier', () => {
+  const starterMonthly = plan('starter_monthly', 'month', 5900)
+  const proYearly = plan('pro_yearly', 'year', 119000)
+
+  it('is not renderable pricing, so the section, nav link and FAQ go together', () => {
+    expect(hasRenderablePricing(pricing([starterMonthly, proYearly]))).toBe(false)
+  })
+
+  it('is renderable once one cadence covers both tiers', () => {
+    const proMonthly = plan('pro_monthly', 'month', 11900)
+    expect(hasRenderablePricing(pricing([starterMonthly, proYearly, proMonthly]))).toBe(true)
+    expect(commonCadences([starterMonthly, proYearly, proMonthly])).toEqual([starterMonthly])
   })
 })
 

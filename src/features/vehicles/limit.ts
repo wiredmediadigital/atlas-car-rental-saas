@@ -14,8 +14,10 @@ export interface VehicleLimitStatus {
   tier: string | null
 }
 
+export type TierKey = 'starter' | 'pro' | 'business'
+
 interface Tier {
-  key: string
+  key: TierKey
   label: string
   limit: number
 }

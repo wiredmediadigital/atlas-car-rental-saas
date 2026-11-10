@@ -170,6 +170,22 @@ describe('three tiers', () => {
     renderSection(pricing(TIERED))
     await user.click(screen.getByRole('button', { name: /yearly/i }))
     expect(screen.getAllByRole('link', { name: 'Start your free trial' })).toHaveLength(3)
+    for (const [name, price] of [
+      ['Starter', '$590.00'],
+      ['Pro', '$1,190.00'],
+      ['Business', '$1,990.00'],
+    ] as const) {
+      expect(within(card(name)).getByText(price)).toBeInTheDocument()
+    }
+    expect(screen.queryByText('$59.00')).not.toBeInTheDocument()
+  })
+
+  it('renders nothing when no cadence covers every tier, rather than a ladder with a gap', () => {
+    // Starter is monthly-only, Pro is yearly-only: any one view would drop a tier.
+    const { container } = renderSection(
+      pricing([tierPlan('starter', 'month', 5900), tierPlan('pro', 'year', 119000)]),
+    )
+    expect(container).toBeEmptyDOMElement()
   })
 
   it('does not render a plan whose tier it cannot name', () => {

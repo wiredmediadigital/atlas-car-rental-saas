@@ -3,13 +3,15 @@ import { useEffect, useRef, useState } from 'react'
 import { SUPPORT_EMAIL } from '@/features/help/constants'
 import type { PublicPlan, PublicPricing } from '@/features/marketing/api'
 import {
+  cadenceKey,
+  commonCadences,
   formatPlanAmount,
   hasRenderablePricing,
   renderablePlans,
   tierOfPlan,
   tierSaving,
 } from '@/features/marketing/renderable-pricing'
-import { VEHICLE_TIERS } from '@/features/vehicles/limit'
+import { VEHICLE_TIERS, type TierKey } from '@/features/vehicles/limit'
 
 import { PrimaryCta } from './PrimaryCta'
 
@@ -48,40 +50,11 @@ function isYearly(plan: PublicPlan): boolean {
   return plan.interval === 'year' && plan.intervalCount === 1
 }
 
-/**
- * What the toggle chooses between. A plan's `plan_key` is unique, so it keys
- * React lists; a cadence is what the visitor picks, and every tier is shown at
- * the chosen one.
- */
-function cadenceKey(plan: PublicPlan): string {
-  return `${plan.interval}:${plan.intervalCount}`
-}
-
 const SECTION_ID = 'pricing'
 
 function defaultCadence(plans: readonly PublicPlan[]): string | undefined {
   const plan = plans.find((p) => p.interval === 'month' && p.intervalCount === 1) ?? plans[0]
   return plan && cadenceKey(plan)
-}
-
-/**
- * One toggle option per cadence that EVERY tier on the page has, in the order the
- * payload first shows them. A cadence some tier lacks is not offered: choosing it
- * would make that tier's card vanish, or (the alternative) put "$59 per month"
- * beside "$1,190 per year" and invite a comparison that is not like for like.
- */
-function cadenceOptions(plans: readonly PublicPlan[]): PublicPlan[] {
-  const tiers = new Set(plans.map((plan) => tierOfPlan(plan)?.key))
-  const seen = new Set<string>()
-  return plans.filter((plan) => {
-    const key = cadenceKey(plan)
-    if (seen.has(key)) return false
-    seen.add(key)
-    const covered = new Set(
-      plans.filter((p) => cadenceKey(p) === key).map((p) => tierOfPlan(p)?.key),
-    )
-    return covered.size === tiers.size
-  })
 }
 
 /** Smallest tier first, whatever order the payload arrived in. */
@@ -90,8 +63,8 @@ function tierOrder(plan: PublicPlan): number {
   return tier ? VEHICLE_TIERS.indexOf(tier) : VEHICLE_TIERS.length
 }
 
-// The middle tier of VEHICLE_TIERS, so renaming a key cannot silently unmark it.
-const POPULAR_TIER = VEHICLE_TIERS[Math.floor(VEHICLE_TIERS.length / 2)]?.key
+// Chosen by name, typed against the tier keys: renaming a key is a compile error here.
+const POPULAR_TIER: TierKey = 'pro'
 const LARGEST_TIER = VEHICLE_TIERS[VEHICLE_TIERS.length - 1]
 
 interface PlanCardProps {
@@ -187,10 +160,10 @@ export function PricingSection({ pricing }: PricingSectionProps) {
   if (!pricing || !hasPricing) return null
   const plans = renderablePlans(pricing)
 
-  const options = cadenceOptions(plans)
-  // No cadence covers every tier: show what there is, with no toggle to switch it.
-  const pool = options.length > 0 ? options : plans
-  const chosen = options.some((o) => cadenceKey(o) === selected) ? selected : defaultCadence(pool)
+  const options = commonCadences(plans)
+  const chosen = options.some((o) => cadenceKey(o) === selected)
+    ? selected
+    : defaultCadence(options)
   if (chosen === undefined) return null
 
   const shown = plans
