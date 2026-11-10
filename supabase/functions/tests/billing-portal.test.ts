@@ -7,13 +7,18 @@
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { openPortalSession, resetPortalConfigurationCache } from '../_shared/billing-portal.ts'
+import {
+  MAX_LIST_PAGES,
+  openPortalSession,
+  resetPortalConfigurationCache,
+} from '../_shared/billing-portal.ts'
 import { StripeClient } from '../_shared/stripe-api.ts'
 
 interface Sent {
   readonly method: string
   readonly path: string
   readonly form: URLSearchParams
+  readonly idempotencyKey: string | null
 }
 
 type Responder = (sent: Sent) => { status: number; body: unknown }
@@ -32,6 +37,7 @@ function harness(respond: Responder) {
       method: String(init.method),
       path: parsed.pathname.replace(/^\/v1/, ''),
       form: new URLSearchParams(raw),
+      idempotencyKey: new Headers(init.headers).get('Idempotency-Key'),
     }
     sent.push(entry)
     const { status, body } = respond(entry)
@@ -95,26 +101,33 @@ function stripeWith(existing: unknown[], withDefault = true) {
 describe('portal session with plan switching disabled', () => {
   beforeEach(() => resetPortalConfigurationCache())
 
-  it('with no default to copy, falls back to the minimal set and reports the guess', async () => {
+  it('creates NOTHING when the account default cannot be found, and opens on the default', async () => {
     const { sent, client } = stripeWith([], false)
     const report = vi.fn(async (_reason: string) => {})
 
     const result = await openPortalSession(client, 'cus_1', APP, report)
 
     expect(result).toEqual({ url: 'https://billing.stripe.com/p/session_1' })
-    const created = createsOf(sent)
-    expect(created).toHaveLength(1)
-    expect(first(created).form.get('features[subscription_update][enabled]')).toBe('false')
-    expect(first(created).form.get('metadata[pevvy_portal]')).toBe(MARKER)
-    // Cancelling, invoices and payment methods are not removed.
-    expect(first(created).form.get('features[subscription_cancel][enabled]')).toBe('true')
-    expect(first(created).form.get('features[invoice_history][enabled]')).toBe('true')
-    expect(first(created).form.get('features[payment_method_update][enabled]')).toBe('true')
+    // A guessed configuration would carry our marker and be adopted forever.
+    expect(createsOf(sent)).toHaveLength(0)
     const session = nth(sessionsOf(sent), 0)
-    expect(session.form.get('configuration')).toBe('bpc_created')
+    expect(session.form.has('configuration')).toBe(false)
     expect(session.form.get('customer')).toBe('cus_1')
     expect(report).toHaveBeenCalledTimes(1)
-    expect(first(report.mock.calls)[0]).toMatch(/default.*(not found|could not)/i)
+    expect(first(report.mock.calls)[0]).toMatch(/default.*not found/i)
+  })
+
+  it('creates with an idempotency key tied to the mode, so concurrent first opens collapse', async () => {
+    const { sent, client } = stripeWith([])
+
+    await openPortalSession(
+      client,
+      'cus_1',
+      APP,
+      vi.fn(async () => {}),
+    )
+
+    expect(first(createsOf(sent)).idempotencyKey).toBe('pevvy-portal-config-test')
   })
 
   it('copies the default configuration verbatim and flips only plan switching', async () => {
@@ -126,7 +139,7 @@ describe('portal session with plan switching disabled', () => {
     const form = first(createsOf(sent)).form
     expect(form.get('features[subscription_update][enabled]')).toBe('false')
     expect(form.get('metadata[pevvy_portal]')).toBe(MARKER)
-    // Not in the minimal set, so only a copy can have carried them across.
+    // Only a copy can have carried these across.
     expect(form.get('features[customer_update][enabled]')).toBe('true')
     expect(form.get('features[customer_update][allowed_updates][1]')).toBe('tax_id')
     // The account's own cancel semantics, not our guess.
@@ -176,7 +189,7 @@ describe('portal session with plan switching disabled', () => {
     const result = await openPortalSession(client, 'cus_1', APP, report)
 
     expect(result).not.toBeNull()
-    expect(listsOf(sent).length).toBeLessThanOrEqual(20)
+    expect(listsOf(sent)).toHaveLength(MAX_LIST_PAGES)
     expect(createsOf(sent)).toHaveLength(0)
     expect(report).toHaveBeenCalledTimes(1)
   })
@@ -308,6 +321,12 @@ describe('portal session with plan switching disabled', () => {
     expect(result).not.toBeNull()
     expect(report).toHaveBeenCalledTimes(1)
     expect(sessionsOf(sent).at(-1)!.form.has('configuration')).toBe(false)
+
+    // The rejected id was forgotten: the third open re-resolves instead of reusing it.
+    const listsBefore = listsOf(sent).length
+    rejectConfiguration = false
+    await openPortalSession(client, 'cus_1', APP, report)
+    expect(listsOf(sent).length).toBe(listsBefore + 1)
   })
 
   it('returns null without calling Stripe when the app URL is unusable', async () => {

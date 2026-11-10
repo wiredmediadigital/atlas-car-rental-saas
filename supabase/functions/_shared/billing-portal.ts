@@ -35,7 +35,8 @@ const LIST_LIMIT = 100
 interface PortalConfiguration {
   readonly id?: string
   readonly metadata?: Record<string, string> | null
-  readonly features?: { subscription_update?: { enabled?: boolean } } | null
+  /** Every feature Stripe returns; cloned wholesale. Only subscription_update is read here. */
+  readonly features?: Record<string, FormValue> | null
 }
 
 /** Resolved ids, per Stripe mode: test and live are different accounts' worth of objects. */
@@ -45,17 +46,24 @@ export function resetPortalConfigurationCache(): void {
   cachedConfigurationIds.clear()
 }
 
+function subscriptionUpdateEnabled(configuration: PortalConfiguration): unknown {
+  const update = configuration.features?.subscription_update
+  return typeof update === 'object' && update !== null && !Array.isArray(update)
+    ? update.enabled
+    : undefined
+}
+
 /** A configuration is ours only if it carries the marker AND still has plan updates off. */
 function isOurs(configuration: PortalConfiguration): boolean {
   return (
     typeof configuration.id === 'string' &&
     configuration.metadata?.[PORTAL_MARKER_KEY] === PORTAL_MARKER_VALUE &&
-    configuration.features?.subscription_update?.enabled === false
+    subscriptionUpdateEnabled(configuration) === false
   )
 }
 
 /** Beyond this many pages we stop, rather than create a duplicate on a guess. */
-const MAX_LIST_PAGES = 10
+export const MAX_LIST_PAGES = 10
 
 interface ConfigurationPage {
   readonly data?: DefaultConfiguration[]
@@ -68,26 +76,10 @@ interface DefaultConfiguration extends PortalConfiguration {
 }
 
 /**
- * The minimal feature set, used ONLY when the account's default cannot be
- * copied. It is a guess: a new configuration does not inherit the default, so
- * anything not named here is off. The caller reports that the guess was used.
- */
-function minimalParams(): Record<string, FormValue> {
-  return {
-    features: {
-      subscription_update: { enabled: false },
-      subscription_cancel: { enabled: true, mode: 'at_period_end' },
-      invoice_history: { enabled: true },
-      payment_method_update: { enabled: true },
-    },
-    metadata: { [PORTAL_MARKER_KEY]: PORTAL_MARKER_VALUE },
-  }
-}
-
-/**
  * The account default's `features` and `business_profile`, verbatim, with only
  * plan switching turned off. Everything else the portal offers is preserved by
- * construction, and `business_profile` is whatever the account already has.
+ * construction, and `business_profile` is whatever the account already has. NOT copied: `login_page`
+ * and `default_return_url` (sessions always carry their own `return_url`).
  * `subscription_update` is replaced wholesale by `{ enabled: false }`: the
  * products and allowed updates only describe switching, which is now off.
  * `null` values from Stripe's response are dropped by the form encoder.
@@ -148,10 +140,19 @@ async function safeReport(
   }
 }
 
+/**
+ * The id of our configuration, or null when it cannot be built faithfully.
+ *
+ * Null means "open on the account default", already reported. We never create
+ * a configuration from a guessed feature set: it would carry our marker, be
+ * adopted on every future cold start, and permanently strip whatever the guess
+ * omitted (billing address, tax IDs, the account's own cancel semantics) from
+ * every customer. Opening on the default is no worse than before this change.
+ */
 async function ensureConfigurationId(
   stripe: StripeClient,
   report: (reason: string) => Promise<void>,
-): Promise<string> {
+): Promise<string | null> {
   const cached = cachedConfigurationIds.get(stripe.mode)
   if (cached !== undefined) return cached
 
@@ -159,17 +160,20 @@ async function ensureConfigurationId(
 
   let id = ours?.id
   if (id === undefined) {
-    const source = accountDefault?.features != null ? accountDefault : undefined
-    if (source === undefined) {
+    if (accountDefault?.features == null) {
+      console.error('billing portal: the account default configuration was not found')
       await safeReport(
         report,
-        "The plan-switching-off portal configuration was built from a guessed feature set because the account's default portal configuration was not found.",
+        "The billing portal opened on the account default, so plan switching could not be disabled: the account's default portal configuration was not found to copy.",
       )
+      return null
     }
     const created = await stripe.request<{ id?: string }>(
       'POST',
       '/billing_portal/configurations',
-      source === undefined ? minimalParams() : cloneParams(source),
+      cloneParams(accountDefault),
+      // Two simultaneous first opens collapse into one configuration.
+      { idempotencyKey: `pevvy-portal-config-${stripe.mode}` },
     )
     if (typeof created.id !== 'string') {
       throw new StripeApiError('malformed_response', 'The portal configuration had no id.')

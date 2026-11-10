@@ -129,17 +129,26 @@ you deploy, not after.
     changed through the app's Billing page. The Customer Portal changes the plan
     inside Stripe and never asks the app. So the billing function opens every portal
     session on its own configuration: a copy of the account's default portal
-    configuration with plan switching disabled, found again by its
-    `pevvy_portal=no_plan_switching` metadata, so cancelling, invoices, payment
-    methods and everything else the default offers are unchanged. It is created
-    automatically on the first portal open in each Stripe mode; no setup is needed.
-    Still switch plan switching off in the Dashboard (Settings, Billing, Customer
-    portal; in both test and live mode) as defence in depth, because a portal link
-    reached any other way still uses the account default. If the configuration
-    cannot be created or read, the portal opens on the account default (a customer
-    must always be able to fix a card) and the reason appears in
-    `public.billing_platform_state.reported_reason` after the next portal open; treat
-    that message as the bypass being open until it is resolved.
+    configuration, taking its `features` and `business_profile` as they are (cancel
+    behaviour, invoice history, payment methods, billing-address and tax-ID editing,
+    whatever the default has on) with only `subscription_update` switched off. It is
+    found again by its `pevvy_portal=no_plan_switching` metadata and is created
+    automatically on the first portal open in each Stripe mode, so no setup is needed.
+    The default's `login_page` and `default_return_url` are not copied; sessions
+    always carry their own return URL. Pevvy never creates a configuration from a
+    guessed feature set. Still switch plan switching off in the Dashboard (Settings,
+    Billing, Customer portal; in both test and live mode) as defence in depth, because
+    a portal link reached any other way still uses the account default.
+    **If the configuration cannot be built** (the account's default portal
+    configuration is missing, or Stripe errors on the list or create), the portal still
+    opens, on the account default, because a customer must always be able to fix a
+    card. That leaves plan switching open for that session. Look for
+    `billing portal:` lines in the `billing` Edge Function logs; that is the durable
+    record. Do NOT rely on `billing_platform_state.reported_reason`: the next Billing
+    page load overwrites it with "Stripe is configured." within seconds, so it can look
+    healthy while the bypass is open. Fix the cause (for example, set up the default
+    portal configuration in the Dashboard) and the next portal open creates the
+    configuration.
 11. **Change one plan in Stripe test mode after deploying, before the first real
     one.** `change_plan` reads `public.plan_vehicle_limits` with the service client,
     on a table that revokes every grant from `public, anon, authenticated` and
