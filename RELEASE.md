@@ -162,10 +162,10 @@ agency's owner, unless the owner really did decide it. It is recorded alongside 
 limit and the time, because a bespoke limit nobody can explain later is a liability.
 A bare `update organizations set vehicle_limit_override = 150` is refused by
 `organizations_vehicle_limit_override_provenance`. Be precise about what that
-constraint buys you: it guarantees the *when*, because a live override cannot be
-stored without its timestamp. It cannot guarantee the *who* — the column holding it
+constraint buys you: it guarantees the _when_, because a live override cannot be
+stored without its timestamp. It cannot guarantee the _who_ — the column holding it
 is cleared if that operator's account is ever deleted, so requiring it would turn
-deleting an account into a failed delete. The *who* is the reason to use the
+deleting an account into a failed delete. The _who_ is the reason to use the
 function rather than a hand-written update, not something the database will stop
 you getting wrong.
 
