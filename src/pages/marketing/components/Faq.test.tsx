@@ -67,7 +67,7 @@ describe('the homepage FAQ', () => {
       trialDays: 14,
       plans: [
         {
-          planKey: 'monthly',
+          planKey: 'starter_monthly',
           amountMinor: 4900,
           currency: 'usd',
           interval: 'month',

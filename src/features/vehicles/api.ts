@@ -16,6 +16,7 @@ import type {
   TransmissionType,
 } from '@/types/database'
 
+import type { VehicleLimitStatus } from './limit'
 import type { VehicleFormValues } from './schemas'
 
 /** Sort orders offered in the fleet list, mapped to a column and direction. */
@@ -195,6 +196,26 @@ export async function fetchFleetCounts(organizationId: string): Promise<FleetSta
 }
 
 /**
+ * The fleet against its limit. Goes through public.vehicle_limit_status, which
+ * checks membership itself; the resolver functions behind it are not callable
+ * from the browser.
+ */
+export async function fetchVehicleLimit(organizationId: string): Promise<VehicleLimitStatus> {
+  const { data, error } = await getSupabaseClient().rpc('vehicle_limit_status', {
+    p_organization_id: organizationId,
+  })
+
+  if (error) throw toAppError(error)
+
+  const row = data?.[0]
+  return {
+    limit: row?.vehicle_limit ?? null,
+    count: row?.vehicle_count ?? 0,
+    tier: row?.tier ?? null,
+  }
+}
+
+/**
  * A single vehicle, with its derived availability.
  *
  * An id from another agency and an id that does not exist produce the same
@@ -279,6 +300,23 @@ export async function createVehicle(
 
   if (error) throw toAppError(error)
   return data
+}
+
+/**
+ * Imports a whole batch in one transaction: the database checks the agency's
+ * vehicle limit before writing any row, so the batch lands whole or not at all.
+ */
+export async function importVehicles(
+  organizationId: string,
+  rows: readonly VehicleFormValues[],
+): Promise<Vehicle[]> {
+  const { data, error } = await getSupabaseClient().rpc('vehicles_import_batch', {
+    p_organization_id: organizationId,
+    p_rows: rows.map((values) => ({ ...toRow(values) })),
+  })
+
+  if (error) throw toAppError(error)
+  return data ?? []
 }
 
 export async function updateVehicle(

@@ -1,12 +1,17 @@
 import { useEffect, useRef, useState } from 'react'
 
-import { annualSaving, type PublicPlan, type PublicPricing } from '@/features/marketing/api'
-
+import { SUPPORT_EMAIL } from '@/features/help/constants'
+import type { PublicPlan, PublicPricing } from '@/features/marketing/api'
 import {
+  cadenceKey,
+  commonCadences,
   formatPlanAmount,
   hasRenderablePricing,
   renderablePlans,
+  tierOfPlan,
+  tierSaving,
 } from '@/features/marketing/renderable-pricing'
+import { VEHICLE_TIERS, type TierKey } from '@/features/billing/tiers'
 
 import { PrimaryCta } from './PrimaryCta'
 
@@ -15,6 +20,13 @@ import { PrimaryCta } from './PrimaryCta'
  * is no fallback figure, no "from $X" and no placeholder, because the whole
  * point of this section is that the advertised price cannot differ from the
  * charged one. When there is nothing true to say it renders nothing at all.
+ *
+ * The tier's name and its vehicle allowance are NOT in the payload: they are
+ * page copy, read from `VEHICLE_TIERS` (the constant the Vehicles and Billing
+ * pages use, pinned to `plan_vehicle_limits` by a database test) and chosen by
+ * the tier in the plan key. They never touch price, interval or trial. The
+ * talk-to-us card is static content, not a plan: it has no price and is not
+ * built from the payload.
  *
  * The page makes the single pricing request and passes the result down, so the
  * section, its nav link and its FAQ entry share one condition.
@@ -38,19 +50,112 @@ function isYearly(plan: PublicPlan): boolean {
   return plan.interval === 'year' && plan.intervalCount === 1
 }
 
-/**
- * A plan's identity. `plan_key` is unique in the table (`billing_plans_key_unique`),
- * so two plans can never collide, and it does not change when a refetch reorders
- * the list. A cadence is not an identity: two plans may share one.
- */
-function identity(plan: PublicPlan): string {
-  return plan.planKey
-}
-
 const SECTION_ID = 'pricing'
 
-function defaultPlan(plans: readonly PublicPlan[]): PublicPlan | undefined {
-  return plans.find((p) => p.interval === 'month' && p.intervalCount === 1) ?? plans[0]
+function defaultCadence(plans: readonly PublicPlan[]): string | undefined {
+  const plan = plans.find((p) => p.interval === 'month' && p.intervalCount === 1) ?? plans[0]
+  return plan && cadenceKey(plan)
+}
+
+/** Smallest tier first, whatever order the payload arrived in. */
+function tierOrder(plan: PublicPlan): number {
+  const tier = tierOfPlan(plan)
+  return tier ? VEHICLE_TIERS.indexOf(tier) : VEHICLE_TIERS.length
+}
+
+// Chosen by name, typed against the tier keys: renaming a key is a compile error here.
+const POPULAR_TIER: TierKey = 'pro'
+
+/**
+ * The allowance of the largest tier ON THIS PAGE, which is not the largest tier
+ * the ladder knows: a deployment selling only Starter and Pro renders 5 and 20,
+ * and a card reading "More than 50 vehicles" beside them would tell a visitor
+ * with 30 cars that nothing here is for them, and imply 21-50 is self-serve
+ * somewhere it is not. `null` when nothing nameable is shown.
+ */
+function largestShownAllowance(plans: readonly PublicPlan[]): number | null {
+  const allowances = plans
+    .map((plan) => tierOfPlan(plan)?.limit)
+    .filter((limit): limit is number => limit !== undefined)
+  return allowances.length === 0 ? null : Math.max(...allowances)
+}
+
+interface PlanCardProps {
+  plan: PublicPlan
+  hasTrial: boolean
+}
+
+function PlanCard({ plan, hasTrial }: PlanCardProps) {
+  const tier = tierOfPlan(plan)
+  if (!tier) return null
+  const isPopular = tier.key === POPULAR_TIER
+
+  return (
+    <li
+      className={[
+        'rounded-xl border p-6 text-center',
+        isPopular ? 'border-brand-700' : 'border-line',
+      ].join(' ')}
+    >
+      <p className="text-brand-700 h-5 text-[0.75rem] font-semibold tracking-[0.08em] uppercase">
+        {isPopular && 'Most popular'}
+      </p>
+      <h3 className="text-ink mt-1 text-[1.25rem] font-semibold tracking-tight">{tier.label}</h3>
+      <p className="text-ink-muted mt-1 text-[0.9375rem]">
+        Up to {tier.limit} {tier.limit === 1 ? 'vehicle' : 'vehicles'}
+      </p>
+      {hasTrial ? (
+        <>
+          <div className="mt-6 flex justify-center">
+            <PrimaryCta label="Start your free trial" />
+          </div>
+          <p className="text-ink mt-6 flex items-baseline justify-center gap-2">
+            <span className="text-ink-muted text-[0.9375rem]">Then</span>
+            <span className="text-[1.25rem] font-semibold">{formatPlanAmount(plan)}</span>
+            <span className="text-ink-muted text-[0.9375rem]">{cadence(plan, 'price')}</span>
+          </p>
+        </>
+      ) : (
+        <>
+          <p className="text-ink mt-6 flex items-baseline justify-center gap-2">
+            <span className="text-[2rem] font-semibold tracking-tight">
+              {formatPlanAmount(plan)}
+            </span>
+            <span className="text-ink-muted text-[0.9375rem]">{cadence(plan, 'price')}</span>
+          </p>
+          <div className="mt-6 flex justify-center">
+            <PrimaryCta />
+          </div>
+        </>
+      )}
+    </li>
+  )
+}
+
+interface TalkToUsCardProps {
+  /** The largest allowance the page is selling; the card begins above it. */
+  aboveVehicles: number
+}
+
+/** Static: not a plan, no price, and nothing downstream should treat it as one. */
+function TalkToUsCard({ aboveVehicles }: TalkToUsCardProps) {
+  return (
+    <li className="border-line rounded-xl border p-6 text-center">
+      <p className="h-5" />
+      <h3 className="text-ink mt-1 text-[1.25rem] font-semibold tracking-tight">
+        More than {aboveVehicles} vehicles
+      </h3>
+      <p className="text-ink-muted mt-1 text-[0.9375rem]">Tell us about your fleet.</p>
+      <div className="mt-6 flex justify-center">
+        <a
+          href={`mailto:${SUPPORT_EMAIL}`}
+          className="text-brand-700 text-sm font-medium underline underline-offset-4"
+        >
+          Talk to us
+        </a>
+      </div>
+    </li>
+  )
 }
 
 export function PricingSection({ pricing }: PricingSectionProps) {
@@ -72,11 +177,19 @@ export function PricingSection({ pricing }: PricingSectionProps) {
   if (!pricing || !hasPricing) return null
   const plans = renderablePlans(pricing)
 
-  const plan = plans.find((p) => identity(p) === selected) ?? defaultPlan(plans)
-  if (!plan) return null
+  const options = commonCadences(plans)
+  const chosen = options.some((o) => cadenceKey(o) === selected)
+    ? selected
+    : defaultCadence(options)
+  if (chosen === undefined) return null
 
-  const saving = annualSaving(plans)
-  const hasChoice = plans.length > 1
+  const shown = plans
+    .filter((p) => cadenceKey(p) === chosen)
+    .sort((x, y) => tierOrder(x) - tierOrder(y))
+
+  const largestShown = largestShownAllowance(shown)
+  const saving = tierSaving(plans)
+  const hasChoice = options.length > 1
   const hasTrial = pricing.trialDays > 0
   const trialLength = `${pricing.trialDays} ${pricing.trialDays === 1 ? 'day' : 'days'}`
 
@@ -96,10 +209,10 @@ export function PricingSection({ pricing }: PricingSectionProps) {
             id="pricing-heading"
             className="text-ink mt-3 text-[1.875rem] font-semibold tracking-tight sm:text-[2.25rem]"
           >
-            One plan, every module included.
+            Every module included. Priced by fleet size.
           </h2>
           <p className="text-ink-muted mx-auto mt-4 max-w-md text-[0.9375rem] leading-6">
-            Fleet, rentals, payments and reporting in one workspace, at one price.
+            Fleet, rentals, payments and reporting in one workspace. Choose the size of your fleet.
           </p>
         </div>
 
@@ -109,14 +222,14 @@ export function PricingSection({ pricing }: PricingSectionProps) {
             aria-label="Billing interval"
             className="border-line mx-auto mt-10 flex w-fit gap-1 rounded-lg border p-1"
           >
-            {plans.map((option) => {
-              const isSelected = identity(option) === identity(plan)
+            {options.map((option) => {
+              const isSelected = cadenceKey(option) === chosen
               return (
                 <button
-                  key={identity(option)}
+                  key={cadenceKey(option)}
                   type="button"
                   aria-pressed={isSelected}
-                  onClick={() => setSelected(identity(option))}
+                  onClick={() => setSelected(cadenceKey(option))}
                   className={[
                     'rounded-md px-4 py-2 text-sm font-medium transition-colors',
                     'focus-visible:outline-brand-500 focus-visible:outline-2',
@@ -135,35 +248,18 @@ export function PricingSection({ pricing }: PricingSectionProps) {
           </div>
         )}
 
-        <div className="border-line mx-auto mt-10 max-w-md rounded-xl border p-8 text-center">
-          {hasTrial ? (
-            <>
-              <p className="text-ink text-[1.5rem] font-semibold tracking-tight">
-                Try it free for {trialLength}.
-              </p>
-              <div className="mt-6 flex justify-center">
-                <PrimaryCta label="Start your free trial" />
-              </div>
-              <p className="text-ink mt-6 flex items-baseline justify-center gap-2">
-                <span className="text-ink-muted text-[0.9375rem]">Then</span>
-                <span className="text-[1.25rem] font-semibold">{formatPlanAmount(plan)}</span>
-                <span className="text-ink-muted text-[0.9375rem]">{cadence(plan, 'price')}</span>
-              </p>
-            </>
-          ) : (
-            <>
-              <p className="text-ink flex items-baseline justify-center gap-2">
-                <span className="text-[2.5rem] font-semibold tracking-tight">
-                  {formatPlanAmount(plan)}
-                </span>
-                <span className="text-ink-muted text-[0.9375rem]">{cadence(plan, 'price')}</span>
-              </p>
-              <div className="mt-6 flex justify-center">
-                <PrimaryCta />
-              </div>
-            </>
-          )}
-        </div>
+        {hasTrial && (
+          <p className="text-ink mt-10 text-center text-[1.5rem] font-semibold tracking-tight">
+            Try it free for {trialLength}.
+          </p>
+        )}
+
+        <ul className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          {shown.map((plan) => (
+            <PlanCard key={plan.planKey} plan={plan} hasTrial={hasTrial} />
+          ))}
+          {largestShown !== null && <TalkToUsCard aboveVehicles={largestShown} />}
+        </ul>
       </div>
     </section>
   )

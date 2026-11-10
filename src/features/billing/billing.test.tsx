@@ -231,9 +231,9 @@ describe('the monetization examples', () => {
     ])
 
     expect(monthly).toEqual([
-      ['Starter', '$49'],
-      ['Growth', '$99'],
-      ['Scale', '$199'],
+      ['Starter', '$59'],
+      ['Pro', '$119'],
+      ['Business', '$199'],
     ])
   })
 
@@ -244,30 +244,47 @@ describe('the monetization examples', () => {
     ])
 
     expect(yearly).toEqual([
-      ['Starter', '$490'],
-      ['Growth', '$990'],
-      ['Scale', '$1,990'],
+      ['Starter', '$590'],
+      ['Pro', '$1,190'],
+      ['Business', '$1,990'],
     ])
   })
 
   it('changes only the amount and the phrase when the interval changes', () => {
-    const growth = MONETIZATION_EXAMPLES.find((plan) => plan.id === 'growth')!
+    const pro = MONETIZATION_EXAMPLES.find((plan) => plan.id === 'pro')!
 
-    expect(exampleAmount(growth, 'monthly')).toBe(99)
-    expect(exampleAmount(growth, 'yearly')).toBe(990)
+    expect(exampleAmount(pro, 'monthly')).toBe(119)
+    expect(exampleAmount(pro, 'yearly')).toBe(1190)
     expect(exampleIntervalPhrase('monthly')).toBe('per month')
     expect(exampleIntervalPhrase('yearly')).toBe('per year')
     // The tier itself is the same tier; nothing about it is per-interval.
-    expect(growth.includes).toHaveLength(5)
+    expect(pro.includes).toHaveLength(3)
   })
 
   it('marks one tier as suggested, and never as most popular', () => {
     const suggested = MONETIZATION_EXAMPLES.filter((plan) => plan.isSuggested)
-    expect(suggested.map((plan) => plan.id)).toEqual(['growth'])
+    expect(suggested.map((plan) => plan.id)).toEqual(['pro'])
 
     // Nothing has been sold, so there is no popularity to report.
     const serialised = JSON.stringify(MONETIZATION_EXAMPLES)
     expect(serialised).not.toMatch(/most popular|best value|save \d|% off|limited time/i)
+  })
+
+  it('sells fleet size, not features: every tier carries the same modules', () => {
+    expect(MONETIZATION_EXAMPLES.map((plan) => plan.name)).toEqual(['Starter', 'Pro', 'Business'])
+    expect(JSON.stringify(MONETIZATION_EXAMPLES)).not.toMatch(/growth|scale|everything in/i)
+
+    // The allowance is the tier's vehicle limit, and the only thing that differs.
+    const rest = MONETIZATION_EXAMPLES.map((plan) => plan.includes.slice(1))
+    expect(rest[0]).toEqual(rest[1])
+    expect(rest[1]).toEqual(rest[2])
+    expect(MONETIZATION_EXAMPLES.map((plan) => plan.includes[0])).toEqual([
+      'Up to 5 vehicles',
+      'Up to 20 vehicles',
+      'Up to 50 vehicles',
+    ])
+    const text = MONETIZATION_EXAMPLES.flatMap((plan) => plan.includes).join(' ')
+    expect(text).not.toMatch(/reports|gps|financing|team management/i)
   })
 
   it('promises no feature this product does not have', () => {
@@ -330,7 +347,7 @@ describe('the showcase catalogue cannot become a charge', () => {
      * asserts that refusal against a real PostgreSQL.
      */
     const showcaseIds = MONETIZATION_EXAMPLES.map((plan) => plan.id)
-    expect(showcaseIds).toEqual(['starter', 'growth', 'scale'])
+    expect(showcaseIds).toEqual(['starter', 'pro', 'business'])
 
     // A BillingPlanRow — the sellable shape — has a plan_key and a currency
     // domain value. The showcase type has neither, so one cannot be passed where

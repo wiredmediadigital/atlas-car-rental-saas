@@ -32,5 +32,10 @@
       "@/*": ["./src/*"]
     }
   },
-  "include": ["supabase/tests", "supabase/functions/_shared", "src/**/*.node.test.ts"]
+  "include": [
+    "supabase/tests",
+    "supabase/functions/tests",
+    "supabase/functions/_shared",
+    "src/**/*.node.test.ts"
+  ]
 }

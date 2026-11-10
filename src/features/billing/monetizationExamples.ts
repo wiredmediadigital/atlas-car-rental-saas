@@ -27,12 +27,14 @@
  * sending one produces `plan_unavailable` — a test asserts exactly that. There is
  * no code path from these numbers to a charge.
  *
- * The packaging is likewise a suggestion. None of it is enforced: every module
- * listed under every tier is available to every role that its own permission
- * allows, exactly as before Billing existed. If the person who receives this
- * project wants three different tiers, or one, or none, they change this file and
- * nothing else breaks.
+ * The tiers are likewise a suggestion, and they differ by fleet size only: the
+ * product sells every module at every tier, so nothing here is a feature ladder.
+ * Nothing is enforced by this file; every module is available to every role that
+ * its own permission allows. If the person who receives this project wants other
+ * tiers, or one, or none, they change this file and nothing else breaks.
  */
+
+import { VEHICLE_TIERS } from '@/features/billing/tiers'
 
 /** A tier's billing period, for the preview toggle only. */
 export type ExampleInterval = 'monthly' | 'yearly'
@@ -48,7 +50,7 @@ export type ExampleInterval = 'monthly' | 'yearly'
  */
 export interface MonetizationExample {
   /** An identifier for React keys and tests. Never sent to a server. */
-  readonly id: 'starter' | 'growth' | 'scale'
+  readonly id: 'starter' | 'pro' | 'business'
   readonly name: string
   /** Who the tier is pitched at, in one line. */
   readonly audience: string
@@ -57,8 +59,8 @@ export interface MonetizationExample {
   /** ISO 4217, for formatting. Not the currency of any subscription. */
   readonly displayCurrency: 'USD'
   /**
-   * Suggested packaging. NOT ENFORCED ANYWHERE — see the module comment. Listed
-   * so somebody can see how the existing modules might be split commercially.
+   * What a tier says it covers: the vehicle allowance, then the statement that
+   * every module is included. NOT ENFORCED HERE — see the module comment.
    */
   readonly includes: readonly string[]
   /**
@@ -68,51 +70,50 @@ export interface MonetizationExample {
   readonly isSuggested?: boolean
 }
 
+/**
+ * The vehicle allowance, read from the same constant the Vehicles page and the
+ * pricing page use so a tier's number is written once.
+ */
+function allowance(key: MonetizationExample['id']): string {
+  const tier = VEHICLE_TIERS.find((candidate) => candidate.key === key)
+  // Unreachable for the three ids; if a tier is ever renamed, say something true
+  // rather than print "undefined".
+  return tier ? `Up to ${tier.limit} vehicles` : 'Sized by fleet'
+}
+
+/*
+ * The tiers differ in fleet size and nothing else: every module is in every
+ * tier. A list that handed features out by tier would tell an operator that
+ * Reports or GPS are locked behind a bigger plan, which is false.
+ */
 export const MONETIZATION_EXAMPLES: readonly MonetizationExample[] = [
   {
     id: 'starter',
     name: 'Starter',
-    audience: 'For small rental agencies',
-    monthlyAmount: 49,
-    yearlyAmount: 490,
+    audience: 'For small fleets',
+    monthlyAmount: 59,
+    yearlyAmount: 590,
     displayCurrency: 'USD',
-    includes: [
-      'Fleet & vehicle management',
-      'Customers & drivers',
-      'Rentals & contracts',
-      'Calendar',
-      'Expenses',
-    ],
+    includes: [allowance('starter'), 'Every module included', 'Same features as every other tier'],
   },
   {
-    id: 'growth',
-    name: 'Growth',
-    audience: 'For growing rental businesses',
-    monthlyAmount: 99,
-    yearlyAmount: 990,
+    id: 'pro',
+    name: 'Pro',
+    audience: 'For growing fleets',
+    monthlyAmount: 119,
+    yearlyAmount: 1190,
     displayCurrency: 'USD',
-    includes: [
-      'Everything in Starter',
-      'Reports & analytics',
-      'Vehicle financing',
-      'Team management',
-      'Notifications & reminders',
-    ],
+    includes: [allowance('pro'), 'Every module included', 'Same features as every other tier'],
     isSuggested: true,
   },
   {
-    id: 'scale',
-    name: 'Scale',
-    audience: 'For larger fleet operations',
+    id: 'business',
+    name: 'Business',
+    audience: 'For larger fleets',
     monthlyAmount: 199,
     yearlyAmount: 1990,
     displayCurrency: 'USD',
-    includes: [
-      'Everything in Growth',
-      'GPS tracking integration',
-      'Advanced fleet operations',
-      'Built for larger teams and fleets',
-    ],
+    includes: [allowance('business'), 'Every module included', 'Same features as every other tier'],
   },
 ]
 

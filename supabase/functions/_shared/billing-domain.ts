@@ -451,3 +451,45 @@ export function checkoutIdempotencyKey(
 ): string {
   return `atlas-checkout-${organizationId}-${planKey}-${attempt}`
 }
+
+export interface ChangePlanRequest {
+  /** The subscription ITEM being re-priced; Stripe changes a plan through it. */
+  readonly itemId: string
+  readonly priceId: string
+  readonly planKey: string
+}
+
+/**
+ * The parameters for moving an existing subscription to another price.
+ *
+ * As with checkout, the price comes from the resolved catalogue entry and never
+ * from a request body.
+ *
+ * `trial_end` is deliberately absent, and so is `proration_behavior`: leaving the
+ * first out is what keeps a trialing agency's remaining trial days intact, and
+ * leaving the second out keeps Stripe's default proration. Sending `trial_end`
+ * here would move or end somebody's free trial.
+ */
+export function changePlanParams(request: ChangePlanRequest): Record<string, unknown> {
+  return {
+    items: [{ id: request.itemId, price: request.priceId }],
+    metadata: { plan_key: request.planKey },
+  }
+}
+
+/**
+ * The idempotency key for a plan change.
+ *
+ * Scoped to the subscription, the price it is leaving, the price it is going to
+ * and a caller-supplied attempt token: a double click collapses into one change,
+ * while moving A to B, back to A, and to B again is not swallowed by a key that
+ * Stripe remembers for a day.
+ */
+export function changePlanIdempotencyKey(
+  stripeSubscriptionId: string,
+  fromPriceId: string,
+  toPriceId: string,
+  attempt: string,
+): string {
+  return `atlas-change-plan-${stripeSubscriptionId}-${fromPriceId}-${toPriceId}-${attempt}`
+}

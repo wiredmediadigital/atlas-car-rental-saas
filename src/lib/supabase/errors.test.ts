@@ -94,3 +94,106 @@ describe('toAppError — Auth', () => {
     }
   })
 })
+
+describe('toAppError — the vehicle limit', () => {
+  // Fails if the trigger sentence is left unmapped: the raw "covers 1 vehicles"
+  // database wording reaches a person who opens /vehicles/new at the limit.
+  it('rewrites the trigger refusal instead of quoting the database', () => {
+    const error = toAppError({
+      code: '55000',
+      message: 'Your plan covers 1 vehicles. You have 1.',
+    })
+
+    expect(error.message).toBe(
+      'Your plan covers 1 vehicle and you have 1. Retire one you no longer rent, or see Billing to move up.',
+    )
+    expect(error.message).not.toMatch(/1 vehicles/)
+  })
+
+  /*
+   * This layer sees an error and nothing else: no agency, no tier, no reader. At
+   * limit 1 "Your agency's limit is 1 vehicle" read naturally and hid that it was
+   * asserting a bespoke limit. At 5, for an agency on Starter, it was simply
+   * untrue -- and it sent an owner to a support mailbox for something one click
+   * on Billing fixes. The sentence names no tier, claims no bespoke limit, and
+   * points at Billing; the Vehicles page's own hooks replace it with the tiered
+   * sentence (src/features/vehicles/limit-refusal.test.tsx pins that they agree).
+   */
+  it('claims no bespoke limit and names no mailbox for an ordinary Starter agency', () => {
+    const error = toAppError({
+      code: '55000',
+      message: 'Your plan covers 5 vehicles. You have 5.',
+    })
+
+    expect(error.message).toBe(
+      'Your plan covers 5 vehicles and you have 5. Retire one you no longer rent, or see Billing to move up.',
+    )
+    expect(error.message).not.toMatch(/agency's limit/i)
+    expect(error.message).not.toMatch(/contact us/i)
+  })
+
+  // The two numbers the server compared, for the caller that knows the tier.
+  it('carries the limit and the count it read', () => {
+    const error = toAppError({
+      code: '55000',
+      message: 'Your plan covers 5 vehicles. You have 5.',
+    })
+
+    expect(error.detail).toEqual({ limit: 5, count: 5 })
+  })
+
+  // Fails if the batch sentence is left unmapped, or if the free-slot count is
+  // dropped from the copy.
+  it('rewrites the batch refusal and names the free slots', () => {
+    const error = toAppError({
+      code: '55000',
+      message:
+        'This import has 40 vehicles but your plan has room for 3 more (limit 5, in use 2). Nothing was imported.',
+    })
+
+    expect(error.kind).toBe('validation')
+    expect(error.message).toContain('40 vehicles')
+    expect(error.message).toContain('room for 3 more')
+    expect(error.message).not.toMatch(/your plan has room/)
+  })
+
+  it('says there is no room at all when the fleet is full', () => {
+    const error = toAppError({
+      code: '55000',
+      message:
+        'This import has 2 vehicles but your plan has room for 0 more (limit 5, in use 5). Nothing was imported.',
+    })
+
+    expect(error.message).toContain('no room for more')
+  })
+})
+
+describe('toAppError — a plate collision', () => {
+  const PLATE_DETAILS =
+    'Key (organization_id, upper(btrim(registration_plate::text)))=(0b8f6c1e-2a54-4d0e-9a4b-5d3f0c1d7a11, 12-A-34567) already exists.'
+
+  // Fails if the details are not read: the user is told "no" without being told
+  // which plate in the file collided.
+  it('names the plate that collided', () => {
+    const error = toAppError({
+      code: '23505',
+      message: 'duplicate key value violates unique constraint "vehicles_plate_unique_idx"',
+      details: PLATE_DETAILS,
+    })
+
+    expect(error.kind).toBe('conflict')
+    expect(error.message).toBe(
+      'A vehicle with the registration plate 12-A-34567 is already in your fleet.',
+    )
+  })
+
+  // Fails if the mapping assumes details are always present.
+  it('falls back to the generic sentence when the details carry no plate', () => {
+    const error = toAppError({
+      code: '23505',
+      message: 'duplicate key value violates unique constraint "vehicles_plate_unique_idx"',
+    })
+
+    expect(error.message).toBe('A vehicle with this registration plate is already in your fleet.')
+  })
+})

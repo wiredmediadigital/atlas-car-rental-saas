@@ -8,6 +8,8 @@ import { cn } from '@/lib/utils/cn'
 
 export interface PageHeaderProps {
   title: string
+  /** Small element beside the title, such as a counter. */
+  titleAddon?: ReactNode
   description?: ReactNode
   /** Short contextual label above the title, e.g. the section this page belongs to. */
   eyebrow?: string
@@ -37,6 +39,7 @@ function RoutedPageHeader(props: PageHeaderProps) {
 
 function PageHeaderView({
   title,
+  titleAddon,
   description,
   eyebrow,
   actions,
@@ -47,7 +50,14 @@ function PageHeaderView({
     <header className={cn('flex flex-wrap items-start justify-between gap-4', className)}>
       <div className="min-w-0 space-y-1">
         {eyebrow ? <p className="eyebrow">{eyebrow}</p> : null}
-        <h1 className="text-xl leading-7 font-semibold tracking-tight">{title}</h1>
+        {titleAddon ? (
+          <div className="flex flex-wrap items-center gap-2">
+            <h1 className="text-xl leading-7 font-semibold tracking-tight">{title}</h1>
+            {titleAddon}
+          </div>
+        ) : (
+          <h1 className="text-xl leading-7 font-semibold tracking-tight">{title}</h1>
+        )}
         {description ? (
           <p className="text-ink-muted max-w-2xl text-[0.8125rem] leading-5">{description}</p>
         ) : null}

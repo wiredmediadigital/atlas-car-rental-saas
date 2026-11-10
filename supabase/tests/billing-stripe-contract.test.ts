@@ -745,6 +745,7 @@ describe('processing an event', () => {
       failed: [] as { id: string; failureCategory: string }[],
       fetched: [] as string[],
       applied: 0,
+      fleetChecked: [] as string[],
       trialsNoted: [] as {
         organizationId: string
         subscriptionId: string
@@ -801,6 +802,10 @@ describe('processing an event', () => {
       applyInvoice: () => Promise.resolve('applied' as const),
       resolveOrganization: () => Promise.resolve('org-1'),
       markCustomerDeleted: () => Promise.resolve(),
+      checkFleetAgainstTier: (id) => {
+        calls.fleetChecked.push(id)
+        return Promise.resolve()
+      },
       noteTrialEnding: (input) => {
         calls.trialsNoted.push(input)
         return Promise.resolve()
@@ -891,6 +896,37 @@ describe('processing an event', () => {
 
     // A trialing subscription being updated is not a trial ending.
     expect(calls.trialsNoted).toEqual([])
+  })
+
+  it('checks the fleet against the new tier once a subscription change is applied', async () => {
+    const { store, calls } = makeStore()
+
+    const result = await processStripeEvent(subscriptionEvent, store)
+
+    expect(result.outcome).toBe('applied')
+    expect(calls.fleetChecked).toEqual(['org-1'])
+  })
+
+  it('does not check the fleet from an event the projection rejected', async () => {
+    const { store, calls } = makeStore({
+      applySubscription: () => Promise.resolve('stale' as const),
+    })
+
+    await processStripeEvent(subscriptionEvent, store)
+
+    expect(calls.fleetChecked).toEqual([])
+  })
+
+  it('still settles an applied event when the fleet check cannot be written', async () => {
+    const { store, calls } = makeStore({
+      checkFleetAgainstTier: () => Promise.reject(new Error('note_failed')),
+    })
+
+    const result = await processStripeEvent(subscriptionEvent, store)
+
+    expect(result.outcome).toBe('applied')
+    expect(calls.failed).toEqual([])
+    expect(calls.finished.map((f) => f.result)).toEqual(['applied'])
   })
 
   it('does not write a reminder from an event the projection rejected', async () => {

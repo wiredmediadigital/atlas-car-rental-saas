@@ -1,8 +1,10 @@
 import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query'
 
+import { vehicleKeys } from '@/features/vehicles/queries'
 import { useOrganization } from '@/features/workspace/workspace-context'
 
 import {
+  changePlan,
   fetchBillingHistory,
   fetchBillingOverview,
   fetchBillingPlans,
@@ -118,6 +120,29 @@ export function useStartCheckout(attempt: string) {
     onSuccess: async (result) => {
       await invalidate(client, organization.id)
       if (result.url) window.location.assign(result.url)
+    },
+  })
+}
+
+/**
+ * Changes the tier of a live subscription. Refetches on success; the projection
+ * may not have caught up yet (the webhook writes it), which the caller handles.
+ *
+ * THE FLEET IS INVALIDATED TOO. A tier change changes how many vehicles the
+ * agency may have, and `useVehicleLimit` caches that under the fleet keys with a
+ * 30s staleTime. Without this, an owner who upgrades and walks back to Vehicles
+ * inside half a minute still reads "5 of 5", the at-limit notice and no Add
+ * button, on a plan that now covers fifty.
+ */
+export function useChangePlan() {
+  const organization = useOrganization()
+  const client = useQueryClient()
+
+  return useMutation({
+    mutationFn: (planKey: string) => changePlan(organization.id, planKey),
+    onSuccess: async () => {
+      await invalidate(client, organization.id)
+      await client.invalidateQueries({ queryKey: vehicleKeys.all(organization.id) })
     },
   })
 }

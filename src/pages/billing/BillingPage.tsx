@@ -19,10 +19,12 @@ import {
   canOpenPortal,
   describeStatus,
   EVENT_KIND_LABELS,
+  hasLiveSubscription,
   intervalPhrase,
   presentationOf,
   type StatusCopy,
 } from '@/features/billing/domain'
+import { PlanList } from '@/features/billing/components/PlanList'
 import { MonetizationPreview } from '@/features/billing/components/MonetizationPreview'
 import {
   useBillingHistory,
@@ -36,8 +38,7 @@ import {
 import { useOrganization } from '@/features/workspace/workspace-context'
 import { formatDate, formatDateTime } from '@/lib/datetime/format'
 import { formatMoney } from '@/lib/money/money'
-import { cn } from '@/lib/utils/cn'
-import type { BillingOverviewRow, BillingPlanRow } from '@/types/database'
+import type { BillingOverviewRow } from '@/types/database'
 import { getAppName } from '@/lib/config/env'
 
 /**
@@ -76,52 +77,6 @@ function Fact({ label, children }: { label: string; children: React.ReactNode })
       <dt className="text-ink-subtle text-[0.75rem]">{label}</dt>
       <dd className="mt-0.5 text-[0.8125rem] break-words">{children}</dd>
     </div>
-  )
-}
-
-function PlanCard({
-  plan,
-  locale,
-  isBusy,
-  onChoose,
-}: {
-  plan: BillingPlanRow
-  locale: string
-  isBusy: boolean
-  onChoose: (planKey: string) => void
-}) {
-  return (
-    <li className="border-line flex min-w-0 flex-col rounded-lg border p-4">
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <p className="text-[0.875rem] font-semibold">{plan.display_name}</p>
-          {plan.description ? (
-            <p className="text-ink-subtle mt-1 text-[0.75rem] leading-4">{plan.description}</p>
-          ) : null}
-        </div>
-        {plan.is_current ? <Badge tone="positive">Current</Badge> : null}
-      </div>
-
-      <p className="mt-3">
-        {/* The exact price Stripe charges, in the currency Stripe charges it in. */}
-        <span data-numeric="" className="text-[1.125rem] font-semibold tabular-nums">
-          {money(plan.amount_minor, plan.currency, locale)}
-        </span>{' '}
-        <span className="text-ink-subtle text-[0.75rem]">
-          {intervalPhrase(plan.billing_interval, plan.interval_count)}
-        </span>
-      </p>
-
-      <Button
-        className="mt-4"
-        variant={plan.is_current ? 'secondary' : 'primary'}
-        disabled={plan.is_current || isBusy}
-        isLoading={isBusy}
-        onClick={() => onChoose(plan.plan_key)}
-      >
-        {plan.is_current ? 'Current plan' : 'Choose plan'}
-      </Button>
-    </li>
   )
 }
 
@@ -379,10 +334,10 @@ export function BillingPage() {
       ) : null}
 
       {/* Plan selection, only when there is genuinely something to choose. */}
-      {canChoosePlan(data) ? (
+      {canChoosePlan(data) || hasLiveSubscription(data) ? (
         <Card>
           <CardHeader
-            title="Choose a plan"
+            title={hasLiveSubscription(data) ? 'Change plan' : 'Choose a plan'}
             description={`Payment is handled by our payment provider. ${getAppName()} never sees your card.`}
           />
           <CardBody>
@@ -402,22 +357,13 @@ export function BillingPage() {
                 No plans are available for this deployment yet.
               </p>
             ) : (
-              <ul
-                className={cn(
-                  'grid grid-cols-1 gap-3',
-                  plans.data.length > 1 ? 'sm:grid-cols-2' : 'sm:max-w-md',
-                )}
-              >
-                {plans.data.map((plan) => (
-                  <PlanCard
-                    key={plan.plan_key}
-                    plan={plan}
-                    locale={locale}
-                    isBusy={checkout.isPending && chosen === plan.plan_key}
-                    onChoose={choose}
-                  />
-                ))}
-              </ul>
+              <PlanList
+                plans={plans.data}
+                overview={data}
+                locale={locale}
+                checkoutBusyKey={checkout.isPending ? chosen : null}
+                onCheckout={choose}
+              />
             )}
           </CardBody>
         </Card>

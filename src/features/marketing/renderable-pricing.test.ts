@@ -1,7 +1,14 @@
 import { describe, expect, it } from 'vitest'
 
 import type { PublicPlan, PublicPricing } from './api'
-import { formatPlanAmount, hasRenderablePricing } from './renderable-pricing'
+import {
+  formatPlanAmount,
+  hasRenderablePricing,
+  renderablePlans,
+  commonCadences,
+  tierOfPlan,
+  tierSaving,
+} from './renderable-pricing'
 
 const MONTHLY: PublicPlan = {
   planKey: 'pro_monthly',
@@ -71,5 +78,77 @@ describe('formatPlanAmount', () => {
 
   it('uses two decimals for an ordinary currency', () => {
     expect(formatPlanAmount({ ...MONTHLY, currency: 'gbp', amountMinor: 1999 })).toBe('£19.99')
+  })
+})
+
+const plan = (planKey: string, interval: 'month' | 'year', amountMinor: number): PublicPlan => ({
+  ...MONTHLY,
+  planKey,
+  interval,
+  amountMinor,
+})
+
+describe('tierOfPlan', () => {
+  it('names the tier from the plan key, from the shared tier list', () => {
+    expect(tierOfPlan(plan('starter_monthly', 'month', 1))).toMatchObject({ label: 'Starter' })
+    expect(tierOfPlan(plan('business_yearly', 'year', 1))).toMatchObject({ limit: 50 })
+  })
+
+  it('is undefined for a tier the page has no name for', () => {
+    expect(tierOfPlan(plan('enterprise_monthly', 'month', 1))).toBeUndefined()
+    expect(tierOfPlan(plan('monthly', 'month', 1))).toBeUndefined()
+  })
+})
+
+describe('renderablePlans', () => {
+  it('drops a plan whose tier has no name, so nothing points at a section that is empty', () => {
+    const unknown = plan('enterprise_monthly', 'month', 9900)
+    expect(renderablePlans(pricing([unknown, MONTHLY]))).toEqual([MONTHLY])
+    expect(hasRenderablePricing(pricing([unknown]))).toBe(false)
+  })
+})
+
+describe('no cadence covers every tier', () => {
+  const starterMonthly = plan('starter_monthly', 'month', 5900)
+  const proYearly = plan('pro_yearly', 'year', 119000)
+
+  it('is not renderable pricing, so the section, nav link and FAQ go together', () => {
+    expect(hasRenderablePricing(pricing([starterMonthly, proYearly]))).toBe(false)
+  })
+
+  it('is renderable once one cadence covers both tiers', () => {
+    const proMonthly = plan('pro_monthly', 'month', 11900)
+    expect(hasRenderablePricing(pricing([starterMonthly, proYearly, proMonthly]))).toBe(true)
+    expect(commonCadences([starterMonthly, proYearly, proMonthly])).toEqual([starterMonthly])
+  })
+})
+
+describe('tierSaving', () => {
+  const both = (tier: string, month: number, year: number): PublicPlan[] => [
+    plan(`${tier}_monthly`, 'month', month),
+    plan(`${tier}_yearly`, 'year', year),
+  ]
+
+  it('is the smallest per-tier saving, so the claim holds for every tier', () => {
+    const plans = [
+      ...both('starter', 5900, 53100), // 25%
+      ...both('pro', 11900, 119000), // 16%
+      ...both('business', 19900, 179100), // 25%
+    ]
+    expect(tierSaving(plans)).toBe(16)
+  })
+
+  it('is null when any tier has nothing to compare, rather than claiming for the rest', () => {
+    const plans = [...both('starter', 5900, 59000), plan('pro_monthly', 'month', 11900)]
+    expect(tierSaving(plans)).toBeNull()
+  })
+
+  it('is null when any tier is not cheaper yearly', () => {
+    const plans = [...both('starter', 5900, 59000), ...both('pro', 11900, 200000)]
+    expect(tierSaving(plans)).toBeNull()
+  })
+
+  it('is null for no plans', () => {
+    expect(tierSaving([])).toBeNull()
   })
 })

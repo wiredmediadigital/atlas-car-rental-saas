@@ -17,7 +17,13 @@ const REAL_PRICING: PublicPricing = {
   configured: true,
   trialDays: 14,
   plans: [
-    { planKey: 'monthly', amountMinor: 4900, currency: 'usd', interval: 'month', intervalCount: 1 },
+    {
+      planKey: 'starter_monthly',
+      amountMinor: 4900,
+      currency: 'usd',
+      interval: 'month',
+      intervalCount: 1,
+    },
   ],
 }
 
@@ -123,7 +129,7 @@ describe('MarketingHomePage', () => {
           trialDays: 0,
           plans: [
             {
-              planKey: 'm',
+              planKey: 'starter_monthly',
               amountMinor: 100,
               currency: 'zzz1',
               interval: 'month',

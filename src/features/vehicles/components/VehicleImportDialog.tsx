@@ -4,10 +4,10 @@ import { useMemo, useRef, useState } from 'react'
 
 import { Alert, Badge, Button, Dialog, DialogContent, Select, useToast } from '@/components/ui'
 import { useOrganization } from '@/features/workspace/workspace-context'
-import { toErrorMessage } from '@/lib/supabase/errors'
+import { toAppError } from '@/lib/supabase/errors'
 import { cn } from '@/lib/utils/cn'
 
-import { createVehicle } from '../api'
+import { importVehicles } from '../api'
 import {
   IMPORT_FIELDS,
   type ColumnMapping,
@@ -31,8 +31,6 @@ export interface VehicleImportDialogProps {
 
 interface ImportOutcome {
   imported: number
-  failed: { line: number; plate: string; message: string }[]
-  skipped: number
 }
 
 const MAX_ROWS = 500
@@ -45,9 +43,9 @@ const MAX_ROWS = 500
  * uses. Rows that would not pass that form do not import, and the preview says
  * which and why before anything is written.
  *
- * Partial success is treated as a real outcome rather than an error: importing
- * 47 of 50 rows and naming the three that failed is more useful to an agency
- * than refusing all fifty because of one bad date.
+ * The import is all or nothing. Rows that fail validation here are left out and
+ * named in the preview, but once the file goes to the server it is one
+ * transaction: a half-loaded fleet is worse than a refusal that says why.
  */
 export function VehicleImportDialog(props: VehicleImportDialogProps) {
   // Mounted only while open, so the existing-plate lookup below does not run on
@@ -120,7 +118,11 @@ function ImportDialogContent({ open, onOpenChange }: VehicleImportDialogProps) {
     }
     if (result.rows.length > MAX_ROWS) {
       setError(
-        `That file has ${result.rows.length} rows. Import up to ${MAX_ROWS} at a time so a failure part-way through stays easy to unpick.`,
+        // The customer and expense dialogs word this cap as keeping a part-way
+        // failure easy to unpick, which is true of their row-by-row imports. A
+        // vehicle import is one transaction and never lands part-way, so that
+        // reason would be false here; the cap is about the preview you check.
+        `That file has ${result.rows.length} rows. Import up to ${MAX_ROWS} at a time so the preview stays quick to check.`,
       )
       return
     }
@@ -132,26 +134,16 @@ function ImportDialogContent({ open, onOpenChange }: VehicleImportDialogProps) {
   }
 
   const runImport = useMutation({
+    // One call, one transaction: every row lands or none does, so there is no
+    // per-row progress to report and no half-loaded fleet to explain.
     mutationFn: async (rows: VehicleImportRow[]): Promise<ImportOutcome> => {
-      const result: ImportOutcome = { imported: 0, failed: [], skipped: 0 }
+      const values = rows.flatMap((row) => (row.values ? [row.values] : []))
+      // Defence in depth: the Import button is disabled for an empty set, so this
+      // is not reachable from the UI. An empty batch must never go to the server.
+      if (values.length === 0) return { imported: 0 }
 
-      // Sequential on purpose. A parallel burst would race the per-agency plate
-      // uniqueness index against itself and make failures harder to attribute.
-      for (const row of rows) {
-        if (!row.values) continue
-        try {
-          await createVehicle(organization.id, row.values)
-          result.imported += 1
-        } catch (cause) {
-          result.failed.push({
-            line: row.line,
-            plate: row.identifier,
-            message: toErrorMessage(cause),
-          })
-        }
-      }
-
-      return result
+      const created = await importVehicles(organization.id, values)
+      return { imported: created.length }
     },
     onSuccess: async (result) => {
       setOutcome(result)
@@ -161,11 +153,20 @@ function ImportDialogContent({ open, onOpenChange }: VehicleImportDialogProps) {
       if (result.imported > 0) {
         toast.success(
           `${result.imported} ${result.imported === 1 ? 'vehicle' : 'vehicles'} imported`,
-          result.failed.length > 0 ? `${result.failed.length} could not be imported.` : undefined,
         )
       }
     },
-    onError: (cause: unknown) => setError(toErrorMessage(cause)),
+    onError: (cause: unknown) => {
+      const { kind, message } = toAppError(cause)
+      // A refusal from the database rolled the whole batch back. A network or
+      // unknown failure might not have, so it does not claim that.
+      const refused = kind === 'conflict' || kind === 'validation' || kind === 'permission'
+      setError(
+        refused && !/nothing was imported/i.test(message)
+          ? `${message} Nothing was imported.`
+          : message,
+      )
+    },
   })
 
   const downloadTemplate = () => {
@@ -373,32 +374,12 @@ function ImportDialogContent({ open, onOpenChange }: VehicleImportDialogProps) {
         ) : null}
 
         {step === 'result' && outcome ? (
-          <div className="space-y-4">
-            <Alert
-              tone={outcome.failed.length === 0 ? 'positive' : 'caution'}
-              title={
-                outcome.failed.length === 0
-                  ? `${outcome.imported} ${outcome.imported === 1 ? 'vehicle' : 'vehicles'} imported`
-                  : `${outcome.imported} imported, ${outcome.failed.length} could not be`
-              }
-            >
-              {outcome.failed.length === 0
-                ? 'They are in your fleet now and ready to put on contracts.'
-                : 'Everything that could be imported has been. Fix the rows below in your file and import them again.'}
-            </Alert>
-
-            {outcome.failed.length > 0 ? (
-              <ul className="divide-line border-line divide-y rounded-lg border">
-                {outcome.failed.map((failure) => (
-                  <li key={failure.line} className="px-4 py-2.5 text-[0.8125rem]">
-                    <span className="text-ink-subtle">Row {failure.line}</span>{' '}
-                    <span className="identifier">{failure.plate}</span>
-                    <p className="text-critical-700 mt-0.5 text-[0.75rem]">{failure.message}</p>
-                  </li>
-                ))}
-              </ul>
-            ) : null}
-          </div>
+          <Alert
+            tone="positive"
+            title={`${outcome.imported} ${outcome.imported === 1 ? 'vehicle' : 'vehicles'} imported`}
+          >
+            They are in your fleet now and ready to put on contracts.
+          </Alert>
         ) : null}
       </DialogContent>
     </Dialog>

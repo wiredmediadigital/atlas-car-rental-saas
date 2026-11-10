@@ -16,10 +16,15 @@ import { exportVehicles } from '@/features/vehicles/export'
 import { FleetSummary } from '@/features/vehicles/components/FleetSummary'
 import { FleetToolbar, type FleetFilters } from '@/features/vehicles/components/FleetToolbar'
 import { VehicleCardList } from '@/features/vehicles/components/VehicleCardList'
+import {
+  VehicleLimitCounter,
+  VehicleLimitNotice,
+} from '@/features/vehicles/components/VehicleLimit'
 import { VehicleImportDialog } from '@/features/vehicles/components/VehicleImportDialog'
 import { VehicleTable } from '@/features/vehicles/components/VehicleTable'
 import {
   useFleetCounts,
+  useVehicleLimit,
   useVehicleList,
   useVehicleMakes,
   useVehicleThumbnails,
@@ -148,6 +153,7 @@ export function VehiclesPage() {
   }, [setSearchParams])
 
   const countsQuery = useFleetCounts()
+  const limitQuery = useVehicleLimit()
   const makesQuery = useVehicleMakes()
 
   /*
@@ -217,6 +223,13 @@ export function VehiclesPage() {
    * has vehicles.create withdrawn, and nesting the export inside that check
    * would withdraw it on precisely the day the wind-down promises it.
    */
+  /*
+   * At the ceiling the database refuses every new vehicle, so neither adding nor
+   * importing is offered; the notice below the header says why. Export stays.
+   */
+  const limit = limitQuery.data
+  const isAtLimit = limit !== undefined && limit.limit !== null && limit.count >= limit.limit
+
   const addAction = (
     <div className="flex items-center gap-2">
       <Button
@@ -228,7 +241,7 @@ export function VehiclesPage() {
       >
         Export
       </Button>
-      {canCreate ? (
+      {canCreate && !isAtLimit ? (
         <>
           <Button
             variant="secondary"
@@ -249,10 +262,13 @@ export function VehiclesPage() {
     <div className="space-y-6">
       <PageHeader
         title="Vehicles"
+        titleAddon={<VehicleLimitCounter />}
         eyebrow="Fleet"
         description={`Every vehicle ${organization.name} operates, and what each one is doing right now.`}
         actions={addAction}
       />
+
+      <VehicleLimitNotice />
 
       {/* Six zeros describe nothing. The strip appears with the first vehicle. */}
       {countsQuery.isPending || hasAnyVehicles || isFiltered ? (

@@ -7,7 +7,8 @@ import {
 } from '@tanstack/react-query'
 import { useMemo } from 'react'
 
-import { useOrganization } from '@/features/workspace/workspace-context'
+import { useOrganization, usePermission } from '@/features/workspace/workspace-context'
+import { AppError } from '@/lib/supabase/errors'
 import type { VehicleImage } from '@/types/database'
 
 import {
@@ -20,6 +21,7 @@ import {
   fetchVehicle,
   fetchVehicleDocuments,
   fetchVehicleImages,
+  fetchVehicleLimit,
   fetchVehicleMakes,
   fetchVehicleUsage,
   fetchVehicles,
@@ -29,6 +31,7 @@ import {
   updateOdometer,
   updateVehicle,
 } from './api'
+import { vehicleLimitCopy, type VehicleLimitStatus } from './limit'
 import { PHOTO_BUCKET, signMediaUrls, uploadVehiclePhoto, deleteVehiclePhoto } from './media'
 import type { VehicleFormValues } from './schemas'
 
@@ -45,6 +48,7 @@ export const vehicleKeys = {
     ['organization', organizationId, 'vehicles', 'list', query] as const,
   counts: (organizationId: string) =>
     ['organization', organizationId, 'vehicles', 'counts'] as const,
+  limit: (organizationId: string) => ['organization', organizationId, 'vehicles', 'limit'] as const,
   makes: (organizationId: string) => ['organization', organizationId, 'vehicles', 'makes'] as const,
   detail: (organizationId: string, vehicleId: string) =>
     ['organization', organizationId, 'vehicles', 'detail', vehicleId] as const,
@@ -89,6 +93,17 @@ export function useFleetCounts() {
   return useQuery({
     queryKey: vehicleKeys.counts(organization.id),
     queryFn: () => fetchFleetCounts(organization.id),
+    staleTime: 30_000,
+  })
+}
+
+/** The fleet against its plan's limit. Invalidated with every other vehicle query. */
+export function useVehicleLimit() {
+  const organization = useOrganization()
+
+  return useQuery({
+    queryKey: vehicleKeys.limit(organization.id),
+    queryFn: () => fetchVehicleLimit(organization.id),
     staleTime: 30_000,
   })
 }
@@ -217,12 +232,63 @@ export function useVehiclePhotoUrls(images: readonly VehicleImage[]) {
 // Mutations
 // -----------------------------------------------------------------------------
 
+/**
+ * The database's fleet-limit refusal, said the way the Vehicles page says it.
+ *
+ * `toAppError` sees an error and nothing else: no agency, no tier, no reader. It
+ * therefore words 55000 tier-neutrally and attaches the two numbers it read. Here
+ * there IS an agency — `useVehicleLimit` has already cached its tier — so the
+ * sentence becomes the same one the notice beside the list is showing, down to
+ * the Upgrade it offers an owner.
+ *
+ * The NUMBERS stay the server's. The cached count can be up to 30s old, and the
+ * limit that was actually compared is the one to report.
+ *
+ * Returns null, leaving the neutral sentence in place, whenever the tier is not
+ * yet known. A guess here would be a sentence about an agency we cannot see.
+ */
+function limitRefusal(
+  error: unknown,
+  cached: VehicleLimitStatus | undefined,
+  canManageBilling: boolean,
+): AppError | null {
+  if (!(error instanceof AppError) || error.code !== '55000' || cached === undefined) return null
+  const detail = error.detail
+  if (typeof detail?.['limit'] !== 'number' || typeof detail['count'] !== 'number') return null
+
+  const copy = vehicleLimitCopy(
+    { limit: detail['limit'], count: detail['count'], tier: cached.tier },
+    canManageBilling,
+  )
+  if (!copy) return null
+  return new AppError(error.kind, copy.sentence, { code: error.code, detail, cause: error })
+}
+
+/** Runs a fleet mutation, re-wording a limit refusal with the tier we hold. */
+async function withLimitCopy<T>(
+  run: () => Promise<T>,
+  cached: VehicleLimitStatus | undefined,
+  canManageBilling: boolean,
+): Promise<T> {
+  try {
+    return await run()
+  } catch (error) {
+    throw limitRefusal(error, cached, canManageBilling) ?? error
+  }
+}
+
 export function useCreateVehicle() {
   const organization = useOrganization()
   const client = useQueryClient()
+  const canManageBilling = usePermission('billing.manage')
 
   return useMutation({
-    mutationFn: (values: VehicleFormValues) => createVehicle(organization.id, values),
+    mutationFn: (values: VehicleFormValues) =>
+      withLimitCopy(
+        () => createVehicle(organization.id, values),
+        client.getQueryData<VehicleLimitStatus>(vehicleKeys.limit(organization.id)),
+        canManageBilling,
+      ),
     onSuccess: () => invalidateFleet(client, organization.id),
   })
 }
@@ -292,12 +358,22 @@ export function useArchiveVehicle(vehicleId: string) {
   })
 }
 
+/**
+ * Return to fleet. The one path to the limit that stays visible at the ceiling:
+ * Add and Import are hidden there, an archived vehicle's Return is not.
+ */
 export function useRestoreVehicle(vehicleId: string) {
   const organization = useOrganization()
   const client = useQueryClient()
+  const canManageBilling = usePermission('billing.manage')
 
   return useMutation({
-    mutationFn: () => restoreVehicle(vehicleId),
+    mutationFn: () =>
+      withLimitCopy(
+        () => restoreVehicle(vehicleId),
+        client.getQueryData<VehicleLimitStatus>(vehicleKeys.limit(organization.id)),
+        canManageBilling,
+      ),
     onSuccess: () => invalidateFleet(client, organization.id),
   })
 }
