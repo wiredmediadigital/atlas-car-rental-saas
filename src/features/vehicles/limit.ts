@@ -30,6 +30,16 @@ export const VEHICLE_TIERS: readonly Tier[] = [
   { key: 'business', label: 'Business', limit: 50 },
 ]
 
+/**
+ * The tier key inside a plan key. Plan keys are `<tier>_<interval>`
+ * (`starter_monthly`, `business_yearly`), so the tier is the segment before the
+ * first underscore. This is the one place that knows the shape.
+ */
+export function tierKeyOfPlan(planKey: string): string {
+  const index = planKey.indexOf('_')
+  return index === -1 ? planKey : planKey.slice(0, index)
+}
+
 function vehicles(count: number): string {
   return `${count} ${count === 1 ? 'vehicle' : 'vehicles'}`
 }

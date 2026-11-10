@@ -59,6 +59,9 @@ async function unwrapFunctionError(error: unknown): Promise<never> {
         throw new AppError(
           body.error.category === 'permission_denied' ? 'permission' : 'validation',
           body.error.message,
+          // The server's category, so a caller can tell one refusal from another
+          // without parsing a sentence.
+          { code: body.error.category },
         )
       }
     } catch (parsed) {
@@ -172,4 +175,24 @@ export function openBillingPortal(organizationId: string): Promise<BillingAction
  */
 export function reconcileBilling(organizationId: string): Promise<BillingActionResult> {
   return invokeBilling({ action: 'reconcile', organizationId })
+}
+
+/**
+ * Moves a subscribed agency to another plan.
+ *
+ * The attempt token is minted HERE, once per call, never reused: the server's
+ * Stripe idempotency key includes it, and without it the server falls back to a
+ * 60-second bucket in which a genuine change back to a tier the agency was on a
+ * minute ago would be replayed from cache and reported as success.
+ *
+ * The local subscription row is not touched by this; the billing webhook writes
+ * it, so the page reflects the change a moment later.
+ */
+export function changePlan(organizationId: string, planKey: string): Promise<BillingActionResult> {
+  return invokeBilling({
+    action: 'change_plan',
+    organizationId,
+    planKey,
+    attempt: crypto.randomUUID(),
+  })
 }

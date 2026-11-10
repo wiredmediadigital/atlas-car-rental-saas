@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tansta
 import { useOrganization } from '@/features/workspace/workspace-context'
 
 import {
+  changePlan,
   fetchBillingHistory,
   fetchBillingOverview,
   fetchBillingPlans,
@@ -119,6 +120,20 @@ export function useStartCheckout(attempt: string) {
       await invalidate(client, organization.id)
       if (result.url) window.location.assign(result.url)
     },
+  })
+}
+
+/**
+ * Changes the tier of a live subscription. Refetches on success; the projection
+ * may not have caught up yet (the webhook writes it), which the caller handles.
+ */
+export function useChangePlan() {
+  const organization = useOrganization()
+  const client = useQueryClient()
+
+  return useMutation({
+    mutationFn: (planKey: string) => changePlan(organization.id, planKey),
+    onSuccess: () => invalidate(client, organization.id),
   })
 }
 

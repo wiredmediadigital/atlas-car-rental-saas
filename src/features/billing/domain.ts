@@ -197,3 +197,20 @@ export function canChoosePlan(overview: BillingOverviewRow): boolean {
     overview.platform_configured && (presentation === 'no_subscription' || presentation === 'ended')
   )
 }
+
+/**
+ * Whether Stripe still considers the subscription live, so the tier can be
+ * changed in place rather than through Checkout. Mirrors the server's
+ * `isLiveStatus`; the server remains the authority and refuses otherwise.
+ */
+export function hasLiveSubscription(overview: BillingOverviewRow): boolean {
+  return (
+    overview.platform_configured &&
+    overview.stripe_configured &&
+    (overview.status === 'active' ||
+      overview.status === 'trialing' ||
+      overview.status === 'past_due' ||
+      overview.status === 'unpaid' ||
+      overview.status === 'paused')
+  )
+}
