@@ -151,6 +151,22 @@ describe('a missing operator address', () => {
     }
   })
 
+  it('logs a failed operator send once, as a fixed line with nothing identifying', async () => {
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    try {
+      const h = harness(
+        [{ ...notice, sendMembers: false }],
+        () => new Response('no', { status: 500 }),
+      )
+      await sendClosureNotices(h.deps, config, h.send)
+
+      expect(spy).toHaveBeenCalledTimes(1)
+      expect(spy).toHaveBeenCalledWith('account-closure-notice: operator email was not accepted')
+    } finally {
+      spy.mockRestore()
+    }
+  })
+
   it('is not logged when the address is configured', async () => {
     const spy = vi.spyOn(console, 'error').mockImplementation(() => undefined)
     try {

@@ -282,6 +282,19 @@ describe('retrying a failed notice', () => {
     expect((await noticeColumns()).members).toBe('failed')
   })
 
+  it('keeps offering the operator notice however many times it has failed', async () => {
+    await requestAs(owner)
+    for (let i = 0; i < 6; i += 1) await fail(false, true)
+
+    // The operator has no other route to learn of a closure: it is never capped.
+    expect((await pending())[0]!.send_operator).toBe(true)
+    const [row] = await db.sql<{ n: number }>(
+      `select closure_operator_notice_attempts as n from public.organizations where id = $1`,
+      [organizationId],
+    )
+    expect(row!.n).toBe(6)
+  })
+
   it('counts each channel separately, so one cannot exhaust the other', async () => {
     await requestAs(owner)
     for (let i = 0; i < 3; i += 1) await fail(true, false)

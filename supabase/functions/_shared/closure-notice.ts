@@ -231,6 +231,12 @@ async function sendOperatorNotice(
   const subject = `Cancel the Stripe subscription: ${oneLine(notice.organizationName)} is closing`
   const outcome = await sendOne(to, subject, operatorDocument(notice), config, send)
   const state = aggregate([outcome])
+  if (state === 'failed') {
+    // One fixed line per attempt, with no address, agency or provider detail. The
+    // operator channel is never given up on, so a closure that is stuck here
+    // shows up as a line per drain tick: that is the signal, and it is rare.
+    console.error('account-closure-notice: operator email was not accepted')
+  }
   await recordSafely(deps, notice.organizationId, {
     operator: state,
     detail: OPERATOR_DETAIL[state],
