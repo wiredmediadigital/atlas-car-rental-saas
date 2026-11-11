@@ -207,18 +207,22 @@ describe('the email notices', () => {
     await requestAs(owner)
 
     await db.asServiceRole(owner, (s) =>
-      s.sql(`select app.closure_notice_record($1, 'accepted_by_provider', 'failed', 'x')`, [
-        organizationId,
-      ]),
+      s.sql(
+        `select app.closure_notice_record($1, 'accepted_by_provider', 'failed', 'x',
+                  (select closure_requested_at from public.organizations where id = $1))`,
+        [organizationId],
+      ),
     )
     const [row] = await pending()
     expect(row!.send_members).toBe(false)
     expect(row!.send_operator).toBe(true)
 
     await db.asServiceRole(owner, (s) =>
-      s.sql(`select app.closure_notice_record($1, null, 'accepted_by_provider', null)`, [
-        organizationId,
-      ]),
+      s.sql(
+        `select app.closure_notice_record($1, null, 'accepted_by_provider', null,
+                  (select closure_requested_at from public.organizations where id = $1))`,
+        [organizationId],
+      ),
     )
     expect(await pending()).toEqual([])
   })
@@ -249,23 +253,131 @@ describe('the email notices', () => {
     )
     await db.asUser(owner, (s) =>
       s.expectRejection(() =>
-        s.sql(`select app.closure_notice_record($1, 'accepted_by_provider', null, null)`, [
-          organizationId,
-        ]),
+        s.sql(
+          `select app.closure_notice_record($1, 'accepted_by_provider', null, null,
+                    (select closure_requested_at from public.organizations where id = $1))`,
+          [organizationId],
+        ),
       ),
     )
     expect(await noticeColumns()).toEqual({ members: 'pending', operator: 'pending' })
   })
 })
 
+describe('what restoring clears', () => {
+  it('clears every closure column, not only the three the first migration added', async () => {
+    /*
+     * organization_restore was written when there were three closure columns.
+     * Tasks 6 and 7 added five more and nothing revisited it, so a restored
+     * agency kept its notice states and attempt counts -- contradicting the
+     * column comment, "Null means no closure has been requested", and leaving a
+     * restored agency carrying the delivery record of a closure that no longer
+     * exists.
+     */
+    await requestAs(owner)
+    await db.asServiceRole(owner, (s) =>
+      s.sql(
+        `select app.closure_notice_record($1, 'failed', 'failed', 'something went wrong',
+                  (select closure_requested_at from public.organizations where id = $1))`,
+        [organizationId],
+      ),
+    )
+
+    await restoreAs(admin)
+
+    const [row] = await db.sql<Record<string, unknown>>(
+      `select closure_requested_at, closure_requested_by, closure_purge_after,
+              purge_started_at, closed_at,
+              closure_members_notice_state, closure_operator_notice_state,
+              closure_notice_detail,
+              closure_members_notice_attempts, closure_operator_notice_attempts
+         from public.organizations where id = $1`,
+      [organizationId],
+    )
+    expect(row).toEqual({
+      closure_requested_at: null,
+      closure_requested_by: null,
+      closure_purge_after: null,
+      purge_started_at: null,
+      closed_at: null,
+      closure_members_notice_state: null,
+      closure_operator_notice_state: null,
+      closure_notice_detail: null,
+      closure_members_notice_attempts: 0,
+      closure_operator_notice_attempts: 0,
+    })
+  })
+})
+
+describe('which closure a recorded outcome belongs to', () => {
+  const requestedAt = async () => {
+    const [row] = await db.sql<{ t: string }>(
+      `select closure_requested_at::text as t from public.organizations where id = $1`,
+      [organizationId],
+    )
+    return row!.t
+  }
+
+  const recordFor = (at: string | null, members: string | null, operator: string | null) =>
+    db.asServiceRole(owner, (s) =>
+      s.sql(`select app.closure_notice_record($1, $2, $3, 'x', $4::timestamptz)`, [
+        organizationId,
+        members,
+        operator,
+        at,
+      ]),
+    )
+
+  it('ignores an outcome that names a closure the agency has moved on from', async () => {
+    /*
+     * The only "marked sent without being sent" route on this branch. A drain
+     * tick reads the pending list for closure #1; before it records what the
+     * provider said, an administrator restores the agency and the owner closes
+     * it again. The record then landed on closure #2, marking its members
+     * notice accepted for an email that named closure #1's purge date -- so the
+     * people who own this agency are never told about the closure that is
+     * actually running.
+     */
+    await requestAs(owner)
+    const first = await requestedAt()
+
+    await restoreAs(admin)
+    await requestAs(owner)
+    const second = await requestedAt()
+    expect(second).not.toBe(first)
+
+    await recordFor(first, 'accepted_by_provider', 'accepted_by_provider')
+
+    // Closure #2 is untouched and still owed both notices.
+    expect(await noticeColumns()).toEqual({ members: 'pending', operator: 'pending' })
+    expect(await pending()).toEqual([
+      expect.objectContaining({ send_members: true, send_operator: true }),
+    ])
+
+    // And the outcome for the closure it names is still recorded normally.
+    await recordFor(second, 'accepted_by_provider', null)
+    expect((await noticeColumns()).members).toBe('accepted_by_provider')
+  })
+
+  it('tells the drain which closure each pending notice belongs to', async () => {
+    await requestAs(owner)
+    const rows = await db.asServiceRole(owner, (s) =>
+      s.sql<{ requested_at: string }>(`select * from app.closure_notices_pending($1)`, [
+        organizationId,
+      ]),
+    )
+    expect(rows[0]!.requested_at).not.toBeUndefined()
+  })
+})
+
 describe('retrying a failed notice', () => {
   const fail = (members: boolean, operator: boolean) =>
     db.asServiceRole(owner, (s) =>
-      s.sql(`select app.closure_notice_record($1, $2, $3, 'x')`, [
-        organizationId,
-        members ? 'failed' : null,
-        operator ? 'failed' : null,
-      ]),
+      s.sql(
+        `select app.closure_notice_record($1, $2, $3, 'x',
+                  (select closure_requested_at from public.organizations where id = $1))`,
+        [organizationId, members ? 'failed' : null, operator ? 'failed' : null],
+      ),
     )
 
   it('stops offering the members notice after three failed attempts', async () => {
@@ -309,9 +421,11 @@ describe('retrying a failed notice', () => {
     await requestAs(owner)
     for (let i = 0; i < 5; i += 1) {
       await db.asServiceRole(owner, (s) =>
-        s.sql(`select app.closure_notice_record($1, 'not_configured', null, 'x')`, [
-          organizationId,
-        ]),
+        s.sql(
+          `select app.closure_notice_record($1, 'not_configured', null, 'x',
+                    (select closure_requested_at from public.organizations where id = $1))`,
+          [organizationId],
+        ),
       )
     }
     expect((await pending())[0]!.send_members).toBe(true)

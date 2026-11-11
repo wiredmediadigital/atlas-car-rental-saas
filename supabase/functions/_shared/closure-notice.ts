@@ -54,6 +54,14 @@ export interface PendingNotice {
   readonly organizationId: string
   readonly organizationName: string
   readonly requestedByName: string
+  /**
+   * WHICH CLOSURE THIS IS: the agency's closure_requested_at, handed straight
+   * back when the outcome is recorded. An agency can be restored and closed
+   * again between reading this list and recording what the provider said, and
+   * without this the outcome would land on the new closure -- marking a notice
+   * sent that nobody has sent.
+   */
+  readonly requestedAt: string
   /** ISO timestamp of the earliest purge. */
   readonly purgeAfter: string
   readonly sendMembers: boolean
@@ -69,7 +77,8 @@ export interface DeliveryUpdate {
 
 export interface NoticeDeps {
   listPending(): Promise<readonly PendingNotice[]>
-  record(organizationId: string, update: DeliveryUpdate): Promise<void>
+  /** Takes the whole notice, because the outcome is recorded against ITS closure. */
+  record(notice: PendingNotice, update: DeliveryUpdate): Promise<void>
 }
 
 export interface NoticeConfig {
@@ -166,10 +175,24 @@ function operatorDocument(notice: PendingNotice): EmailDocument {
   }
 }
 
+/**
+ * One state for a channel from however many sends it made.
+ *
+ * NO SENDS IS `not_configured`, NOT `failed`. The members channel sends to
+ * whatever addresses closure_notices_pending returned, and an agency whose
+ * owners and administrators have no address on file returns none. Nothing was
+ * attempted and nothing failed, but `failed` is counted towards the three
+ * members attempts, so three drain ticks burned the entire budget on sending
+ * zero emails and the notice was then given up on for ever. `not_configured`
+ * is the honest state and is deliberately not counted, so the notice goes out
+ * as soon as somebody has an address.
+ *
+ * The operator channel is unaffected: it always aggregates exactly one outcome.
+ */
 function aggregate(
   outcomes: readonly DeliveryOutcome[],
 ): 'accepted_by_provider' | 'failed' | 'not_configured' {
-  if (outcomes.length === 0) return 'failed'
+  if (outcomes.length === 0) return 'not_configured'
   if (outcomes.some((o) => o.state === 'failed')) return 'failed'
   if (outcomes.some((o) => o.state === 'not_configured')) return 'not_configured'
   return 'accepted_by_provider'
@@ -197,11 +220,11 @@ async function sendOne(
 
 async function recordSafely(
   deps: NoticeDeps,
-  organizationId: string,
+  notice: PendingNotice,
   update: DeliveryUpdate,
 ): Promise<void> {
   try {
-    await deps.record(organizationId, update)
+    await deps.record(notice, update)
   } catch {
     // The notice stays pending and is attempted again. Failing to write the
     // outcome must not turn into failing the caller.
@@ -223,10 +246,7 @@ async function sendMembersNotice(
   }
 
   const state = aggregate(outcomes)
-  await recordSafely(deps, notice.organizationId, {
-    members: state,
-    detail: MEMBERS_DETAIL[state],
-  })
+  await recordSafely(deps, notice, { members: state, detail: MEMBERS_DETAIL[state] })
 }
 
 async function sendOperatorNotice(
@@ -241,7 +261,7 @@ async function sendOperatorNotice(
     // a missing address means the Stripe cancellation is never prompted. A fixed
     // line, with no address and no agency, so it is safe in any log.
     console.error('account-closure-notice: no operator address configured')
-    await recordSafely(deps, notice.organizationId, {
+    await recordSafely(deps, notice, {
       operator: 'not_configured',
       detail: OPERATOR_DETAIL.not_configured,
     })
@@ -257,10 +277,7 @@ async function sendOperatorNotice(
     // shows up as a line per drain tick: that is the signal, and it is rare.
     console.error('account-closure-notice: operator email was not accepted')
   }
-  await recordSafely(deps, notice.organizationId, {
-    operator: state,
-    detail: OPERATOR_DETAIL[state],
-  })
+  await recordSafely(deps, notice, { operator: state, detail: OPERATOR_DETAIL[state] })
   return state === 'accepted_by_provider'
 }
 

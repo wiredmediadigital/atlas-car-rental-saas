@@ -63,6 +63,7 @@ function toNotice(row: any): PendingNotice {
     organizationId: row.organization_id,
     organizationName: row.organization_name,
     requestedByName: row.requested_by_name ?? '',
+    requestedAt: row.requested_at,
     purgeAfter: row.purge_after,
     sendMembers: row.send_members === true,
     sendOperator: row.send_operator === true,
@@ -80,12 +81,15 @@ function buildDeps(service: SupabaseClient, organizationId: string | null): Noti
       if (error) throw new Error('pending lookup failed')
       return (data ?? []).map(toNotice)
     },
-    record: async (id, update) => {
+    record: async (notice, update) => {
       const { error } = await service.schema('app').rpc('closure_notice_record', {
-        p_organization_id: id,
+        p_organization_id: notice.organizationId,
         p_members_state: update.members ?? null,
         p_operator_state: update.operator ?? null,
         p_detail: update.detail ?? null,
+        // The closure this attempt was for. A restore and a second closure in
+        // between make the write a no-op rather than a false "sent".
+        p_requested_at: notice.requestedAt,
       })
       if (error) throw new Error('record failed')
     },

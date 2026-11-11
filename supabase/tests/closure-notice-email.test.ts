@@ -21,6 +21,7 @@ const notice: PendingNotice = {
   organizationId: '11111111-1111-4111-8111-111111111111',
   organizationName: 'Atlas Rentals',
   requestedByName: 'Sara Bennani',
+  requestedAt: '2026-11-10T10:00:00.000Z',
   purgeAfter: '2026-12-10T10:00:00.000Z',
   sendMembers: true,
   sendOperator: true,
@@ -39,8 +40,13 @@ function harness(pending: PendingNotice[], responder?: (to: string) => Response)
   const recorded: Array<{ id: string; update: Record<string, unknown> }> = []
   const deps: NoticeDeps = {
     listPending: () => Promise.resolve(pending),
-    record: (id, update) => {
-      recorded.push({ id, update: { ...update } })
+    record: (notice, update) => {
+      // The id AND the closure: an outcome is recorded against the closure the
+      // sender was told about, never merely against the agency.
+      recorded.push({
+        id: notice.organizationId,
+        update: { ...update, requestedAt: notice.requestedAt },
+      })
       return Promise.resolve()
     },
   }
@@ -264,5 +270,24 @@ describe('the report the scheduled drain acts on', () => {
     const h = harness([notice])
     const report = await sendClosureNotices(h.deps, config, h.send)
     expect(report.operatorUndelivered).toBe(0)
+  })
+})
+
+describe('an agency with nobody to email', () => {
+  it('records that there was nowhere to send, not that sending failed', async () => {
+    /*
+     * closure_notices_pending returns the addresses of the active owners and
+     * administrators who have one. If it returns none, nothing was attempted
+     * and nothing failed -- but `failed` is counted against the three members
+     * attempts, so three drain ticks burned the whole budget on sending zero
+     * emails and the notice was then given up on for ever. `not_configured` is
+     * the honest state and is deliberately not counted.
+     */
+    const h = harness([{ ...notice, sendOperator: false, recipients: [] }])
+
+    await sendClosureNotices(h.deps, config, h.send)
+
+    expect(h.sent).toEqual([])
+    expect(mergedOf(h.recorded).members).toBe('not_configured')
   })
 })
