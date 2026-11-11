@@ -18,7 +18,8 @@
  * THIS JOB NEVER TOUCHES STRIPE. Cancelling a closing agency's subscription is
  * left to the agency (Manage billing), with the operator as backstop in the
  * Stripe dashboard; one unattended process able to delete a tenant's data and
- * move money is a bigger blast radius than the action it would replace. `organization_claim_purge` refuses while a subscription is live, and
+ * move money is a bigger blast radius than the action it would replace.
+ * `organization_claim_purge` refuses while a subscription is live, and
  * this module's job is to SAY SO, by name, every run (see `blocked`).
  *
  * `index.ts` is outside tsconfig and untested, so it only builds `ClosureDeps`
