@@ -257,3 +257,73 @@ describe('the email notices', () => {
     expect(await noticeColumns()).toEqual({ members: 'pending', operator: 'pending' })
   })
 })
+
+describe('retrying a failed notice', () => {
+  const fail = (members: boolean, operator: boolean) =>
+    db.asServiceRole(owner, (s) =>
+      s.sql(`select app.closure_notice_record($1, $2, $3, 'x')`, [
+        organizationId,
+        members ? 'failed' : null,
+        operator ? 'failed' : null,
+      ]),
+    )
+
+  it('stops offering the members notice after three failed attempts', async () => {
+    await requestAs(owner)
+
+    for (let attempt = 1; attempt <= 2; attempt += 1) {
+      await fail(true, false)
+      expect((await pending())[0]!.send_members).toBe(true)
+    }
+    await fail(true, false)
+
+    // Terminal: the channel is no longer offered, and the state says why.
+    expect((await pending())[0]!.send_members).toBe(false)
+    expect((await noticeColumns()).members).toBe('failed')
+  })
+
+  it('counts each channel separately, so one cannot exhaust the other', async () => {
+    await requestAs(owner)
+    for (let i = 0; i < 3; i += 1) await fail(true, false)
+
+    await fail(false, true)
+    expect(await pending()).toEqual([
+      expect.objectContaining({ send_members: false, send_operator: true }),
+    ])
+  })
+
+  it('does not count a notice that was merely not configured', async () => {
+    await requestAs(owner)
+    for (let i = 0; i < 5; i += 1) {
+      await db.asServiceRole(owner, (s) =>
+        s.sql(`select app.closure_notice_record($1, 'not_configured', null, 'x')`, [
+          organizationId,
+        ]),
+      )
+    }
+    expect((await pending())[0]!.send_members).toBe(true)
+  })
+
+  it('starts again from zero when the agency closes a second time', async () => {
+    await requestAs(owner)
+    for (let i = 0; i < 3; i += 1) await fail(true, false)
+    await restoreAs(admin)
+    await requestAs(owner)
+
+    expect((await pending())[0]!.send_members).toBe(true)
+  })
+
+  it('cannot be reset by a browser role', async () => {
+    await requestAs(owner)
+    await db.asUser(owner, (s) =>
+      s.expectRejection(
+        () =>
+          s.sql(
+            `update public.organizations set closure_members_notice_attempts = 7 where id = $1`,
+            [organizationId],
+          ),
+        /closure state/i,
+      ),
+    )
+  })
+})

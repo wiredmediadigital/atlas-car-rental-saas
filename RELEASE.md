@@ -117,6 +117,12 @@ no sitemap.
    SPA rewrite is in force.
 6. Sign up once on the live deployment and confirm the agency is provisioned and the
    Overview setup checklist appears.
+7. **`CLOSURE_OPERATOR_EMAIL` is set** (with `TEAM_EMAIL_PROVIDER`, `TEAM_EMAIL_API_KEY`,
+   `TEAM_EMAIL_FROM` and `TEAM_APP_URL`). This is a hard item, not an optional
+   integration: it is the only prompt for the operator to cancel a closing agency's
+   Stripe subscription. If it is missing, a closed agency keeps being billed while its
+   data sits unpurged, and nothing in the product says so. The function logs
+   `account-closure-notice: no operator address configured` when it is unset.
 
 ## Deleting an agency
 

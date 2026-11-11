@@ -137,6 +137,32 @@ describe('the email to the operator', () => {
   })
 })
 
+describe('a missing operator address', () => {
+  it('is logged, once and without any address, so it reaches the function logs', async () => {
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    try {
+      const h = harness([notice])
+      await sendClosureNotices(h.deps, { ...config, operatorAddress: undefined }, h.send)
+
+      expect(spy).toHaveBeenCalledTimes(1)
+      expect(spy).toHaveBeenCalledWith('account-closure-notice: no operator address configured')
+    } finally {
+      spy.mockRestore()
+    }
+  })
+
+  it('is not logged when the address is configured', async () => {
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    try {
+      const h = harness([notice])
+      await sendClosureNotices(h.deps, config, h.send)
+      expect(spy).not.toHaveBeenCalled()
+    } finally {
+      spy.mockRestore()
+    }
+  })
+})
+
 describe('what gets recorded', () => {
   it('is accepted_by_provider for both once everything was handed over', async () => {
     const h = harness([notice])

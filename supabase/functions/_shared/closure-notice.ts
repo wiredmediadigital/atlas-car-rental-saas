@@ -217,6 +217,10 @@ async function sendOperatorNotice(
 ): Promise<void> {
   const to = (config.operatorAddress ?? '').trim()
   if (!to) {
+    // The one place this gap can be seen: the state column is read by nobody, and
+    // a missing address means the Stripe cancellation is never prompted. A fixed
+    // line, with no address and no agency, so it is safe in any log.
+    console.error('account-closure-notice: no operator address configured')
     await recordSafely(deps, notice.organizationId, {
       operator: 'not_configured',
       detail: OPERATOR_DETAIL.not_configured,

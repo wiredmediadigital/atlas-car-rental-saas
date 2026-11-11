@@ -20,11 +20,11 @@ export async function requestClosure(organizationId: string): Promise<Organizati
   // or mask the closure the owner just chose, so every failure here is dropped.
   // The notice stays pending in the database and is sent on a later attempt.
   // Not awaited: sending takes seconds, and the owner should not wait on it.
-  void sendClosureNotices(organizationId)
+  void requestClosureNoticeEmails(organizationId)
   return data
 }
 
-async function sendClosureNotices(organizationId: string): Promise<void> {
+async function requestClosureNoticeEmails(organizationId: string): Promise<void> {
   try {
     await getSupabaseClient().functions.invoke('account-closure-notice', {
       body: { organization_id: organizationId },
