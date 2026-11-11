@@ -40,6 +40,8 @@ function harness(pending: PendingNotice[], responder?: (to: string) => Response)
   const recorded: Array<{ id: string; update: Record<string, unknown> }> = []
   const deps: NoticeDeps = {
     listPending: () => Promise.resolve(pending),
+    listRestorePending: () => Promise.resolve([]),
+    recordRestore: () => Promise.resolve(),
     record: (notice, update) => {
       // The id AND the closure: an outcome is recorded against the closure the
       // sender was told about, never merely against the agency.

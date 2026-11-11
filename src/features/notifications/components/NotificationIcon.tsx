@@ -7,6 +7,7 @@ import {
   Landmark,
   MapPinOff,
   ReceiptText,
+  RotateCcw,
   UserPlus,
   Users,
 } from 'lucide-react'
@@ -62,6 +63,8 @@ function Glyph({ kind }: { kind: NotificationKind }) {
     case 'billing_payment_failed':
     case 'billing_attention_required':
       return <AlertTriangle className={className} />
+    case 'account_closure_restored':
+      return <RotateCcw className={className} />
     case 'billing_plan_changed':
       return <ReceiptText className={className} />
     /*

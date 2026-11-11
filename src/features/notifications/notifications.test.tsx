@@ -223,6 +223,22 @@ describe('what the copy claims', () => {
     expect(copy.detail).toMatch(/restore/i)
   })
 
+  it('says that the agency was restored, and promises nothing about billing', () => {
+    const copy = describeNotification(
+      row({
+        category: 'team',
+        kind: 'account_closure_restored',
+        subject_label: 'Atlas Cars',
+        context: {},
+      }),
+    )
+
+    expect(copy.title).toContain('Atlas Cars')
+    expect(copy.title).toMatch(/restored/i)
+    expect(copy.detail).toMatch(/withdrawn/i)
+    expect(copy.detail).not.toMatch(/billing|subscription/i)
+  })
+
   it('still says something for a kind this build has never heard of', () => {
     /*
      * The same defect from the other direction, and the one a type cannot
