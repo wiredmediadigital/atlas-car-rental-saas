@@ -110,7 +110,11 @@ export interface DeliveryUpdate {
 }
 
 export interface NoticeDeps {
-  listPending(): Promise<readonly PendingNotice[]>
+  /**
+   * The closure notices owed: every agency, or the one named. Called again for
+   * one agency immediately before each send, to verify the notice is still owed.
+   */
+  listPending(organizationId?: string): Promise<readonly PendingNotice[]>
   /** Takes the whole notice, because the outcome is recorded against ITS closure. */
   record(notice: PendingNotice, update: DeliveryUpdate): Promise<void>
   /**
@@ -237,8 +241,8 @@ function restoreOperatorDocument(notice: PendingRestoreNotice): EmailDocument {
     paragraphs: [
       [{ strong: notice.organizationName }, ' has restored its account.'],
       [
-        'The closure has been withdrawn and the agency is working again; its data will not ',
-        'be purged. Disregard any earlier closure notice for this agency.',
+        'The closure has been withdrawn and the agency is working again; its data is no ',
+        'longer scheduled for deletion. Disregard any earlier closure notice for this agency.',
       ],
       [
         { strong: 'If its subscription was already cancelled, it has to be restarted.' },
@@ -424,32 +428,74 @@ async function sendRestoreNotice(
 }
 
 /**
+ * The closure notice as it stands NOW. A closure notice is an instruction
+ * ("cancel its subscription if it is still live past the purge date"), and the
+ * list it came from can be seconds or, for a long drain, minutes old: the agency
+ * may have been restored since, and a restore wipes the closure. Sending the
+ * instruction after that, with the retraction already sent, leaves the operator's
+ * last word on an open agency being "cancel it", and recording the outcome would
+ * write nothing (the closure it names is gone), so nothing would ever flag it.
+ *
+ * The notice is returned only if the SAME closure is still owed; its recipients
+ * and which channels are still owed are the fresh ones. A failed read returns
+ * 'unknown': an unverified instruction is not sent.
+ */
+async function currentClosureNotice(
+  deps: NoticeDeps,
+  notice: PendingNotice,
+): Promise<PendingNotice | undefined | 'unknown'> {
+  try {
+    const fresh = await deps.listPending(notice.organizationId)
+    return fresh.find(
+      (n) => n.organizationId === notice.organizationId && n.requestedAt === notice.requestedAt,
+    )
+  } catch {
+    return 'unknown'
+  }
+}
+
+/**
  * Sends every pending notice and records what each attempt observed.
  *
- * The operator's notice goes first: it is the one with a financial consequence,
- * so it must not wait behind a long list of recipients.
+ * THE ORDER OF THE TWO READS MATTERS. Restore notices are read BEFORE closure
+ * notices. A restore clears the closure it withdraws, so a restore that commits
+ * between the two reads can only shrink the closure list; it can never leave a
+ * stale closure beside its own retraction. A restore after both reads is
+ * instruction-then-retraction, which is the order the events happened in. Every
+ * notice is then re-verified for its own agency immediately before it is sent,
+ * because two drains (the daily one and a client ping) can overlap, and a
+ * multi-agency snapshot goes stale while it is worked through.
+ *
+ * Restore notices are sent first: a restore always precedes any closure that is
+ * still owed (a restore clears an unsent closure notice).
  */
 export async function sendClosureNotices(
   deps: NoticeDeps,
   config: NoticeConfig,
   send: typeof fetch = fetch,
 ): Promise<NoticeReport> {
-  const pending = await deps.listPending()
   const restores = await deps.listRestorePending()
+  const pending = await deps.listPending()
 
   let operatorUndelivered = 0
 
-  // Restore notices first. A restore always happened before the closure that is
-  // now owed (a restore clears an unsent closure notice), so this is the order
-  // the events happened in, and the operator never reads a retraction after the
-  // instruction it should have been read before.
   for (const notice of restores) {
     if ((await sendRestoreNotice(deps, notice, config, send)) === 'undelivered') {
       operatorUndelivered += 1
     }
   }
 
-  for (const notice of pending) {
+  for (const listed of pending) {
+    const notice = await currentClosureNotice(deps, listed)
+    if (notice === 'unknown') {
+      console.error('account-closure-notice: could not verify a closure notice before sending')
+      if (listed.sendOperator) operatorUndelivered += 1
+      continue
+    }
+    // Gone (restored, purged) or replaced by a newer closure: not ours to send.
+    // Nothing is recorded; a newer closure is its own notice on a later read.
+    if (!notice) continue
+
     if (notice.sendOperator && !(await sendOperatorNotice(deps, notice, config, send))) {
       operatorUndelivered += 1
     }

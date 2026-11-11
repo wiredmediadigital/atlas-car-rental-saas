@@ -52,16 +52,27 @@ function harness(
   responder?: (to: string) => Response,
   // What the re-read just before sending returns. Defaults to "unchanged".
   recheck?: PendingRestoreNotice[] | Error,
+  // What the re-read of ONE agency's closure notices returns just before sending.
+  closureRecheck?: PendingNotice[] | Error,
 ) {
+  const reads: string[] = []
   const listCalls: Array<string | undefined> = []
   const sent: Sent[] = []
   const recorded: Array<{ id: string; restoredAt: string; update: RestoreDeliveryUpdate }> = []
   const order: string[] = []
   const deps: NoticeDeps = {
-    listPending: () => Promise.resolve(closures),
+    listPending: (organizationId?: string) => {
+      reads.push(organizationId === undefined ? 'pending:all' : 'pending:one')
+      if (organizationId === undefined) return Promise.resolve(closures)
+      if (closureRecheck instanceof Error) return Promise.reject(closureRecheck)
+      return Promise.resolve(
+        closureRecheck ?? closures.filter((c) => c.organizationId === organizationId),
+      )
+    },
     record: () => Promise.resolve(),
     listRestorePending: (organizationId?: string) => {
       listCalls.push(organizationId)
+      reads.push(organizationId === undefined ? 'restores:all' : 'restores:one')
       if (organizationId === undefined) return Promise.resolve(restores)
       if (recheck instanceof Error) return Promise.reject(recheck)
       return Promise.resolve(recheck ?? restores.filter((r) => r.organizationId === organizationId))
@@ -77,7 +88,7 @@ function harness(
     order.push(body.subject)
     return Promise.resolve(responder ? responder(body.to[0]!) : new Response('{}', { status: 200 }))
   }) as unknown as typeof fetch
-  return { deps, send, sent, recorded, order, listCalls }
+  return { deps, send, sent, recorded, order, listCalls, reads }
 }
 
 const config = {
@@ -112,7 +123,7 @@ describe('the restore email to the operator', () => {
     const m = h.sent[0]!
     expect(m.text).toMatch(/closure has been withdrawn/i)
     expect(m.text).toMatch(/working again/i)
-    expect(m.text).toMatch(/will not be purged/i)
+    expect(m.text).toMatch(/no longer scheduled for deletion/i)
     expect(m.text).toMatch(/disregard any earlier closure notice/i)
   })
 
@@ -245,5 +256,103 @@ describe('the restore email to the operator', () => {
     const h = harness([])
     await sendClosureNotices(h.deps, config, h.send)
     expect(h.sent).toEqual([])
+  })
+})
+
+describe('the order the drain reads and sends in', () => {
+  it('reads the restore notices BEFORE the closure notices', async () => {
+    // A restore wipes the closure it withdraws. Reading restores first means a
+    // restore that lands between the two reads can only make the closure list
+    // smaller, never leave a stale closure beside its own retraction.
+    const h = harness([restore], [closure])
+    await sendClosureNotices(h.deps, config, h.send)
+    expect(h.reads.slice(0, 2)).toEqual(['restores:all', 'pending:all'])
+  })
+
+  it('never ends on a closure notice for an agency that was restored between the two reads', async () => {
+    // The world: a closure is open, and a restore commits right after whichever
+    // list is read first. The restore clears the closure.
+    let closureOpen = true
+    let restored = false
+    let firstReadDone = false
+    const commitRestoreAfterFirstRead = () => {
+      if (!firstReadDone) {
+        firstReadDone = true
+        restored = true
+        closureOpen = false
+      }
+    }
+    const sent: string[] = []
+    const deps: NoticeDeps = {
+      listPending: (organizationId) => {
+        const open = closureOpen
+        commitRestoreAfterFirstRead()
+        const rows = open ? [closure] : []
+        return Promise.resolve(
+          organizationId ? rows.filter((r) => r.organizationId === organizationId) : rows,
+        )
+      },
+      record: () => Promise.resolve(),
+      listRestorePending: (organizationId) => {
+        const was = restored
+        commitRestoreAfterFirstRead()
+        const rows = was ? [restore] : []
+        return Promise.resolve(
+          organizationId ? rows.filter((r) => r.organizationId === organizationId) : rows,
+        )
+      },
+      recordRestore: () => Promise.resolve(),
+    }
+    const send = vi.fn((_url: unknown, init?: RequestInit) => {
+      const body = JSON.parse(init?.body as string) as Sent
+      if (body.to[0] === OPERATOR) sent.push(body.subject)
+      return Promise.resolve(new Response('{}', { status: 200 }))
+    }) as unknown as typeof fetch
+
+    await sendClosureNotices(deps, config, send)
+
+    expect(sent.at(-1)).not.toBe('Account closure: Atlas Rentals is closing')
+    expect(sent).not.toContain('Account closure: Atlas Rentals is closing')
+  })
+})
+
+describe('a closure notice is verified before it is sent', () => {
+  it('re-reads the agency just before sending, for that agency alone', async () => {
+    const h = harness([], [closure])
+    await sendClosureNotices(h.deps, config, h.send)
+    expect(h.reads).toEqual(['restores:all', 'pending:all', 'pending:one'])
+  })
+
+  it('sends nothing, to anyone, when the closure is gone by then (the agency was restored)', async () => {
+    const h = harness([], [closure], undefined, undefined, [])
+    const report = await sendClosureNotices(h.deps, config, h.send)
+
+    expect(h.sent).toEqual([])
+    expect(h.recorded).toEqual([])
+    expect(report.operatorUndelivered).toBe(0)
+  })
+
+  it('sends nothing for a closure that has since been replaced by a newer one', async () => {
+    const newer = { ...closure, requestedAt: '2026-11-14T10:00:00.000Z' }
+    const h = harness([], [closure], undefined, undefined, [newer])
+    await sendClosureNotices(h.deps, config, h.send)
+    expect(h.sent).toEqual([])
+  })
+
+  it('does not send a channel that was accepted in the meantime', async () => {
+    const h = harness([], [closure], undefined, undefined, [{ ...closure, sendOperator: false }])
+    await sendClosureNotices(h.deps, config, h.send)
+    expect(h.sent.filter((m) => m.to[0] === OPERATOR)).toEqual([])
+    expect(h.sent.map((m) => m.to[0])).toEqual(['owner@atlas.test', 'admin@atlas.test'])
+  })
+
+  it('sends nothing when the re-read fails, and reports the operator notice undelivered', async () => {
+    const quiet = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    const h = harness([], [closure], undefined, undefined, new Error('db down'))
+    const report = await sendClosureNotices(h.deps, config, h.send)
+    quiet.mockRestore()
+
+    expect(h.sent).toEqual([])
+    expect(report.operatorUndelivered).toBe(1)
   })
 })

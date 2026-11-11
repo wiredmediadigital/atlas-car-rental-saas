@@ -188,7 +188,7 @@ export function describe(row: NotificationRow): NotificationCopy {
     case 'account_closure_restored':
       return {
         title: `${subject} was restored`,
-        detail: 'The closure was withdrawn and the agency is working again.',
+        detail: 'The closure was withdrawn.',
       }
 
     /*

@@ -89,9 +89,9 @@ function toRestoreNotice(row: any): PendingRestoreNotice {
 /** `organizationId` null drains every agency with an owed notice (the scheduled run). */
 function buildDeps(service: SupabaseClient, organizationId: string | null): NoticeDeps {
   return {
-    listPending: async () => {
+    listPending: async (onlyOrganizationId) => {
       const { data, error } = await service.schema('app').rpc('closure_notices_pending', {
-        p_organization_id: organizationId,
+        p_organization_id: onlyOrganizationId ?? organizationId,
       })
       if (error) throw new Error('pending lookup failed')
       return (data ?? []).map(toNotice)
