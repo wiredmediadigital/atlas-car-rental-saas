@@ -701,6 +701,13 @@ describe('the gate, structurally', () => {
      * list cannot drift: anything definer, callable by a signed-in user, that
      * writes a table, must either ask app.billing_require_write or appear in
      * this list with a reason beside it in 20261103100200.
+     *
+     * 20261103100200 CAN NEVER BE EDITED, so the reasons for anything added
+     * since are written in the header of the migration that added it: the two
+     * closure actions in 20261108100100, and the re-derivation of the whole
+     * "ways out" group against closure in 20261110100500. An entry whose reason
+     * is in neither place has no reason, which is the thing this test exists to
+     * make visible.
      */
     const exempt = [
       'billing_set_email',

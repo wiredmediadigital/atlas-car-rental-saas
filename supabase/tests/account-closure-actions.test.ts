@@ -361,6 +361,143 @@ describe('restoring', () => {
   })
 })
 
+describe('what the write gate exempts, re-derived against closure', () => {
+  /*
+   * The exemption list in 20261103100200 was written for a LAPSED agency:
+   * every reason beside it is a billing reason, and every entry is a way back
+   * to paying. 20261108100000 made app.billing_require_write delegate to
+   * app.require_write, which silently re-scoped the same list to "things a
+   * SUSPENDED agency may still do" -- and two of them dismantle the spec's own
+   * mitigation for a compromised sole owner, which is that any administrator
+   * can reach the restore button during the grace period.
+   */
+  it('refuses to remove a team member while the agency is closing', async () => {
+    await requestAs(owner)
+
+    await db.asUser(owner, async (session) => {
+      await session.expectRejection(
+        () => session.sql(`select public.remove_team_member($1, $2)`, [organizationId, admin]),
+        /closed or closing/i,
+      )
+    })
+
+    const [row] = await db.sql<{ n: number }>(
+      `select count(*)::int as n from public.organization_members
+        where organization_id = $1 and user_id = $2 and status = 'active'`,
+      [organizationId, admin],
+    )
+    expect(row!.n).toBe(1)
+  })
+
+  it('refuses to change a team member role while the agency is closing', async () => {
+    await requestAs(owner)
+
+    await db.asUser(owner, async (session) => {
+      await session.expectRejection(
+        () =>
+          session.sql(`select public.change_team_member_role($1, $2, 'staff')`, [
+            organizationId,
+            admin,
+          ]),
+        /closed or closing/i,
+      )
+    })
+
+    const [row] = await db.sql<{ role: string }>(
+      `select role::text as role from public.organization_members
+        where organization_id = $1 and user_id = $2`,
+      [organizationId, admin],
+    )
+    expect(row!.role).toBe('admin')
+  })
+
+  it('still allows both while the agency is merely billing-restricted', async () => {
+    // The billing reason for the exemption is untouched: shrinking the team
+    // costs nothing and may be part of winding down.
+    await db.sql(
+      `select app.billing_apply_subscription(
+         $1, $2, 'test', 'canceled'::public.stripe_subscription_status, 'price_test_standard',
+         'EUR', 4900, 'month', 1, 1,
+         now() - interval '5 days', now() + interval '25 days',
+         false, null, null, null, null, null,
+         now() + interval '1 minute', $3
+       )`,
+      [
+        `sub_test_${organizationId.slice(0, 8)}`,
+        `cus_test_${organizationId.slice(0, 8)}`,
+        `evt_cancel_${organizationId.slice(0, 8)}`,
+      ],
+    )
+    expect(await mayWrite()).toBe(false)
+
+    await db.asUser(owner, (session) =>
+      session.sql(`select public.change_team_member_role($1, $2, 'manager')`, [
+        organizationId,
+        admin,
+      ]),
+    )
+    await db.asUser(owner, (session) =>
+      session.sql(`select public.remove_team_member($1, $2)`, [organizationId, staff]),
+    )
+  })
+
+  it('refuses an invitation accepted after the agency has been set to close', async () => {
+    /*
+     * Minor 11. Somebody could still join an agency that is closing, and if it
+     * is their only membership the purge deletes their login thirty days later.
+     * The invitation was authorised while the agency was in good standing; the
+     * agency it leads to no longer is.
+     */
+    const joiner = await signUp(db, {
+      email: `joiner${seq}@actions.test`,
+      fullName: 'Late Joiner',
+    })
+    const token = await db.asUser(owner, async (session) => {
+      const [row] = await session.sql<{ token: string }>(
+        `select * from public.create_team_invitation($1, $2, 'staff')`,
+        [organizationId, `joiner${seq}@actions.test`],
+      )
+      return row!.token
+    })
+
+    await requestAs(owner)
+
+    await db.asUser(joiner.userId, async (session) => {
+      await session.expectRejection(
+        () => session.sql(`select * from public.accept_team_invitation($1)`, [token]),
+        /closed or closing/i,
+      )
+    })
+
+    const [row] = await db.sql<{ n: number }>(
+      `select count(*)::int as n from public.organization_members
+        where organization_id = $1 and user_id = $2`,
+      [organizationId, joiner.userId],
+    )
+    expect(row!.n).toBe(0)
+  })
+
+  it('leaves transfer_organization_ownership and leave_organization open', async () => {
+    /*
+     * Both stay. Transferring hands the agency to another owner rather than
+     * removing one, so it cannot shrink the set of people who can restore, and
+     * for an agency whose owner has gone it is the only route to anybody who
+     * can. Leaving removes only the caller, and the last-owner guard stops the
+     * one person who could restore from being the one who goes.
+     */
+    await requestAs(owner)
+
+    await db.asUser(owner, (session) =>
+      session.sql(`select public.transfer_organization_ownership($1, $2)`, [organizationId, admin]),
+    )
+    await db.asUser(staff, (session) =>
+      session.sql(`select public.leave_organization($1)`, [organizationId]),
+    )
+
+    expect(await stateOf()).toBe('suspended')
+  })
+})
+
 describe('privileges and the evidence tables', () => {
   it('is callable by a signed-in user and not by anon', async () => {
     const [row] = await db.sql<{ a1: boolean; a2: boolean; n1: boolean; n2: boolean }>(
