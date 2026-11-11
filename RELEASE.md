@@ -125,13 +125,29 @@ no sitemap.
    `account-closure-notice: no operator address configured` when it is unset.
 8. **Account closure is scheduled.** Without this, closures suspend but nothing is ever
    purged, and an operator notice that failed its first attempt is never retried.
-   - **Migrations applied**, after `npx supabase db push --dry-run`, in order:
-     `20261108100000_account_closure_state`, `20261108100100_account_closure_actions`,
+   - **Migrations applied**, after `npx supabase db push --include-all --dry-run`, in
+     order: `20261108100000_account_closure_state`, `20261108100100_account_closure_actions`,
      `20261108100200_account_closure_purge`, `20261110100000_account_closure_notice_values`,
      `20261110100100_account_closure_notices`,
-     `20261110100200_account_closure_notice_retries` and
-     `20261110100300_account_closure_operator_uncapped`. Item 2 confirms none is pending.
-   - **Both Edge Functions deployed**: `account-closure` and `account-closure-notice`.
+     `20261110100200_account_closure_notice_retries`,
+     `20261110100300_account_closure_operator_uncapped`,
+     `20261110100400_closure_purge_lists_agree`,
+     `20261110100500_closure_closes_the_ways_out` and
+     `20261110100600_closure_restore_clears_everything`. Item 2 confirms none is pending.
+
+     **`--include-all` is required, and is not optional tidiness.** The three
+     `20261108*` files are dated BEFORE migrations that are already applied — this
+     branch was cut before another feature shipped — and `supabase db push` skips
+     anything older than the latest applied migration unless it is told not to.
+     Without the flag the three closure migrations are silently left out, both Edge
+     Functions and the daily Action are deployed against a database with no
+     `closure_requested_at`, and every closure request fails at the first call.
+
+   - **Three Edge Functions deployed**: `account-closure`, `account-closure-notice`
+     and `billing`. `billing` is on this list because its `checkout` action now
+     refuses an agency that is closing: without the redeploy a suspended agency can
+     still buy a subscription, and the purge then refuses it for ever, which is the
+     one thing this feature exists to prevent.
    - **`ACCOUNT_CLOSURE_RUNNER_SECRET`** set with `supabase secrets set`: at least 32
      random characters, never a `VITE_` value. Shorter, or unset, and both functions
      refuse every caller.

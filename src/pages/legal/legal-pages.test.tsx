@@ -127,6 +127,33 @@ describe('Terms', () => {
     const { container } = renderPage(<TermsPage />)
     expect(container.textContent ?? '').toMatch(/cancel/i)
   })
+
+  it('does not promise that restoring brings writes back unconditionally', () => {
+    /*
+     * The Terms said restoring brought the account back "and everything is as
+     * it was". The operator email says to cancel the Stripe subscription now,
+     * so if the operator did as instructed, restoring returns the agency to
+     * billing-restricted read-only: the write gate needs billing unrestricted
+     * AND closure open. The spec asks for exactly the opposite of the old
+     * sentence -- "the interface must say so rather than imply restoring brings
+     * writes back".
+     */
+    const text = renderPage(<TermsPage />).container.textContent ?? ''
+    expect(text).not.toMatch(/everything is as it was/i)
+    expect(text).toMatch(/if (its|the) subscription is still active/i)
+    expect(text).toMatch(/start(ed)? again|restart/i)
+  })
+
+  it('does not promise deletion exactly at the end of the grace period', () => {
+    /*
+     * Three things hold a purge past day 30 by design: an uncancelled
+     * subscription (organization_claim_purge refuses), an unset
+     * CLOSURE_OPERATOR_EMAIL (nothing prompts the cancellation), and GitHub
+     * disabling the schedule after 60 days without repository activity.
+     */
+    const text = renderPage(<TermsPage />).container.textContent ?? ''
+    expect(text).toMatch(/after the end of the 30-day grace period/i)
+  })
 })
 
 /*

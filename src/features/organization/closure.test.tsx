@@ -195,6 +195,22 @@ describe('CloseAccountCard', () => {
     ).toBeInTheDocument()
   })
 
+  it('says the subscription keeps billing until it is cancelled, at the moment of deciding', async () => {
+    /*
+     * The Terms say so; the confirmation dialog did not, and that is where the
+     * belief forms. Cancelling the Stripe subscription is a deliberate manual
+     * operator step, so an owner who closes on the 2nd is still charged on the
+     * 5th unless somebody acts.
+     */
+    const user = userEvent.setup()
+    renderWith(workspace('owner', 'open'), <CloseAccountCard />)
+    await user.click(closeButton()!)
+
+    const dialog = within(screen.getByRole('dialog')).getByRole('list')
+    expect(dialog.textContent ?? '').toMatch(/subscription/i)
+    expect(dialog.textContent ?? '').toMatch(/cancel/i)
+  })
+
   it('says purging sooner is a request, and offers no control for it', async () => {
     const user = userEvent.setup()
     renderWith(workspace('owner', 'open'), <CloseAccountCard />)
@@ -238,6 +254,14 @@ describe('CloseAccountCard', () => {
     renderWith(workspace('owner', 'suspended'), <CloseAccountCard />)
     expect(screen.getByText(PURGE_DATE, { exact: false })).toBeInTheDocument()
     expect(closeButton()).not.toBeInTheDocument()
+  })
+
+  it('says what restoring does about the subscription, where restore is offered', () => {
+    // The restore does not restart a cancelled subscription, and the write gate
+    // needs billing unrestricted as well as closure open. Saying "everything is
+    // as it was" beside the button would be the same untruth the Terms carried.
+    renderWith(workspace('admin', 'suspended'), <CloseAccountCard />)
+    expect(document.body.textContent ?? '').toMatch(/subscription/i)
   })
 
   it('offers restore while suspended, and not once purging', () => {

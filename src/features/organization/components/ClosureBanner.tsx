@@ -68,8 +68,15 @@ function SuspendedBanner({ canRestore }: { canRestore: boolean }) {
           : ' All of it will be permanently deleted.'}
       </p>
       <p className="mt-1">
+        {/*
+          What restoring actually does. The write gate needs billing
+          unrestricted AND closure open, and cancelling the subscription is a
+          manual step taken when the request is processed, so "everything is as
+          it was" would be untrue for an agency whose subscription has already
+          gone.
+        */}
         {canRestore
-          ? 'Restoring the agency takes effect immediately.'
+          ? 'Restoring takes effect immediately, and makes the agency writable again if its subscription is still active. If it has been cancelled, your records come back but nothing new can be recorded until the subscription is started again from Billing.'
           : 'Ask an owner or administrator of this agency to restore it.'}
       </p>
       <p className="mt-1">

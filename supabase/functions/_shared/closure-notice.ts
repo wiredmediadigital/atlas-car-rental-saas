@@ -167,9 +167,17 @@ function operatorDocument(notice: PendingNotice): EmailDocument {
         ' will refuse to run while a subscription is live.',
       ],
       [`Agency id: ${notice.organizationId}`],
+      /*
+       * ONE INSTRUCTION. This used to add "in which case the subscription
+       * should not be cancelled", which cannot be followed alongside "cancel it
+       * now": the purge refuses while a subscription is live, so cancelling now
+       * is the step that lets the deletion happen at all. Restarting it if the
+       * agency comes back is the consequence, and it is what the Terms and the
+       * restore control both promise.
+       */
       [
-        'The agency can still restore itself before the purge date, in which case the ',
-        'subscription should not be cancelled.',
+        'If the agency restores itself before then, start its subscription again: a restored ',
+        'agency stays read-only until it is paying.',
       ],
     ],
   }

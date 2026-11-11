@@ -99,6 +99,18 @@ function ClosingStatus({
         {purgeDate ? ` and its data will be permanently deleted on or after ${purgeDate}.` : '.'}
       </p>
       <p className="text-ink-muted text-[0.8125rem] leading-5">
+        {/*
+          What restoring actually does, rather than "everything is as it was".
+          The write gate needs billing unrestricted AND closure open, and
+          cancelling the subscription is a manual step we take when we process
+          the request -- so a restore after that brings the records back and
+          leaves the agency read-only until the subscription is started again.
+        */}
+        Restoring makes the agency writable again if its subscription is still active. If it has
+        already been cancelled, your records come back but the agency stays read-only until the
+        subscription is started again from Billing.
+      </p>
+      <p className="text-ink-muted text-[0.8125rem] leading-5">
         If the data has to be gone sooner, ask us at <SupportLink />. There is deliberately no
         button for it.
       </p>
@@ -171,7 +183,21 @@ function CloseControl({ organization }: { organization: Organization }) {
               rentals, contracts, vehicles, documents and photos, expenses, financing and the team.
               This cannot be undone.
             </li>
-            <li>Before then, an owner or administrator can restore the agency from Settings.</li>
+            <li>
+              Before then, an owner or administrator can restore the agency from Settings. Restoring
+              makes it writable again if its subscription is still active; if it has been cancelled
+              in the meantime, it has to be started again from Billing.
+            </li>
+            <li>
+              {/*
+                Minor 10. The Terms say this; the moment of decision did not,
+                and that is where the belief forms. Cancelling is a deliberate
+                manual operator step, not something closing does by itself.
+              */}
+              The subscription is not cancelled by closing. We cancel it when we process the
+              request, which is a manual step, so it keeps billing until then and anything charged
+              before it is not refunded.
+            </li>
             <li>
               If the data must be gone sooner, ask us at <SupportLink />. There is deliberately no
               button for it.

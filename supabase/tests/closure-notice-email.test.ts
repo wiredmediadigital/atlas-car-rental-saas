@@ -117,6 +117,22 @@ describe('the email to the operator', () => {
     expect(m.text).toContain('2026-12-10')
   })
 
+  it('gives one instruction, not two that contradict each other', async () => {
+    /*
+     * It used to say "Cancel its subscription in Stripe now" and then "the
+     * agency can still restore itself ... in which case the subscription should
+     * not be cancelled". Both cannot be followed. Cancelling now is what the
+     * purge requires, so that is the instruction; restarting it if the agency
+     * comes back is the consequence, and it is what the Terms now promise.
+     */
+    const h = harness([notice])
+    await sendClosureNotices(h.deps, config, h.send)
+
+    const m = h.sent.find((s) => s.to[0] === OPERATOR)!
+    expect(m.text).not.toMatch(/should not be cancelled/i)
+    expect(m.text).toMatch(/start its subscription again/i)
+  })
+
   it('cannot be turned into markup by an agency name', async () => {
     const h = harness([{ ...notice, organizationName: '<img src=x onerror=alert(1)>' }])
     await sendClosureNotices(h.deps, config, h.send)

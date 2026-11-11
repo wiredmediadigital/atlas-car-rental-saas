@@ -78,7 +78,8 @@ export function TermsPage() {
         </p>
         <LegalList
           items={[
-            'Grace period. Deletion happens at the end of the 30-day grace period that starts with the request. Until then any owner or administrator can restore the account in one click, and everything is as it was. Records stay readable and exportable throughout, so use the time to export what you need.',
+            'Grace period. Deletion happens after the end of the 30-day grace period that starts with the request. Until then any owner or administrator can restore the account in one click. Records stay readable and exportable throughout, so use the time to export what you need.',
+            'Restoring. The account becomes writable again if its subscription is still active. If we have already cancelled it, restoring brings your records back but leaves the account read-only until the subscription is started again, which you can do from Billing.',
             'Deleting sooner. There is no self-service way to delete immediately. If you want your data deleted before the 30 days are up, ask us and we will action it.',
             'Your subscription. Closing the account does not itself cancel the subscription. We cancel it when we process your request, which is a manual step and not the instant you press the button. Anything charged before then is not refunded.',
             'No refund. We do not refund the remainder of a period you have already paid for. Once we have cancelled the subscription we do not charge you for a new period.',
@@ -88,7 +89,9 @@ export function TermsPage() {
         />
         <p>
           If you restore the account within the grace period, nothing is deleted and the closure
-          request lapses.
+          request lapses. Deletion normally happens on the day the grace period ends; it can be
+          later if the subscription has not yet been cancelled, because we never delete an account
+          that is still being billed.
         </p>
       </LegalSection>
 

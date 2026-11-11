@@ -89,6 +89,22 @@ function buildDeps(service: SupabaseClient, deadline: number): ClosureDeps {
         )
       ).map(toOrganization),
 
+    /*
+     * Closed agencies that still have ledger rows to sweep.
+     *
+     * ONE PAGE, DELIBERATELY, AND IT IS NOT A FAIR SAMPLE. PostgREST has no
+     * DISTINCT, so this reads one page of pending rows and takes the
+     * organizations they name. An agency with thousands of outstanding objects
+     * therefore fills the page on its own and is the only one resumed, every
+     * run, until it drains -- and it does drain, because each run deletes what
+     * it swept, so the next page is different rows. The cost is latency for
+     * anybody queued behind it, never a missed agency: nothing leaves this list
+     * except by being finished.
+     *
+     * If that latency ever matters, the fix is an RPC returning distinct
+     * organization ids, not a larger page: a larger page moves the same
+     * monopoly further along.
+     */
     listClosedWithPendingWork: async () => {
       const rows =
         must(
