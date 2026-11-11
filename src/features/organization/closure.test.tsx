@@ -200,20 +200,23 @@ describe('CloseAccountCard', () => {
     ).toBeInTheDocument()
   })
 
-  it('says the subscription keeps billing until it is cancelled, at the moment of deciding', async () => {
+  it('says the agency cancels its own subscription in Manage billing, at the moment of deciding', async () => {
     /*
-     * The Terms say so; the confirmation dialog did not, and that is where the
-     * belief forms. Cancelling the Stripe subscription is a deliberate manual
-     * operator step, so an owner who closes on the 2nd is still charged on the
-     * 5th unless somebody acts.
+     * Closing never touches the money, so an owner who closes on the 2nd is
+     * still charged on the 5th unless the agency cancels. The agency, not the
+     * operator, is the party who does that, from Manage billing, and the
+     * deletion waits until the subscription has ended.
      */
     const user = userEvent.setup()
     renderWith(workspace('owner', 'open'), <CloseAccountCard />)
     await user.click(closeButton()!)
 
     const dialog = within(screen.getByRole('dialog')).getByRole('list')
-    expect(dialog.textContent ?? '').toMatch(/subscription/i)
-    expect(dialog.textContent ?? '').toMatch(/cancel/i)
+    const text = dialog.textContent ?? ''
+    expect(text).toMatch(/subscription (is not cancelled|keeps running)/i)
+    expect(text).toMatch(/you cancel it yourself from Manage billing/i)
+    expect(text).toMatch(/deleted until the subscription has ended/i)
+    expect(text).not.toMatch(/we cancel it/i)
   })
 
   it('says purging sooner is a request, and offers no control for it', async () => {
@@ -338,6 +341,18 @@ describe('ClosureBanner', () => {
       const { unmount } = renderWith(workspace(role, 'suspended'), <ClosureBanner />)
       expect(restoreButton()).not.toBeInTheDocument()
       expect(screen.getByText(/ask an owner or administrator/i)).toBeInTheDocument()
+      unmount()
+    }
+  })
+
+  it('says the subscription keeps running and links to Billing to cancel it', () => {
+    for (const role of ['owner', 'admin', 'manager', 'staff'] as const) {
+      const { unmount } = renderWith(workspace(role, 'suspended'), <ClosureBanner />)
+      const text = screen.getByRole('status').textContent ?? ''
+      expect(text).toMatch(/subscription keeps running/i)
+      expect(text).toMatch(/cancel it from Manage billing/i)
+      expect(text).toMatch(/deleted until the subscription has ended/i)
+      expect(screen.getByRole('link', { name: 'Billing' })).toHaveAttribute('href', '/billing')
       unmount()
     }
   })

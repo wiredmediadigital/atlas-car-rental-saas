@@ -2,8 +2,8 @@
 /**
  * The emails sent when an agency asks to close.
  *
- * The operator's email is the one that matters: cancelling the Stripe
- * subscription is manual, and this message is what prompts it. Each test below
+ * The operator's email is the one that matters: it is the backstop that names
+ * which agency to look at if its Stripe subscription is still live at the purge date. Each test below
  * names a behaviour whose removal would fail it.
  */
 import { describe, expect, it, vi } from 'vitest'
@@ -103,7 +103,7 @@ describe('the email to owners and administrators', () => {
 })
 
 describe('the email to the operator', () => {
-  it('names the agency and says to cancel the subscription in Stripe', async () => {
+  it('names the agency and its purge date, and is a backstop rather than an instruction to cancel now', async () => {
     const h = harness([notice])
     await sendClosureNotices(h.deps, config, h.send)
 
@@ -111,26 +111,28 @@ describe('the email to the operator', () => {
     expect(m).toBeDefined()
     expect(m.subject).toContain('Atlas Rentals')
     expect(m.text).toContain('Atlas Rentals')
-    expect(m.text).toMatch(/cancel/i)
+    expect(m.text).toMatch(/asked to cancel its own subscription from Manage billing/i)
+    expect(m.text).toMatch(/still live after that date, cancel it in Stripe/i)
+    expect(m.text).toMatch(/no action is needed now/i)
+    expect(m.text).not.toMatch(/cancel its subscription in stripe now/i)
     expect(m.text).toContain('Stripe')
     expect(m.text).toContain(notice.organizationId)
     expect(m.text).toContain('2026-12-10')
   })
 
-  it('gives one instruction, not two that contradict each other', async () => {
+  it('never tells the operator to cancel now, which would break the grace-period undo', async () => {
     /*
-     * It used to say "Cancel its subscription in Stripe now" and then "the
-     * agency can still restore itself ... in which case the subscription should
-     * not be cancelled". Both cannot be followed. Cancelling now is what the
-     * purge requires, so that is the instruction; restarting it if the agency
-     * comes back is the consequence, and it is what the Terms now promise.
+     * Cancelling at request time would make a restore bring back an agency with
+     * no subscription. The operator acts only if the subscription is still live
+     * past the purge date, and the email must not contradict itself about that.
      */
     const h = harness([notice])
     await sendClosureNotices(h.deps, config, h.send)
 
     const m = h.sent.find((s) => s.to[0] === OPERATOR)!
     expect(m.text).not.toMatch(/should not be cancelled/i)
-    expect(m.text).toMatch(/start its subscription again/i)
+    expect(m.text).not.toMatch(/start its subscription again/i)
+    expect(m.subject).not.toMatch(/cancel/i)
   })
 
   it('cannot be turned into markup by an agency name', async () => {

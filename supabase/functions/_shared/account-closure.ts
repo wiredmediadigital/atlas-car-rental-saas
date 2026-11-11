@@ -15,8 +15,8 @@
  *     so a run that died halfway is the normal case. Each stage reads what is
  *     still outstanding and does only that, so a re-run completes.
  *
- * THIS JOB NEVER TOUCHES STRIPE. Cancelling a closing agency's subscription is a
- * manual step in the Stripe dashboard; one unattended process able to delete a
+ * THIS JOB NEVER TOUCHES STRIPE. Cancelling a closing agency's subscription is left
+ * to the agency (Manage billing), with the operator as backstop in the Stripe dashboard; one unattended process able to delete a
  * tenant's data and move money is a bigger blast radius than the action it would
  * replace. `organization_claim_purge` refuses while a subscription is live, and
  * this module's job is to SAY SO, by name, every run (see `blocked`).

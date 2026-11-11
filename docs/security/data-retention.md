@@ -140,9 +140,14 @@ The Terms and privacy policy now describe it. A daily scheduled workflow
 (`.github/workflows/account-closure.yml`) drains the operator notices and runs
 the purge.
 
-**Still manual:** cancelling the agency's Stripe subscription. The operator is
-emailed when closure is requested, and the purge refuses to run while a live
-subscription exists.
+**Subscription cancellation is the agency's, not automatic.** Closing never
+cancels the Stripe subscription, so that restoring stays a clean undo. The agency
+is told in the closure dialog, the suspension banner and the Terms to cancel it
+itself from Manage billing, which stays available while it is suspended. The
+purge refuses to run while a live subscription exists, so deletion waits for it.
+The operator is emailed when closure is requested as a backstop: if the
+subscription is still live past the purge date, the operator cancels it so the
+deletion can proceed.
 
 ### Gap 3 — statutory billing periods unconfirmed
 

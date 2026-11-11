@@ -131,8 +131,8 @@ describe('Terms', () => {
   it('does not promise that restoring brings writes back unconditionally', () => {
     /*
      * The Terms said restoring brought the account back "and everything is as
-     * it was". The operator email says to cancel the Stripe subscription now,
-     * so if the operator did as instructed, restoring returns the agency to
+     * it was". An agency that has cancelled its subscription
+     * (as the Terms ask it to) and then restores gets back the agency to
      * billing-restricted read-only: the write gate needs billing unrestricted
      * AND closure open. The spec asks for exactly the opposite of the old
      * sentence -- "the interface must say so rather than imply restoring brings
@@ -144,11 +144,21 @@ describe('Terms', () => {
     expect(text).toMatch(/start(ed)? again|restart/i)
   })
 
+  it('says the agency cancels its own subscription, not that we do', () => {
+    const text = renderPage(<TermsPage />).container.textContent ?? ''
+    expect(text).toMatch(/you cancel it yourself from Manage billing/i)
+    expect(text).toMatch(/after the subscription has ended and the grace period is over/i)
+    expect(text).toMatch(/We do not refund the remainder of a period/i)
+    expect(text).not.toMatch(/we cancel it/i)
+    expect(text).not.toMatch(/we have (already )?cancelled/i)
+    expect(text).not.toMatch(/when we process your request/i)
+  })
+
   it('does not promise deletion exactly at the end of the grace period', () => {
     /*
      * Three things hold a purge past day 30 by design: an uncancelled
      * subscription (organization_claim_purge refuses), an unset
-     * CLOSURE_OPERATOR_EMAIL (nothing prompts the cancellation), and GitHub
+     * CLOSURE_OPERATOR_EMAIL (the operator is never told which agency to look at), and GitHub
      * disabling the schedule after 60 days without repository activity.
      */
     const text = renderPage(<TermsPage />).container.textContent ?? ''

@@ -1,3 +1,6 @@
+import { Link } from 'react-router-dom'
+
+import { paths } from '@/app/routes/paths'
 import { Alert } from '@/components/ui'
 import { useOrganization, useWorkspace } from '@/features/workspace/workspace-context'
 
@@ -70,14 +73,21 @@ function SuspendedBanner({ canRestore }: { canRestore: boolean }) {
       <p className="mt-1">
         {/*
           What restoring actually does. The write gate needs billing
-          unrestricted AND closure open, and cancelling the subscription is a
-          manual step taken when the request is processed, so "everything is as
+          unrestricted AND closure open, and cancelling the subscription is
+          done by the agency from Manage billing, so "everything is as
           it was" would be untrue for an agency whose subscription has already
           gone.
         */}
         {canRestore
           ? 'Restoring takes effect immediately, and makes the agency writable again if its subscription is still active. If it has been cancelled, your records come back but nothing new can be recorded until the subscription is started again from Billing.'
           : 'Ask an owner or administrator of this agency to restore it.'}
+      </p>
+      <p className="mt-1">
+        The subscription keeps running until it is cancelled. Cancel it from Manage billing in{' '}
+        <Link to={paths.billing} className="underline underline-offset-2">
+          Billing
+        </Link>
+        . Nothing is deleted until the subscription has ended.
       </p>
       <p className="mt-1">
         Questions, or need the data deleted sooner? Email <SupportLink />.

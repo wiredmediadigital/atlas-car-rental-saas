@@ -2,8 +2,8 @@
  * The account-closure notice boundary.
  *
  * Sends the emails that follow a closure request: one to every owner and
- * administrator, and one to the operator saying to cancel the agency's Stripe
- * subscription. The browser calls it right after a successful request;
+ * administrator, and one to the operator as a backstop (the agency is asked to cancel
+ * its own Stripe subscription; the operator acts only if it is still live past the purge date). The browser calls it right after a successful request;
  * also drained daily (see .github/workflows/account-closure.yml) with the
  * runner secret, so a closed tab never loses an email.
  *

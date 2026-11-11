@@ -102,8 +102,8 @@ function ClosingStatus({
         {/*
           What restoring actually does, rather than "everything is as it was".
           The write gate needs billing unrestricted AND closure open, and
-          cancelling the subscription is a manual step we take when we process
-          the request -- so a restore after that brings the records back and
+          closing does not cancel the subscription, the agency does that from
+          Manage billing -- so a restore after that brings the records back and
           leaves the agency read-only until the subscription is started again.
         */}
         Restoring makes the agency writable again if its subscription is still active. If it has
@@ -190,13 +190,15 @@ function CloseControl({ organization }: { organization: Organization }) {
             </li>
             <li>
               {/*
-                Minor 10. The Terms say this; the moment of decision did not,
-                and that is where the belief forms. Cancelling is a deliberate
-                manual operator step, not something closing does by itself.
+                The Terms say this; the moment of decision should too. Closing
+                never touches the money, so the grace period stays a clean undo.
+                The agency cancels in Manage billing, which stays available
+                while it is suspended, and the purge refuses to run while a
+                subscription is still live.
               */}
-              The subscription is not cancelled by closing. We cancel it when we process the
-              request, which is a manual step, so it keeps billing until then and anything charged
-              before it is not refunded.
+              The subscription is not cancelled by closing, so it keeps running and keeps billing.
+              You cancel it yourself from Manage billing, and anything charged before then is not
+              refunded. Nothing is deleted until the subscription has ended.
             </li>
             <li>
               If the data must be gone sooner, ask us at <SupportLink />. There is deliberately no
