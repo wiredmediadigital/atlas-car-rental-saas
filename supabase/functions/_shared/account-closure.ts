@@ -202,6 +202,15 @@ export type GuardedRun = { status: 401 } | { status: 200 | 500; report: RunRepor
 /**
  * The only way the runner is started. `run` is not called at all unless the
  * caller proved it holds the secret, so a refused request claims nothing.
+ *
+ * THE STATUS COMES FROM `needsAttention`, NOT FROM `failures`. A blocked agency
+ * -- suspended, past its purge date, still being billed -- pushes no outcome, so
+ * `failures` stays 0 for the exact situation this job exists to surface: data
+ * retained after a deletion instruction, and an invoice still being raised for
+ * it. Mapped from `failures` that answered 200 and the daily Action went green,
+ * which is the one thing it must never do. Nothing else reads the HTTP status:
+ * the workflow turns anything but a 2xx into a red run and prints the body, so
+ * the blocked list is named without any change to the workflow.
  */
 export async function runIfAuthorized(
   authorization: string | null,
@@ -210,7 +219,7 @@ export async function runIfAuthorized(
 ): Promise<GuardedRun> {
   if (!isAuthorizedRunner(authorization, secret)) return { status: 401 }
   const report = await run()
-  return { status: report.failures > 0 ? 500 : 200, report }
+  return { status: report.needsAttention ? 500 : 200, report }
 }
 
 /** What Auth said about a delete. Only `status` and `code` are looked at. */
@@ -359,8 +368,12 @@ export interface RunReport {
   /** Suspended and still billing. */
   blocked: BlockedOrganization[]
   outcomes: OrganizationOutcome[]
+  /** Outcomes that threw. Does NOT count a blocked agency: it has no outcome. */
   failures: number
-  /** True when a person has something to do: blocked, failed or unsweepable. */
+  /**
+   * True when a person has something to do: blocked, failed or unsweepable.
+   * This, not `failures`, is what runIfAuthorized turns into the HTTP status.
+   */
   needsAttention: boolean
 }
 

@@ -665,7 +665,20 @@ describe('what Stripe blocks', () => {
       expect.objectContaining({ organizationId: a.organizationId, name: 'Hotel LLC', due: true }),
     ])
     expect(report.needsAttention).toBe(true)
+    /*
+     * `failures` counts outcomes, and a blocked agency produces no outcome, so
+     * it is 0 here and that is correct. What was NOT correct is that the HTTP
+     * status was mapped from it: the exact situation the operator notification
+     * exists to prevent -- suspended, past its purge date, still billed, data
+     * intact -- answered 200 and the daily Action went green. The status is
+     * mapped from needsAttention now, and the workflow's existing `cat` prints
+     * the blocked list without any workflow change.
+     */
     expect(report.failures).toBe(0)
+    const guarded = await runIfAuthorized(`Bearer ${'s'.repeat(48)}`, 's'.repeat(48), () =>
+      Promise.resolve(report),
+    )
+    expect(guarded.status).toBe(500)
     expect(await state(a.organizationId)).toBe('suspended')
     expect(await count('customer_documents', a.organizationId)).toBe(5)
     expect(world.removeCalls).toEqual([])
