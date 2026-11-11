@@ -166,6 +166,21 @@ export function describe(row: NotificationRow): NotificationCopy {
       return { title: `${subject} was removed from the agency`, detail: null }
 
     /*
+     * Closure. The date is the one the server wrote, as a day and in no locale,
+     * so it cannot disagree with the Settings page by a time-zone shift. Restoring
+     * is named because the person reading this may be the one who can do it.
+     */
+    case 'account_closure_requested': {
+      const day = readContext(row, 'purge_after')?.slice(0, 10)
+      return {
+        title: `${subject} has been set to close`,
+        detail: day
+          ? `Its data will be permanently deleted on ${day}. Open Settings to restore it.`
+          : 'Open Settings to restore it.',
+      }
+    }
+
+    /*
      * Billing. Said about OUR subscription, never about a rental payment — and
      * never in words that claim more than Stripe told us. "A payment did not go
      * through" is what an invoice attempt failing means; "your card was

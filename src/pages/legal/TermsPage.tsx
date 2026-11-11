@@ -70,11 +70,37 @@ export function TermsPage() {
         </p>
       </LegalSection>
 
+      <LegalSection heading="Closing your account">
+        <p>
+          An owner can ask to close the agency&rsquo;s account from Settings. Nothing is deleted
+          when they do. The account is suspended at once: it becomes read-only, is clearly labelled
+          as closing, and shows the date on which its data will be permanently deleted.
+        </p>
+        <LegalList
+          items={[
+            'Grace period. Deletion happens after the end of the 30-day grace period that starts with the request. Until then any owner or administrator can restore the account in one click. Records stay readable and exportable throughout, so use the time to export what you need.',
+            'Restoring. The account becomes writable again if its subscription is still active. If we have already cancelled it, restoring brings your records back but leaves the account read-only until the subscription is started again, which you can do from Billing.',
+            'Deleting sooner. There is no self-service way to delete immediately. If you want your data deleted before the 30 days are up, ask us and we will action it.',
+            'Your subscription. Closing the account does not itself cancel the subscription. We cancel it when we process your request, which is a manual step and not the instant you press the button. Anything charged before then is not refunded.',
+            'No refund. We do not refund the remainder of a period you have already paid for. Once we have cancelled the subscription we do not charge you for a new period.',
+            'What is deleted. At the end of the grace period your agency’s records and files are permanently deleted, and team members who belong to no other agency lose their sign-in. This cannot be undone.',
+            'What we keep. Billing records are kept, with your agency’s legal name, for the period tax law requires. We also keep a record that the closure happened and when, with counts of what was removed and never their content.',
+          ]}
+        />
+        <p>
+          If you restore the account within the grace period, nothing is deleted and the closure
+          request lapses. Deletion normally happens on the day the grace period ends; it can be
+          later if the subscription has not yet been cancelled, because we never delete an account
+          that is still being billed.
+        </p>
+      </LegalSection>
+
       <LegalSection heading="Your data belongs to you">
         <p>
           The records your agency puts into {product} are yours. We hold them to run the service and
           for nothing else. You can export your data at any time, and ask us to delete it when you
-          close your account. How we handle personal data is set out in the privacy policy.
+          close your account, as described above. How we handle personal data is set out in the
+          privacy policy.
         </p>
       </LegalSection>
 

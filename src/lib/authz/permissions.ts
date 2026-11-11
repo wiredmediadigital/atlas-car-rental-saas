@@ -234,9 +234,51 @@ const AVAILABLE_WHEN_RESTRICTED: readonly Permission[] = [
   'team.transferOwnership',
 ]
 
+/**
+ * Write actions that stay available to an agency that is CLOSING.
+ *
+ * Derived from the list above rather than written out again, because the two
+ * answer different questions and the difference is the point. The billing list
+ * asks "what may a lapsed agency still do?" — every entry is a way back to
+ * paying. This one asks "what may a SUSPENDED agency still do?", and three of
+ * those reasons stop being true:
+ *
+ *   billing.manage          REMOVED. Starting a subscription is not a way out
+ *                           of closure, it is a way to prevent it: the purge
+ *                           refuses while a subscription is live, so the agency
+ *                           would be recorded `blocked` on every run and never
+ *                           purged. Restoring is the way out, and it is free.
+ *   team.update/team.remove REMOVED. Shrinking the team is part of winding
+ *                           down a lapsed agency; during closure it is how a
+ *                           compromised sole owner removes the administrators
+ *                           who could press restore. The database refuses both
+ *                           while closure state is not open.
+ *   organization.update     KEPT. No gate covers it (organizations_update has
+ *                           no write gate at all), and correcting the agency's
+ *                           own details harms nothing.
+ *   team.transferOwnership  KEPT. It keeps an owner rather than removing one,
+ *                           so it cannot shrink the set of people who can
+ *                           restore, and for an agency whose owner has gone it
+ *                           is the only route to anyone who can.
+ *
+ * Restoring and requesting closure are not in this matrix at all: they are
+ * decided by `closure.ts` against the role and the state, and by the database.
+ */
+const AVAILABLE_WHEN_CLOSING: readonly Permission[] = AVAILABLE_WHEN_RESTRICTED.filter(
+  (permission) =>
+    permission !== 'billing.manage' && permission !== 'team.update' && permission !== 'team.remove',
+)
+
 /** Whether `permission` is one the interface withdraws while billing-restricted. */
 export function isWithdrawnWhenRestricted(permission: Permission): boolean {
   if (AVAILABLE_WHEN_RESTRICTED.includes(permission)) return false
+  const action = permission.slice(permission.indexOf('.') + 1)
+  return !READ_ACTIONS.includes(action)
+}
+
+/** Whether `permission` is one the interface withdraws while the agency is closing. */
+export function isWithdrawnWhenClosing(permission: Permission): boolean {
+  if (AVAILABLE_WHEN_CLOSING.includes(permission)) return false
   const action = permission.slice(permission.indexOf('.') + 1)
   return !READ_ACTIONS.includes(action)
 }
@@ -251,3 +293,8 @@ export function isWithdrawnWhenRestricted(permission: Permission): boolean {
 export const WITHDRAWN_WHEN_RESTRICTED: readonly Permission[] = (
   Object.keys(PERMISSIONS) as Permission[]
 ).filter(isWithdrawnWhenRestricted)
+
+/** The same list for a closing agency. Strictly larger: see AVAILABLE_WHEN_CLOSING. */
+export const WITHDRAWN_WHEN_CLOSING: readonly Permission[] = (
+  Object.keys(PERMISSIONS) as Permission[]
+).filter(isWithdrawnWhenClosing)

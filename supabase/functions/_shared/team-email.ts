@@ -157,6 +157,14 @@ function renderText(message: InvitationMessage): string {
   return renderEmailText(invitationDocument(message))
 }
 
+/** A fully rendered message for one recipient. */
+export interface OutgoingMessage {
+  readonly to: string
+  readonly subject: string
+  readonly html: string
+  readonly text: string
+}
+
 export interface EmailTransportConfig {
   readonly provider: string | undefined
   readonly apiKey: string | undefined
@@ -176,8 +184,8 @@ export interface EmailTransportConfig {
  * failure branches, which are the ones that matter — can be exercised by a test
  * that never sends an email.
  */
-export async function deliverInvitation(
-  message: InvitationMessage,
+export async function deliverMessage(
+  message: OutgoingMessage,
   config: EmailTransportConfig,
   send: typeof fetch = fetch,
 ): Promise<DeliveryOutcome> {
@@ -212,9 +220,9 @@ export async function deliverInvitation(
       body: JSON.stringify({
         from,
         to: [message.to],
-        subject: `Join ${message.organizationName} on ${PRODUCT_NAME}`,
-        html: renderHtml(message),
-        text: renderText(message),
+        subject: message.subject,
+        html: message.html,
+        text: message.text,
       }),
     })
   } catch {
@@ -243,4 +251,22 @@ export async function deliverInvitation(
     // is deciding whether to chase somebody up.
     detail: 'The email provider accepted the message. Receipt is not confirmed.',
   }
+}
+
+/** The invitation, rendered and handed to the shared transport. */
+export function deliverInvitation(
+  message: InvitationMessage,
+  config: EmailTransportConfig,
+  send: typeof fetch = fetch,
+): Promise<DeliveryOutcome> {
+  return deliverMessage(
+    {
+      to: message.to,
+      subject: `Join ${message.organizationName} on ${PRODUCT_NAME}`,
+      html: renderHtml(message),
+      text: renderText(message),
+    },
+    config,
+    send,
+  )
 }

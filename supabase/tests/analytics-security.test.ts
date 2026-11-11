@@ -181,6 +181,8 @@ describe('nothing in the schema can bypass RLS', () => {
       'notification_preferences_for',
       'notification_snooze',
       'notification_unread_count',
+      'organization_request_closure',
+      'organization_restore',
       'preview_team_invitation',
       'record_invitation_delivery',
       'remove_team_member',

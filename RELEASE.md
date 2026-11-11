@@ -20,7 +20,7 @@ License: MIT — see [LICENSE](./LICENSE).
 | `VITE_SUPABASE_URL`             | Build environment (inlined at build time) | Supabase → Project Settings → API → Project URL.                                                                                             |
 | `VITE_SUPABASE_PUBLISHABLE_KEY` | Build environment (inlined at build time) | The publishable key (`VITE_SUPABASE_ANON_KEY` is still accepted). The app refuses to start if a secret or `service_role` key is pasted here. |
 | Database schema                 | `supabase/migrations/`, applied in order  | `supabase db push`, or paste each file into the SQL editor. Nothing is created by hand.                                                      |
-| Edge Functions                  | `supabase functions deploy <name>`        | `team-invitations`, `gps-provider`, `billing`, `billing-webhook`.                                                                            |
+| Edge Functions                  | `supabase functions deploy <name>`        | `team-invitations`, `gps-provider`, `billing`, `billing-webhook`, `account-closure`, `account-closure-notice`.                               |
 | Auth redirect URLs              | Supabase → Auth → URL Configuration       | The application origin, plus `/auth/callback`, `/accept-invite`, `/auth/reset-password` and `/confirm-email`.                                |
 | Application base URL            | Wherever the static build is served       | `dist/` is a static SPA; `public/.htaccess` supplies the Apache/LiteSpeed rewrite.                                                           |
 
@@ -49,6 +49,18 @@ itself as unconfigured rather than pretending to work.
 **Without these, invitations still work.** The invitation is created and the
 administrator is handed a one-time link to pass on themselves. Nothing claims an
 email was sent.
+
+### Account-closure notices
+
+| Secret                   | Turns on                                                                                                                                      |
+| ------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| `CLOSURE_OPERATOR_EMAIL` | Where the operator is told to cancel an agency's Stripe subscription when it asks to close. Server-side only: never give it a `VITE_` prefix. |
+
+Delivery reuses `TEAM_APP_URL`, `TEAM_EMAIL_PROVIDER`, `TEAM_EMAIL_API_KEY` and
+`TEAM_EMAIL_FROM` from above. **Without them the closure still works** and owners and
+administrators still see the in-app notification, but nobody is emailed and the
+operator is not prompted to cancel the subscription. The database records the notice
+as `not_configured` rather than sent.
 
 ### GPS tracking
 
@@ -106,6 +118,49 @@ no sitemap.
    SPA rewrite is in force.
 6. Sign up once on the live deployment and confirm the agency is provisioned and the
    Overview setup checklist appears.
+7. **`CLOSURE_OPERATOR_EMAIL` is set** (with `TEAM_EMAIL_PROVIDER`, `TEAM_EMAIL_API_KEY`,
+   `TEAM_EMAIL_FROM` and `TEAM_APP_URL`). This is a hard item, not an optional
+   integration: it is the only prompt for the operator to cancel a closing agency's
+   Stripe subscription. If it is missing, a closed agency keeps being billed while its
+   data sits unpurged, and nothing in the product says so. The function logs
+   `account-closure-notice: no operator address configured` when it is unset.
+8. **Account closure is scheduled.** Without this, closures suspend but nothing is ever
+   purged, and an operator notice that failed its first attempt is never retried.
+   - **Migrations applied**, after `npx supabase db push --include-all --dry-run`, in
+     order: `20261108100000_account_closure_state`, `20261108100100_account_closure_actions`,
+     `20261108100200_account_closure_purge`, `20261110100000_account_closure_notice_values`,
+     `20261110100100_account_closure_notices`,
+     `20261110100200_account_closure_notice_retries`,
+     `20261110100300_account_closure_operator_uncapped`,
+     `20261110100400_closure_purge_lists_agree`,
+     `20261110100500_closure_closes_the_ways_out` and
+     `20261110100600_closure_restore_clears_everything`. Item 2 confirms none is pending.
+
+     **`--include-all` is required, and is not optional tidiness.** The three
+     `20261108*` files are dated BEFORE migrations that are already applied — this
+     branch was cut before another feature shipped — and `supabase db push` skips
+     anything older than the latest applied migration unless it is told not to.
+     Without the flag the three closure migrations are silently left out, both Edge
+     Functions and the daily Action are deployed against a database with no
+     `closure_requested_at`, and every closure request fails at the first call.
+
+   - **Three Edge Functions deployed**: `account-closure`, `account-closure-notice`
+     and `billing`. `billing` is on this list because its `checkout` action now
+     refuses an agency that is closing: without the redeploy a suspended agency can
+     still buy a subscription, and the purge then refuses it for ever, which is the
+     one thing this feature exists to prevent.
+   - **`ACCOUNT_CLOSURE_RUNNER_SECRET`** set with `supabase secrets set`: at least 32
+     random characters, never a `VITE_` value. Shorter, or unset, and both functions
+     refuse every caller.
+   - **The same value as the GitHub Actions repository secret**
+     `ACCOUNT_CLOSURE_RUNNER_SECRET`, plus the repository variable `SUPABASE_FUNCTIONS_URL`
+     (`https://<ref>.supabase.co/functions/v1`). The workflow
+     `.github/workflows/account-closure.yml` runs daily at 03:17 UTC and by hand
+     (Actions, Run workflow). Run it once by hand and confirm both steps are
+     green. **GitHub disables scheduled workflows after 60 days without
+     repository activity**, which would silently stop the
+     purge runner: keep the repository active or re-enable it under Actions. A red
+     run is the alarm: a notice or a purge did not complete.
 
 Billing with Stripe has five more checks. The first is a precondition: run it before
 you deploy, not after.

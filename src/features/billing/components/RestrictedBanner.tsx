@@ -1,5 +1,6 @@
 import { Alert } from '@/components/ui/Alert'
 import { ButtonLink } from '@/components/ui/ButtonLink'
+import { useClosureState } from '@/features/organization/queries'
 import { usePermission, useIsBillingRestricted } from '@/features/workspace/workspace-context'
 
 /**
@@ -43,8 +44,20 @@ import { usePermission, useIsBillingRestricted } from '@/features/workspace/work
 export function RestrictedBanner() {
   const isRestricted = useIsBillingRestricted()
   const canManageBilling = usePermission('billing.manage')
+  const { state: closureState } = useClosureState()
 
   if (!isRestricted) return null
+
+  /*
+   * CLOSURE WINS, as it does in app.require_write, which checks closure first
+   * "so that is the reason given when both apply". An agency can be both: the
+   * subscription lapses, then the owner requests closure. app.may_write needs
+   * billing unrestricted AND the agency open, so in that state paying changes
+   * nothing until the agency is restored, and the sentence below ("starting a
+   * subscription restores normal working") would be false. ClosureBanner says
+   * what is actually true. The precedence lives here, in one place.
+   */
+  if (closureState !== 'open') return null
 
   return (
     <Alert

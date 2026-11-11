@@ -1,3 +1,7 @@
+import { Link } from 'react-router-dom'
+
+import { paths } from '@/app/routes/paths'
+
 import { LegalLayout, LegalList, LegalSection } from './LegalLayout'
 import { LEGAL } from './legal-config'
 
@@ -132,6 +136,15 @@ export function PrivacyPolicyPage() {
           delete records at any time, and can export its data before closing its account. When an
           account is closed we delete or anonymise its data, except where we are required to keep
           something — billing records, for instance, are kept for the period tax law requires.
+        </p>
+        <p>
+          Deletion is not immediate: a closed account is suspended and kept for a 30-day grace
+          period, during which it can be restored, and is deleted at the end of it. The{' '}
+          <Link to={paths.terms} className="text-ink underline underline-offset-2">
+            terms of service
+          </Link>{' '}
+          set out how closing an account works, what is deleted, what is kept, and how to ask for
+          deletion sooner.
         </p>
       </LegalSection>
 

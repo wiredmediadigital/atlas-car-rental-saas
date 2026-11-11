@@ -532,3 +532,28 @@ verify_jwt = false
 # platform check, and calls auth.getUser() itself as well — the platform check is
 # never trusted alone.
 
+# The account-closure runner is called by a scheduler, not a signed-in user, and
+# it is NOT a public endpoint like pricing: it destroys an agency's data.
+# verify_jwt is off because this project's API keys are the sb_publishable_ /
+# sb_secret_ format, which are not JWTs and could not satisfy the platform check
+# for any caller. What replaces it is a check inside the function: the bearer
+# token must equal ACCOUNT_CLOSURE_RUNNER_SECRET, a dedicated secret only the
+# scheduler holds (not the service key), compared in constant time; anything else
+# is a bare 401 and claims nothing. It holds no Stripe key: cancelling a closing
+# agency's subscription is a manual step.
+[functions.account-closure]
+verify_jwt = false
+
+# Sends the emails that follow a closure request: owners and administrators, and
+# the operator (cancel the agency's Stripe subscription). Called by the browser
+# right after the request, and drained daily by the scheduler, so verify_jwt is
+# off for the same reason as the runner above and the function authenticates the
+# caller itself. Two callers: the scheduler (bearer equals
+# ACCOUNT_CLOSURE_RUNNER_SECRET, drains every agency, answers 500 when an operator
+# notice was not accepted) or a live user session that can see the one agency
+# named in the body (sends only what is still pending for it, and answers 200 with
+# a count whatever the email provider did). Both callers share the earlier checks:
+# a malformed body is 400, no or a bad session is 401, an agency the caller cannot
+# see is 403, and a function missing its own configuration is 500.
+[functions.account-closure-notice]
+verify_jwt = false

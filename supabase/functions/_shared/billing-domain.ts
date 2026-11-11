@@ -493,3 +493,56 @@ export function changePlanIdempotencyKey(
 ): string {
   return `atlas-change-plan-${stripeSubscriptionId}-${fromPriceId}-${toPriceId}-${attempt}`
 }
+
+/**
+ * Where an agency is in its closure. The same four values as
+ * app.closure_state_of and src/features/organization/closure.ts.
+ */
+export type ClosureState = 'open' | 'suspended' | 'purging' | 'closed'
+
+/** A refusal the billing function returns verbatim: category, sentence, status. */
+export interface CheckoutRefusal {
+  readonly category: 'closing' | 'checkout_unavailable'
+  readonly message: string
+  readonly status: number
+}
+
+/**
+ * May this agency start a subscription?
+ *
+ * NOT A COURTESY. A suspended agency that buys a subscription makes its own
+ * purge impossible: app.organization_claim_purge refuses while a subscription
+ * is live, so the runner records the agency `blocked` on every run, for ever,
+ * and its data is retained indefinitely after a deletion instruction — the one
+ * outcome account closure exists to prevent. The write gate does not stop the
+ * purchase, because `billing.manage` is deliberately exempt from it: that
+ * exemption was written for a LAPSED agency, where billing is the way out, and
+ * for a CLOSING one it is a door the tenant can use to wedge its own purge open.
+ *
+ * `null` means the state could not be read, and is refused. Not knowing whether
+ * an agency is closing is not a reason to sell it a subscription.
+ */
+export function closureCheckoutRefusal(state: ClosureState | null): CheckoutRefusal | null {
+  if (state === null) {
+    return {
+      category: 'checkout_unavailable',
+      message: 'Checkout could not be opened.',
+      status: 503,
+    }
+  }
+  if (state === 'open') return null
+  if (state === 'suspended') {
+    return {
+      category: 'closing',
+      message:
+        'This agency has been set to close, so a subscription cannot be started. ' +
+        'An owner or administrator can restore it from Settings first.',
+      status: 409,
+    }
+  }
+  return {
+    category: 'closing',
+    message: 'This agency is closed, so a subscription cannot be started.',
+    status: 409,
+  }
+}

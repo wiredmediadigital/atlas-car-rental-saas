@@ -15,6 +15,10 @@
  * That is a real contract test against the vendor's implementation, without a
  * network and without a key.
  */
+import { readFileSync } from 'node:fs'
+import path from 'node:path'
+import { fileURLToPath } from 'node:url'
+
 import Stripe from 'stripe'
 import { describe, expect, it, vi } from 'vitest'
 
@@ -23,6 +27,7 @@ import {
   cancellationScheduled,
   checkoutIdempotencyKey,
   checkoutSessionParams,
+  closureCheckoutRefusal,
   customerIdempotencyKey,
   eventObjectId,
   isHandledEventType,
@@ -1101,5 +1106,53 @@ describe('processing an event', () => {
       subscriptionId: 'sub_1',
     })
     expect(JSON.stringify(seen[0])).not.toMatch(/decline|card|pan|cvc/i)
+  })
+})
+
+// -----------------------------------------------------------------------------
+describe('what checkout does about a closing agency', () => {
+  /*
+   * A suspended agency that buys a subscription wedges its own purge open
+   * forever: app.organization_claim_purge refuses while a subscription is live,
+   * so the runner records it `blocked` on every run and its data is retained
+   * indefinitely after a deletion instruction. The write gate does not stop the
+   * purchase, because billing.manage is deliberately exempt from it.
+   */
+  it('refuses an agency that is not open, and says which', () => {
+    const suspended = closureCheckoutRefusal('suspended')
+    expect(suspended?.category).toBe('closing')
+    expect(suspended?.message).toMatch(/restore/i)
+
+    for (const state of ['purging', 'closed'] as const) {
+      const refusal = closureCheckoutRefusal(state)
+      expect(refusal?.category).toBe('closing')
+      expect(refusal?.message).toMatch(/clos/i)
+    }
+  })
+
+  it('lets an open agency through', () => {
+    expect(closureCheckoutRefusal('open')).toBeNull()
+  })
+
+  it('fails closed when the state could not be read', () => {
+    const refusal = closureCheckoutRefusal(null)
+    expect(refusal).not.toBeNull()
+    expect(refusal?.status).toBe(503)
+    // Not `closing`: we do not know that it is, and saying so would be a lie.
+    expect(refusal?.category).not.toBe('closing')
+  })
+})
+
+// -----------------------------------------------------------------------------
+describe('the seam between the billing function and closure', () => {
+  const source = readFileSync(
+    path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../functions/billing/index.ts'),
+    'utf8',
+  )
+
+  it('asks the database for the closure state before opening Checkout', () => {
+    // The UI change alone leaves the API open: anyone can POST to this function.
+    expect(source).toContain('closure_state_of')
+    expect(source).toContain('closureCheckoutRefusal')
   })
 })

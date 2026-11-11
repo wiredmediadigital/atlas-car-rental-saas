@@ -228,6 +228,12 @@ type OrganizationRow = {
   vehicle_limit_override: number | null
   vehicle_limit_override_set_by: string | null
   vehicle_limit_override_set_at: string | null
+  /** Closure lifecycle: see 20261108100000_account_closure_state.sql. Written only by definer functions. */
+  closure_requested_at: string | null
+  closure_requested_by: string | null
+  closure_purge_after: string | null
+  purge_started_at: string | null
+  closed_at: string | null
   created_by: string | null
   created_at: string
   updated_at: string
@@ -1773,6 +1779,7 @@ export type NotificationKind =
   | 'team_ownership_transferred'
   | 'team_role_changed'
   | 'team_member_removed'
+  | 'account_closure_requested'
   | 'billing_subscription_activated'
   | 'billing_payment_failed'
   | 'billing_payment_recovered'
@@ -2198,6 +2205,14 @@ type ManagedColumns = 'created_at' | 'updated_at'
 /** Service-role only: the browser can neither insert nor update these. */
 type OrganizationVehicleLimitColumns =
   'vehicle_limit_override' | 'vehicle_limit_override_set_by' | 'vehicle_limit_override_set_at'
+/** The database refuses a browser write to these; keeping them out of Insert/Update says so in types. */
+type ClosureColumns =
+  | 'closure_requested_at'
+  | 'closure_requested_by'
+  | 'closure_purge_after'
+  | 'purge_started_at'
+  | 'closed_at'
+
 type GeneratedRentalColumns = 'balance_due_minor' | 'payment_status' | 'amount_paid_minor'
 
 export interface Database {
@@ -2214,11 +2229,16 @@ export interface Database {
         Insert: Insertable<
           OrganizationRow,
           'name' | 'slug',
-          'id' | OrganizationVehicleLimitColumns | ManagedColumns
+          'id' | OrganizationVehicleLimitColumns | ManagedColumns | ClosureColumns
         >
         Update: Updatable<
           OrganizationRow,
-          'id' | 'slug' | 'created_by' | OrganizationVehicleLimitColumns | ManagedColumns
+          | 'id'
+          | 'slug'
+          | 'created_by'
+          | OrganizationVehicleLimitColumns
+          | ManagedColumns
+          | ClosureColumns
         >
         Relationships: []
       }
@@ -2622,6 +2642,14 @@ export interface Database {
       }
     }
     Functions: {
+      organization_request_closure: {
+        Args: { p_organization_id: string }
+        Returns: OrganizationRow
+      }
+      organization_restore: {
+        Args: { p_organization_id: string }
+        Returns: OrganizationRow
+      }
       create_organization: {
         Args: {
           p_name: string

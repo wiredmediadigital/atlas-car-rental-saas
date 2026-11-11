@@ -1,5 +1,5 @@
 import { getSupabaseClient } from '@/lib/supabase/client'
-import { AppError, toAppError } from '@/lib/supabase/errors'
+import { AppError, functionErrorKind, toAppError } from '@/lib/supabase/errors'
 import type {
   BillingAccessState,
   BillingHistoryRow,
@@ -57,10 +57,11 @@ async function unwrapFunctionError(error: unknown): Promise<never> {
       const body = (await context.clone().json()) as FunctionErrorBody
       if (body?.error?.message) {
         throw new AppError(
-          body.error.category === 'permission_denied' ? 'permission' : 'validation',
+          functionErrorKind(body.error.category),
           body.error.message,
           // The server's category, so a caller can tell one refusal from another
-          // without parsing a sentence.
+          // without parsing a sentence, and its detail, so a refusal is worded
+          // with the numbers the server actually compared.
           { code: body.error.category, detail: body.error.detail },
         )
       }

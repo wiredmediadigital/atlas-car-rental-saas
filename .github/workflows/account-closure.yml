@@ -1,0 +1,84 @@
+# Drains account-closure work once a day. This is the only scheduler Pevvy has.
+#
+# If this job stops running or fails, closed agencies are suspended but never
+# purged, and an operator notice that failed its first attempt is never
+# retried. That is data retained after a deletion instruction, so every step
+# fails the job on anything but a 2xx. A red run is the alarm; do not mute it.
+#
+# GitHub DISABLES scheduled workflows after 60 days without repository activity
+# (a commit, not a run). A deployed install that goes two months without a commit
+# silently loses its purge runner. Make a commit, or re-enable the workflow under
+# Actions, if that is likely; GitHub also emails a notice before it happens.
+#
+# Do not add curl retries to the notice step: the daily tick is the retry. A 500
+# there means an operator notice was not accepted, and retrying would run the
+# whole drain again and burn the members channel's three attempts within minutes.
+#
+# One-time setup (see RELEASE.md, "Before going live", item 8):
+#   secret   ACCOUNT_CLOSURE_RUNNER_SECRET  the same value set in Supabase
+#   variable SUPABASE_FUNCTIONS_URL         https://<ref>.supabase.co/functions/v1
+name: Account closure
+
+on:
+  schedule:
+    - cron: '17 3 * * *'
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: account-closure
+  cancel-in-progress: false
+
+jobs:
+  drain:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      RUNNER_SECRET: ${{ secrets.ACCOUNT_CLOSURE_RUNNER_SECRET }}
+      FUNCTIONS_URL: ${{ vars.SUPABASE_FUNCTIONS_URL }}
+    steps:
+      - name: Require configuration
+        id: config
+        run: |
+          if [ -z "$RUNNER_SECRET" ] || [ -z "$FUNCTIONS_URL" ]; then
+            echo "::error::ACCOUNT_CLOSURE_RUNNER_SECRET or SUPABASE_FUNCTIONS_URL is not set. Nothing was drained."
+            exit 1
+          fi
+
+      # Notices first: the operator email is what prompts the manual Stripe
+      # cancellation, and the purge refuses an agency that is still billed.
+      - name: Send owed closure notices
+        if: ${{ steps.config.outcome == 'success' }}
+        run: |
+          # The body names agencies, so it is shown only when the call failed.
+          status=$(curl --silent --show-error --max-time 120 \
+            -o "$RUNNER_TEMP/notices.json" -w '%{http_code}' \
+            -X POST "$FUNCTIONS_URL/account-closure-notice" \
+            -H "Authorization: Bearer $RUNNER_SECRET" \
+            -H "Content-Type: application/json" \
+            -d '{}') || status=000
+          if [ "${status#2}" = "$status" ]; then
+            echo "::error::account-closure-notice answered HTTP $status"
+            cat "$RUNNER_TEMP/notices.json" || true
+            exit 1
+          fi
+          echo "account-closure-notice answered HTTP $status"
+
+      # Runs even when the notice step failed: a stuck email must not hold back
+      # a purge that is due. It does not run after a cancel or a bad configuration.
+      - name: Purge agencies whose grace period has ended
+        if: ${{ !cancelled() && steps.config.outcome == 'success' }}
+        run: |
+          status=$(curl --silent --show-error --max-time 540 \
+            -o "$RUNNER_TEMP/purge.json" -w '%{http_code}' \
+            -X POST "$FUNCTIONS_URL/account-closure" \
+            -H "Authorization: Bearer $RUNNER_SECRET" \
+            -H "Content-Type: application/json" \
+            -d '{}') || status=000
+          if [ "${status#2}" = "$status" ]; then
+            echo "::error::account-closure answered HTTP $status"
+            cat "$RUNNER_TEMP/purge.json" || true
+            exit 1
+          fi
+          echo "account-closure answered HTTP $status"
