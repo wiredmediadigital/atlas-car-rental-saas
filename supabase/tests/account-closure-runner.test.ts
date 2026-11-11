@@ -37,6 +37,7 @@ import {
   type ClosureDeps,
   type ObjectRow,
   type OrganizationRow,
+  type RunReport,
 } from '../functions/_shared/account-closure'
 import { TestDatabase, addMember, signUp } from './support/harness'
 
@@ -358,6 +359,11 @@ const userExists = async (id: string) =>
 
 const run = (world: World, batchSize = 2) =>
   runAccountClosure(depsFor(world), { now: new Date(), batchSize })
+
+/** The status the Edge Function would answer for a report the runner produced. */
+const GUARD_SECRET = 's'.repeat(48)
+const guard = (report: RunReport) =>
+  runIfAuthorized(`Bearer ${GUARD_SECRET}`, GUARD_SECRET, () => Promise.resolve(report))
 
 beforeAll(async () => {
   db = await TestDatabase.create()
@@ -724,10 +730,7 @@ describe('what Stripe blocks', () => {
      * the blocked list without any workflow change.
      */
     expect(report.failures).toBe(0)
-    const guarded = await runIfAuthorized(`Bearer ${'s'.repeat(48)}`, 's'.repeat(48), () =>
-      Promise.resolve(report),
-    )
-    expect(guarded.status).toBe(500)
+    expect((await guard(report)).status).toBe(500)
     expect(await state(a.organizationId)).toBe('suspended')
     expect(await count('customer_documents', a.organizationId)).toBe(5)
     expect(world.removeCalls).toEqual([])
@@ -745,6 +748,66 @@ describe('what Stripe blocks', () => {
     expect(report.blocked.filter((b) => b.organizationId === a.organizationId)).toEqual([
       expect.objectContaining({ organizationId: a.organizationId, due: false }),
     ])
+  }, 60_000)
+
+  it('is named but does not redden the run until its purge date has passed', async () => {
+    /*
+     * THE WHOLE POINT OF THE STATUS MAPPING, and it cuts both ways.
+     *
+     * An agency being billed on day 3 of a thirty-day grace period is the
+     * expected state, not a problem: the operator has already been emailed and
+     * the purge is not owed anything yet. If that reddened the daily Action,
+     * every ordinary closure would, and whoever watches it would learn to stop
+     * opening it -- so the case that genuinely matters, past the purge date and
+     * still billed with the data retained after a deletion instruction, would
+     * arrive as one more red in a sea of reds.
+     *
+     * So it is listed either way, and counted only once it is due.
+     */
+    const world = new World()
+    const a = await newAgency(world, 'Lima')
+    await subscribe(a.organizationId, 'active')
+    await request(a.organizationId, false)
+
+    /*
+     * This is the one test that asserts on the WHOLE report's needsAttention
+     * rather than on its own agency's entry, so it needs the only closure in
+     * the database to be its own. Earlier tests in this file deliberately leave
+     * agencies suspended, billed and past their date.
+     */
+    await db.sql(
+      `update public.organizations
+          set closure_requested_at = null, closure_requested_by = null,
+              closure_purge_after = null
+        where id <> $1 and purge_started_at is null and closed_at is null`,
+      [a.organizationId],
+    )
+
+    const inGrace = await run(world)
+    expect(inGrace.blocked.filter((b) => b.organizationId === a.organizationId)).toEqual([
+      expect.objectContaining({ organizationId: a.organizationId, due: false }),
+    ])
+    expect(inGrace.needsAttention).toBe(false)
+    expect((await guard(inGrace)).status).toBe(200)
+
+    // The same agency, the same subscription, one day past its purge date.
+    await db.sql(
+      `update public.organizations set closure_purge_after = now() - interval '1 day'
+        where id = $1`,
+      [a.organizationId],
+    )
+
+    const overdue = await run(world)
+    expect(overdue.blocked.filter((b) => b.organizationId === a.organizationId)).toEqual([
+      expect.objectContaining({ organizationId: a.organizationId, due: true }),
+    ])
+    expect(overdue.needsAttention).toBe(true)
+    expect((await guard(overdue)).status).toBe(500)
+
+    // And nothing was deleted on either run.
+    expect(await state(a.organizationId)).toBe('suspended')
+    expect(world.removeCalls).toEqual([])
+    expect(await count('customer_documents', a.organizationId)).toBe(5)
   }, 60_000)
 
   it('is purged on the run after the subscription is cancelled', async () => {

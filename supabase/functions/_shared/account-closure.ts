@@ -211,6 +211,10 @@ export type GuardedRun = { status: 401 } | { status: 200 | 500; report: RunRepor
  * which is the one thing it must never do. Nothing else reads the HTTP status:
  * the workflow turns anything but a 2xx into a red run and prints the body, so
  * the blocked list is named without any change to the workflow.
+ *
+ * An agency blocked while still INSIDE its grace period does not redden the run
+ * -- it is the ordinary state of every closure that has not been cancelled in
+ * Stripe yet. See runAccountClosure.
  */
 export async function runIfAuthorized(
   authorization: string | null,
@@ -371,8 +375,10 @@ export interface RunReport {
   /** Outcomes that threw. Does NOT count a blocked agency: it has no outcome. */
   failures: number
   /**
-   * True when a person has something to do: blocked, failed or unsweepable.
-   * This, not `failures`, is what runIfAuthorized turns into the HTTP status.
+   * True when a person has something to do: blocked AND DUE, failed, or
+   * unsweepable. This, not `failures`, is what runIfAuthorized turns into the
+   * HTTP status. A blocked agency still inside its grace period is listed but
+   * does not count; see runAccountClosure for why.
    */
   needsAttention: boolean
 }
@@ -645,7 +651,26 @@ export async function runAccountClosure(
     blocked,
     outcomes,
     failures,
+    /*
+     * ONLY A DUE BLOCKED AGENCY COUNTS, and that is the difference between an
+     * alarm and a noise.
+     *
+     * `blocked` lists two things. An agency past its purge date that is still
+     * being billed is data retained after a deletion instruction, which is the
+     * case this whole job exists to surface. An agency being billed on day 3 of
+     * a thirty-day grace period is the EXPECTED state: the operator has already
+     * been emailed, the purge is not owed anything yet, and nothing is wrong.
+     * Counting the second would turn the daily Action red on every ordinary
+     * closure from the moment it was requested, and whoever watches it would
+     * learn to stop opening it -- so the first would arrive as one more red in
+     * a sea of reds. Both are still LISTED, every run, by name.
+     *
+     * `failures` and `unsweepableKeys` count whenever they happen: both are
+     * always wrong.
+     */
     needsAttention:
-      blocked.length > 0 || failures > 0 || outcomes.some((o) => o.unsweepableKeys > 0),
+      blocked.some((entry) => entry.due) ||
+      failures > 0 ||
+      outcomes.some((o) => o.unsweepableKeys > 0),
   }
 }
