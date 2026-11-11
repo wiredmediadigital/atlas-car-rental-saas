@@ -139,8 +139,9 @@ no sitemap.
      `ACCOUNT_CLOSURE_RUNNER_SECRET`, plus the repository variable `SUPABASE_FUNCTIONS_URL`
      (`https://<ref>.supabase.co/functions/v1`). The workflow
      `.github/workflows/account-closure.yml` runs daily at 03:17 UTC and by hand
-     (Actions, Run workflow). Run it once by hand and confirm both steps are green. **GitHub disables scheduled
-     workflows after 60 days without repository activity**, which would silently stop the
+     (Actions, Run workflow). Run it once by hand and confirm both steps are
+     green. **GitHub disables scheduled workflows after 60 days without
+     repository activity**, which would silently stop the
      purge runner: keep the repository active or re-enable it under Actions. A red
      run is the alarm: a notice or a purge did not complete.
 

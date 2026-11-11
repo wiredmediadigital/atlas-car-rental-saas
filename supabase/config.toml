@@ -551,6 +551,9 @@ verify_jwt = false
 # caller itself. Two callers: the scheduler (bearer equals
 # ACCOUNT_CLOSURE_RUNNER_SECRET, drains every agency, answers 500 when an operator
 # notice was not accepted) or a live user session that can see the one agency
-# named in the body (sends only what is still pending for it, always answers 200).
+# named in the body (sends only what is still pending for it, and answers 200 with
+# a count whatever the email provider did). Both callers share the earlier checks:
+# a malformed body is 400, no or a bad session is 401, an agency the caller cannot
+# see is 403, and a function missing its own configuration is 500.
 [functions.account-closure-notice]
 verify_jwt = false
