@@ -30,7 +30,7 @@ async function requestClosureNoticeEmails(organizationId: string): Promise<void>
       body: { organization_id: organizationId },
     })
   } catch {
-    // Deliberately silent: see requestClosure.
+    // Deliberately silent: see requestClosure and restoreAccount.
   }
 }
 
@@ -40,5 +40,12 @@ export async function restoreAccount(organizationId: string): Promise<Organizati
     p_organization_id: organizationId,
   })
   if (error) throw toAppError(error)
+
+  // The restore has committed, with its in-app notification and the operator
+  // notice recorded as pending. Telling the operator promptly matters: until it
+  // does, the operator holds a closure instruction that no longer stands. The
+  // ping is best-effort and not awaited, exactly like the one after a closure; a
+  // failed one never fails the restore, because the daily drain still sends it.
+  void requestClosureNoticeEmails(organizationId)
   return data
 }

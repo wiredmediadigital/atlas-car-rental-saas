@@ -110,9 +110,9 @@ function buildDeps(service: SupabaseClient, organizationId: string | null): Noti
     },
     // A restored agency has closure_requested_at null, so closure_notices_pending
     // can never list it: the restore notices have their own finder.
-    listRestorePending: async () => {
+    listRestorePending: async (onlyOrganizationId) => {
       const { data, error } = await service.schema('app').rpc('closure_restore_notices_pending', {
-        p_organization_id: organizationId,
+        p_organization_id: onlyOrganizationId ?? organizationId,
       })
       if (error) throw new Error('restore pending lookup failed')
       return (data ?? []).map(toRestoreNotice)
