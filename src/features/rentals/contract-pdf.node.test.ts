@@ -10,7 +10,7 @@
 import { inflateSync } from 'node:zlib'
 
 import { renderToBuffer } from '@react-pdf/renderer'
-import { describe, expect, it } from 'vitest'
+import { beforeAll, describe, expect, it } from 'vitest'
 
 import type { ContractSnapshot } from '@/types/database'
 
@@ -266,16 +266,31 @@ function compact(text: string): string {
 }
 
 describe('the contract PDF', () => {
-  it('produces a real PDF file', async () => {
-    const pdf = await render(snapshot())
+  /*
+   * Six of these tests assert on the same document. Rendering it once is not a
+   * speed tweak for its own sake: a real PDF render is the most expensive thing
+   * in this suite, and six of them in one file is what tipped this spec over its
+   * timeout on a loaded machine three times. The two tests below that render a
+   * DIFFERENT document still render their own.
+   */
+  let contract: Buffer
+  let contractText: string
+
+  beforeAll(async () => {
+    contract = await render(snapshot())
+    contractText = extractText(contract)
+  })
+
+  it('produces a real PDF file', () => {
+    const pdf = contract
 
     expect(pdf.byteLength).toBeGreaterThan(2000)
     expect(pdf.subarray(0, 5).toString('latin1')).toBe('%PDF-')
     expect(pdf.subarray(-8).toString('latin1')).toContain('%%EOF')
-  }, 30_000)
+  })
 
-  it('carries the parties, the vehicle and the contract number', async () => {
-    const text = extractText(await render(snapshot()))
+  it('carries the parties, the vehicle and the contract number', () => {
+    const text = contractText
 
     expect(text).toContain('Atlas Rentals SARL')
     expect(text).toContain('Amina Tazi')
@@ -283,20 +298,20 @@ describe('the contract PDF', () => {
     expect(compact(text)).toContain('ATL-2028-00042')
     expect(compact(text)).toContain('12345-A-6')
     expect(compact(text)).toContain('VF3CCHMZ0KT012345')
-  }, 30_000)
+  })
 
-  it('lists every authorised driver with their licence', async () => {
-    const text = extractText(await render(snapshot()))
+  it('lists every authorised driver with their licence', () => {
+    const text = contractText
 
     expect(text).toContain('Youssef Bennani')
     expect(compact(text)).toContain('DL-2210457')
     expect(compact(text)).toContain('DL-4471902')
     expect(text).toContain('Primary')
     expect(text).toContain('Additional')
-  }, 30_000)
+  })
 
-  it('shows each charge and the total the customer is asked for', async () => {
-    const text = extractText(await render(snapshot()))
+  it('shows each charge and the total the customer is asked for', () => {
+    const text = contractText
 
     expect(text).toContain('5 days of hire')
     expect(text).toContain('Airport delivery')
@@ -304,14 +319,14 @@ describe('the contract PDF', () => {
     // 291000 minor units of MAD, and the deposit stated separately from it.
     expect(compact(text)).toContain('2,910.00')
     expect(compact(text)).toContain('5,000.00')
-  }, 30_000)
+  })
 
-  it('prints the agency wording and nothing invented', async () => {
-    const text = extractText(await render(snapshot()))
+  it('prints the agency wording and nothing invented', () => {
+    const text = contractText
 
     expect(text).toContain('Unlimited mileage within Morocco')
     expect(text).toContain('Return with the same fuel level')
-  }, 30_000)
+  })
 
   /*
    * The branding rule, held to by the one document that leaves the building.
@@ -321,8 +336,8 @@ describe('the contract PDF', () => {
    * has no reason to find a software publisher printed on their car hire
    * contract. The agency's name is on it; ours is not.
    */
-  it('carries the agency’s identity and names neither the product nor its publisher', async () => {
-    const text = extractText(await render(snapshot()))
+  it('carries the agency’s identity and names neither the product nor its publisher', () => {
+    const text = contractText
 
     // The agency, on its own paperwork.
     expect(text).toContain('Atlas Rentals SARL')
@@ -335,7 +350,7 @@ describe('the contract PDF', () => {
     expect(text).not.toMatch(/Adera Labs/i)
     expect(text).not.toMatch(/aderalabs/i)
     expect(text).not.toMatch(/\bPevvy\b/i)
-  }, 30_000)
+  })
 
   it('renders an agency that has written no terms at all', async () => {
     const bare = snapshot({
