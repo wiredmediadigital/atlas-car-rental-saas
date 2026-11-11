@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { toAppError } from './errors'
+import { functionErrorKind, toAppError } from './errors'
 
 /** The shape supabase-js gives an Auth answer: name, HTTP status, code, message. */
 function authError(status: number, code: string, message: string) {
@@ -85,6 +85,22 @@ describe('toAppError — Auth', () => {
     expect(error.message).toMatch(/suspended for closure/i)
     expect(error.message).toMatch(/restore/i)
     expect(error.message).not.toMatch(/subscription/i)
+  })
+
+  it('reads the billing function’s own refusal categories', () => {
+    /*
+     * The billing Edge Function answers `{ error: { category, message } }`, and
+     * the category decides what KIND of failure the interface treats it as. A
+     * checkout refused because the agency is closing is a state conflict, not a
+     * validation problem: the owner got nothing wrong, the agency is simply on
+     * its way out and restoring it is what unblocks them.
+     */
+    expect(functionErrorKind('closing')).toBe('conflict')
+    expect(functionErrorKind('permission_denied')).toBe('permission')
+    expect(functionErrorKind('already_subscribed')).toBe('conflict')
+    // Anything unrecognised still reaches a person as a sentence, not a crash.
+    expect(functionErrorKind('something_new')).toBe('validation')
+    expect(functionErrorKind(undefined)).toBe('validation')
   })
 
   it('explains each refusal the closure actions can give', () => {

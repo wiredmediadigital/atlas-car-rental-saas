@@ -36,8 +36,10 @@ import { createClient, type SupabaseClient } from 'jsr:@supabase/supabase-js@2'
 import {
   checkoutIdempotencyKey,
   checkoutSessionParams,
+  closureCheckoutRefusal,
   customerIdempotencyKey,
   isLiveStatus,
+  type ClosureState,
   normalizeSubscription,
   portalSessionParams,
   type StripeSubscription,
@@ -296,6 +298,27 @@ Deno.serve(async (request: Request): Promise<Response> => {
       case 'checkout': {
         const planKey = typeof body.planKey === 'string' ? body.planKey : ''
         if (planKey === '') return failure('malformed_request', 'No plan was chosen.')
+
+        /*
+         * CLOSURE IS ASKED FIRST, BEFORE ANY STRIPE WORK. An agency that has
+         * asked to close must not be able to buy a subscription: the purge
+         * refuses while one is live, so the purchase would wedge the agency's
+         * own deletion open for ever. The interface withdraws the control too,
+         * but anybody can POST here, so this is the half that holds.
+         *
+         * Fails closed. `closure_state_of` answers 'open' for an organization
+         * that does not exist, so a null here is a failure to READ, not an
+         * absent agency, and it is refused.
+         */
+        const { data: closure, error: closureError } = await service
+          .schema('app')
+          .rpc('closure_state_of', { p_organization_id: organizationId })
+        const closureRefusal = closureCheckoutRefusal(
+          closureError || typeof closure !== 'string' ? null : (closure as ClosureState),
+        )
+        if (closureRefusal) {
+          return failure(closureRefusal.category, closureRefusal.message, closureRefusal.status)
+        }
 
         /*
          * The plan key becomes a price HERE, from the catalogue, and a price

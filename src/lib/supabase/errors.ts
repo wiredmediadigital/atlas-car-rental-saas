@@ -320,6 +320,31 @@ const CONSTRAINT_MESSAGES: ReadonlyArray<readonly [RegExp, string, AppErrorKind]
   ],
 ]
 
+/**
+ * What kind of failure each Edge Function error CATEGORY is.
+ *
+ * The functions answer `{ error: { category, message } }` and write their own
+ * sentence, so nothing here rewrites the words; this decides how the interface
+ * treats them. Anything not listed is `validation`, which is the old default and
+ * is never worse than silence.
+ *
+ * `closing` is the refusal the billing function gives an agency that has asked
+ * to close. It is a conflict, not a validation failure: nothing was typed
+ * wrongly, the agency is on its way out, and restoring it is what unblocks the
+ * purchase. It exists because a closing agency that subscribes makes its own
+ * purge impossible for ever — see closureCheckoutRefusal.
+ */
+const FUNCTION_ERROR_KINDS: Readonly<Record<string, AppErrorKind>> = {
+  permission_denied: 'permission',
+  closing: 'conflict',
+  already_subscribed: 'conflict',
+}
+
+export function functionErrorKind(category: string | undefined): AppErrorKind {
+  if (category === undefined) return 'validation'
+  return FUNCTION_ERROR_KINDS[category] ?? 'validation'
+}
+
 /** SQLSTATE fallbacks when no constraint-specific message matched. */
 const SQLSTATE_MESSAGES: Readonly<Record<string, readonly [string, AppErrorKind]>> = {
   '23505': ['That record already exists.', 'conflict'],

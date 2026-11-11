@@ -14,6 +14,7 @@ import {
   usePermission,
   type WorkspaceContextValue,
 } from '@/features/workspace/workspace-context'
+import { PERMISSIONS, isWithdrawnWhenClosing, type Permission } from '@/lib/authz/permissions'
 import type { Organization, OrganizationMember, OrgRole } from '@/types/database'
 
 import { requestClosure, restoreAccount } from './api'
@@ -374,5 +375,72 @@ describe('what the rest of the product offers a closing agency', () => {
   it('leaves an open agency alone', () => {
     renderWith(workspace('owner', 'open'), <Probe />)
     expect(screen.getByTestId('a')).toHaveTextContent('offered')
+  })
+
+  function ProbeFor({ permission }: { permission: Permission }) {
+    return <span data-testid="a">{usePermission(permission) ? 'offered' : 'withdrawn'}</span>
+  }
+
+  function ask(permission: Permission, role: OrgRole, state: ClosureState): string {
+    const { unmount } = renderWith(workspace(role, state), <ProbeFor permission={permission} />)
+    const answer = screen.getByTestId('a').textContent ?? ''
+    unmount()
+    return answer
+  }
+
+  it('withdraws billing, because buying a subscription would wedge the purge open', () => {
+    /*
+     * app.organization_claim_purge refuses while a subscription is live, so an
+     * agency that subscribes after asking to close is recorded `blocked` on
+     * every run for ever and is never purged. The billing exemption was written
+     * for a LAPSED agency, where billing is the way out; for a CLOSING one it is
+     * a way to keep the data.
+     */
+    for (const state of ['suspended', 'purging', 'closed'] as const) {
+      expect(ask('billing.manage', 'owner', state)).toBe('withdrawn')
+    }
+    expect(ask('billing.manage', 'owner', 'open')).toBe('offered')
+  })
+
+  it('withdraws changing and removing team members, as the database now does', () => {
+    // A compromised sole owner who requested closure must not be able to remove
+    // the administrators who could restore the agency.
+    for (const state of ['suspended', 'purging', 'closed'] as const) {
+      expect(ask('team.remove', 'admin', state)).toBe('withdrawn')
+      expect(ask('team.update', 'admin', state)).toBe('withdrawn')
+    }
+  })
+
+  it('leaves the ways out that closure does not refuse', () => {
+    expect(ask('organization.update', 'admin', 'suspended')).toBe('offered')
+    expect(ask('team.transferOwnership', 'owner', 'suspended')).toBe('offered')
+    expect(ask('rentals.view', 'staff', 'suspended')).toBe('offered')
+  })
+
+  it('classifies every permission a closing agency keeps, and the list is visible here', () => {
+    const kept = (Object.keys(PERMISSIONS) as Permission[]).filter(
+      (permission) => !isWithdrawnWhenClosing(permission),
+    )
+
+    expect([...kept].sort()).toEqual([
+      'customerDocuments.view',
+      'customers.view',
+      'expenses.view',
+      'financing.view',
+      'financingDocuments.view',
+      'financingPayments.view',
+      'gps.view',
+      'lenders.view',
+      'organization.update',
+      'organization.view',
+      'payments.view',
+      'rentals.view',
+      'reports.view',
+      'team.history',
+      'team.transferOwnership',
+      'team.view',
+      'vehicleDocuments.view',
+      'vehicles.view',
+    ])
   })
 })

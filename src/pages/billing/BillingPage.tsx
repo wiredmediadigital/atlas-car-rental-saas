@@ -33,7 +33,7 @@ import {
   useReconcileBilling,
   useStartCheckout,
 } from '@/features/billing/queries'
-import { useOrganization } from '@/features/workspace/workspace-context'
+import { useOrganization, usePermission } from '@/features/workspace/workspace-context'
 import { formatDate, formatDateTime } from '@/lib/datetime/format'
 import { formatMoney } from '@/lib/money/money'
 import { cn } from '@/lib/utils/cn'
@@ -128,6 +128,15 @@ function PlanCard({
 export function BillingPage() {
   const organization = useOrganization()
   const toast = useToast()
+  /*
+   * Whether this agency may start a subscription AT ALL. Role is already
+   * decided by the route, so the only thing this adds here is closure: an
+   * agency that has asked to close must not buy a subscription, because the
+   * purge refuses while one is live and the agency would never be deleted.
+   * The server refuses it too — see closureCheckoutRefusal — and that is the
+   * half that holds; this one stops the offer being made.
+   */
+  const maySubscribe = usePermission('billing.manage')
 
   /*
    * One token per mount. Every click of Choose plan therefore shares a single
@@ -386,7 +395,12 @@ export function BillingPage() {
             description={`Payment is handled by our payment provider. ${getAppName()} never sees your card.`}
           />
           <CardBody>
-            {plans.isError ? (
+            {!maySubscribe ? (
+              <p className="text-ink-muted text-[0.8125rem] leading-5">
+                This agency has been set to close, so a new subscription cannot be started. An owner
+                or administrator can restore it from Settings first.
+              </p>
+            ) : plans.isError ? (
               <ErrorState
                 error={plans.error}
                 title="Plans could not be loaded"

@@ -1,5 +1,5 @@
 import { getSupabaseClient } from '@/lib/supabase/client'
-import { AppError, toAppError } from '@/lib/supabase/errors'
+import { AppError, functionErrorKind, toAppError } from '@/lib/supabase/errors'
 import type {
   BillingAccessState,
   BillingHistoryRow,
@@ -56,10 +56,7 @@ async function unwrapFunctionError(error: unknown): Promise<never> {
     try {
       const body = (await context.clone().json()) as FunctionErrorBody
       if (body?.error?.message) {
-        throw new AppError(
-          body.error.category === 'permission_denied' ? 'permission' : 'validation',
-          body.error.message,
-        )
+        throw new AppError(functionErrorKind(body.error.category), body.error.message)
       }
     } catch (parsed) {
       if (parsed instanceof AppError) throw parsed
