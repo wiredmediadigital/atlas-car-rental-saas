@@ -4,7 +4,10 @@
  * Sends the emails that follow a closure request: one to every owner and
  * administrator, and one to the operator as a backstop (the agency is asked to
  * cancel its own Stripe subscription; the operator acts only if it is still live
- * past the purge date). The browser calls it right after a successful request;
+ * past the purge date). It also sends the operator the email that follows a
+ * RESTORE, which withdraws that backstop and says a cancelled subscription has
+ * to be restarted by a person. Owners and administrators are not emailed on
+ * restore. The browser calls it right after a successful request;
  * also drained daily (see .github/workflows/account-closure.yml) with the
  * runner secret, so a closed tab never loses an email.
  *
@@ -39,6 +42,7 @@ import {
   type NoticeDeps,
   resolveNoticeCaller,
   type PendingNotice,
+  type PendingRestoreNotice,
 } from '../_shared/closure-notice.ts'
 import { resolveAppOrigin } from '../_shared/team-email.ts'
 
@@ -72,12 +76,22 @@ function toNotice(row: any): PendingNotice {
   }
 }
 
+// deno-lint-ignore no-explicit-any
+function toRestoreNotice(row: any): PendingRestoreNotice {
+  return {
+    organizationId: row.organization_id,
+    organizationName: row.organization_name,
+    restoredAt: row.restored_at,
+    closingAgain: row.closing_again === true,
+  }
+}
+
 /** `organizationId` null drains every agency with an owed notice (the scheduled run). */
 function buildDeps(service: SupabaseClient, organizationId: string | null): NoticeDeps {
   return {
-    listPending: async () => {
+    listPending: async (onlyOrganizationId) => {
       const { data, error } = await service.schema('app').rpc('closure_notices_pending', {
-        p_organization_id: organizationId,
+        p_organization_id: onlyOrganizationId ?? organizationId,
       })
       if (error) throw new Error('pending lookup failed')
       return (data ?? []).map(toNotice)
@@ -93,6 +107,25 @@ function buildDeps(service: SupabaseClient, organizationId: string | null): Noti
         p_requested_at: notice.requestedAt,
       })
       if (error) throw new Error('record failed')
+    },
+    // A restored agency has closure_requested_at null, so closure_notices_pending
+    // can never list it: the restore notices have their own finder.
+    listRestorePending: async (onlyOrganizationId) => {
+      const { data, error } = await service.schema('app').rpc('closure_restore_notices_pending', {
+        p_organization_id: onlyOrganizationId ?? organizationId,
+      })
+      if (error) throw new Error('restore pending lookup failed')
+      return (data ?? []).map(toRestoreNotice)
+    },
+    recordRestore: async (notice, update) => {
+      const { error } = await service.schema('app').rpc('closure_restore_notice_record', {
+        p_organization_id: notice.organizationId,
+        p_state: update.state,
+        p_detail: update.detail,
+        // The restore this attempt was for: a newer restore makes this a no-op.
+        p_restored_at: notice.restoredAt,
+      })
+      if (error) throw new Error('restore record failed')
     },
   }
 }

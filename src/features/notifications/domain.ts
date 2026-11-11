@@ -181,6 +181,17 @@ export function describe(row: NotificationRow): NotificationCopy {
     }
 
     /*
+     * Restore. The person reading this may be an owner who did not do it, so the
+     * title says it was reversed; nothing is promised about billing, which a
+     * restore does not touch.
+     */
+    case 'account_closure_restored':
+      return {
+        title: `${subject} was restored`,
+        detail: 'The closure was withdrawn.',
+      }
+
+    /*
      * Billing. Said about OUR subscription, never about a rental payment — and
      * never in words that claim more than Stripe told us. "A payment did not go
      * through" is what an invoice attempt failing means; "your card was
