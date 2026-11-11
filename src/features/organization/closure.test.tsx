@@ -2,9 +2,10 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ReactNode } from 'react'
-import { MemoryRouter } from 'react-router-dom'
+import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { RequirePermission } from '@/app/routes/guards'
 import { ToastProvider } from '@/components/ui'
 import { RestrictedBanner } from '@/features/billing/components/RestrictedBanner'
 import { SUPPORT_EMAIL } from '@/features/help/constants'
@@ -17,10 +18,66 @@ import {
 import { PERMISSIONS, isWithdrawnWhenClosing, type Permission } from '@/lib/authz/permissions'
 import type { Organization, OrganizationMember, OrgRole } from '@/types/database'
 
+import { BillingPage } from '@/pages/billing/BillingPage'
+
 import { requestClosure, restoreAccount } from './api'
 import { CloseAccountCard } from './components/CloseAccountCard'
 import { ClosureBanner } from './components/ClosureBanner'
 import { closureStateOf, type ClosureState } from './closure'
+
+/*
+ * Only the Billing page's own reads are replaced, so the page itself, the route
+ * guard and canOpenPortal are the real ones.
+ */
+vi.mock('@/features/billing/queries', async (importOriginal) => {
+  const actual = await importOriginal<Record<string, unknown>>()
+  const idle = { isPending: false, isError: false, mutate: vi.fn() }
+  return {
+    ...actual,
+    useBillingPlatform: () => ({ data: undefined }),
+    useBillingOverview: () => ({
+      isPending: false,
+      isError: false,
+      refetch: vi.fn(),
+      data: {
+        access_state: 'subscribed',
+        platform_configured: true,
+        stripe_configured: true,
+        catalog_configured: true,
+        mode: 'test',
+        has_customer: true,
+        billing_email: null,
+        subscription_id: 'sub_1',
+        status: 'active',
+        plan_key: 'pro',
+        plan_name: 'Pro',
+        currency: 'eur',
+        amount_minor: 1000,
+        billing_interval: 'month',
+        interval_count: 1,
+        current_period_start: null,
+        current_period_end: null,
+        cancel_scheduled: false,
+        cancel_effective_at: null,
+        canceled_at: null,
+        ended_at: null,
+        trial_end: null,
+        payment_failed_at: null,
+        latest_invoice_status: null,
+        synced_at: null,
+        pending_checkout: false,
+        pending_checkout_at: null,
+        active_members: 1,
+        active_vehicles: 1,
+      },
+    }),
+    useBillingPlans: () => ({ isPending: false, isError: false, data: [] }),
+    useBillingHistory: () => ({ data: [] }),
+    useStartCheckout: () => idle,
+    useOpenPortal: () => idle,
+    useReconcileBilling: () => idle,
+  }
+})
 
 vi.mock('./api', () => ({
   requestClosure: vi.fn(),
@@ -200,20 +257,23 @@ describe('CloseAccountCard', () => {
     ).toBeInTheDocument()
   })
 
-  it('says the subscription keeps billing until it is cancelled, at the moment of deciding', async () => {
+  it('says the agency cancels its own subscription in Manage billing, at the moment of deciding', async () => {
     /*
-     * The Terms say so; the confirmation dialog did not, and that is where the
-     * belief forms. Cancelling the Stripe subscription is a deliberate manual
-     * operator step, so an owner who closes on the 2nd is still charged on the
-     * 5th unless somebody acts.
+     * Closing never touches the money, so an owner who closes on the 2nd is
+     * still charged on the 5th unless the agency cancels. The agency, not the
+     * operator, is the party who does that, from Manage billing, and the
+     * deletion waits until the subscription has ended.
      */
     const user = userEvent.setup()
     renderWith(workspace('owner', 'open'), <CloseAccountCard />)
     await user.click(closeButton()!)
 
     const dialog = within(screen.getByRole('dialog')).getByRole('list')
-    expect(dialog.textContent ?? '').toMatch(/subscription/i)
-    expect(dialog.textContent ?? '').toMatch(/cancel/i)
+    const text = dialog.textContent ?? ''
+    expect(text).toMatch(/subscription (is not cancelled|keeps running)/i)
+    expect(text).toMatch(/you cancel it yourself from Manage billing/i)
+    expect(text).toMatch(/deleted until the subscription has ended/i)
+    expect(text).not.toMatch(/we cancel it/i)
   })
 
   it('says purging sooner is a request, and offers no control for it', async () => {
@@ -342,6 +402,32 @@ describe('ClosureBanner', () => {
     }
   })
 
+  it('tells the owner to cancel from Manage billing, with a link to Billing', () => {
+    renderWith(workspace('owner', 'suspended'), <ClosureBanner />)
+    const text = screen.getByRole('status').textContent ?? ''
+    expect(text).toMatch(/subscription keeps running/i)
+    expect(text).toMatch(/cancel it from Manage billing in Billing/i)
+    expect(text).toMatch(/deleted until the subscription has ended/i)
+    expect(screen.getByRole('link', { name: 'Billing' })).toHaveAttribute('href', '/billing')
+  })
+
+  it('names the owner for everyone else, with no link they could not follow', () => {
+    /*
+     * Only an owner reaches /billing: RequirePermission uses raw can(), and
+     * billing.manage is owner-only. Telling an admin, manager or member to go
+     * there sends them to "You do not have access to this section".
+     */
+    for (const role of ['admin', 'manager', 'staff'] as const) {
+      const { unmount } = renderWith(workspace(role, 'suspended'), <ClosureBanner />)
+      const text = screen.getByRole('status').textContent ?? ''
+      expect(text).toMatch(/subscription keeps running/i)
+      expect(text).toMatch(/an owner can cancel it from Manage billing/i)
+      expect(text).toMatch(/deleted until the subscription has ended/i)
+      expect(screen.queryByRole('link', { name: 'Billing' })).not.toBeInTheDocument()
+      unmount()
+    }
+  })
+
   it('gives every role a mailto link to support while suspended', () => {
     for (const role of ['owner', 'admin', 'manager', 'staff'] as const) {
       const { unmount } = renderWith(workspace(role, 'suspended'), <ClosureBanner />)
@@ -385,6 +471,42 @@ describe('billing banner and closure banner together', () => {
     const value = { ...workspace('owner', 'open'), billingAccessState: 'restricted' as const }
     renderWith(value, <RestrictedBanner />)
     expect(screen.getByText(/starting a subscription/i)).toBeInTheDocument()
+  })
+})
+
+describe('Billing stays reachable for a suspended owner', () => {
+  /*
+   * The Terms promise Manage billing "stays available while the account is
+   * suspended", and the closure dialog and banner send the owner there to cancel.
+   * That holds only because RequirePermission uses raw can() while
+   * usePermission('billing.manage') is deliberately 'withdrawn' for a closing
+   * agency. Tighten the route guard to usePermission and the promise is false,
+   * and the first sign would be a customer who cannot do what we told them to.
+   */
+  function renderBilling(role: OrgRole, state: ClosureState) {
+    return renderWith(
+      workspace(role, state),
+      <Routes>
+        <Route element={<RequirePermission permission="billing.manage" />}>
+          <Route path="/" element={<BillingPage />} />
+        </Route>
+      </Routes>,
+    )
+  }
+
+  it('shows a suspended owner the Billing page and its Manage billing button', () => {
+    renderBilling('owner', 'suspended')
+
+    expect(screen.queryByText(/you do not have access to this section/i)).not.toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Billing' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Manage billing' })).toBeInTheDocument()
+  })
+
+  it('still refuses an administrator, as the banner wording assumes', () => {
+    renderBilling('admin', 'suspended')
+
+    expect(screen.getByText(/you do not have access to this section/i)).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Manage billing' })).not.toBeInTheDocument()
   })
 })
 

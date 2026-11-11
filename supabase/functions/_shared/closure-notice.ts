@@ -8,10 +8,12 @@
  *   be purged, and that anyone who owns or administers the agency can take it
  *   back from Settings.
  *
- *   OPERATOR. Adera Labs is told to cancel the agency's Stripe subscription.
- *   That cancellation is manual by design, and the purge refuses to run while a
- *   subscription is live, so this message is the only thing standing between a
- *   closure request and an agency being billed for an account it asked to close.
+ *   OPERATOR. Adera Labs is told a closure happened, as a backstop. The agency
+ *   is asked to cancel its own Stripe subscription from Manage billing; nothing
+ *   cancels it automatically, by design, so that restoring stays a clean undo.
+ *   The purge refuses to run while a subscription is live, so this message is
+ *   how the operator learns which agency to look at if it is still live by the
+ *   purge date.
  *
  * THIS MODULE DECIDES NOTHING ABOUT WHO MAY SEND. It sends what the database says
  * is pending (see closure_notices_pending) and reports what it observed. A failed
@@ -83,7 +85,7 @@ export interface NoticeDeps {
 
 export interface NoticeConfig {
   readonly transport: EmailTransportConfig
-  /** Where the Stripe-cancellation notice goes. Server configuration, never `VITE_`. */
+  /** Where the operator backstop notice goes. Server configuration, never `VITE_`. */
   readonly operatorAddress: string | undefined
   /** The application's own origin, for the restore link. Null omits the link. */
   readonly appOrigin: URL | null
@@ -94,7 +96,7 @@ export interface NoticeReport {
   /**
    * Operator notices attempted this run that the provider did not accept (or that
    * had nowhere to go). The scheduled drain turns a non-zero count into a failed
-   * job: the operator email is the only prompt to cancel the subscription.
+   * job: the operator email is the only way the operator learns of a closure.
    */
   readonly operatorUndelivered: number
 }
@@ -156,29 +158,20 @@ function membersDocument(notice: PendingNotice, origin: URL | null): EmailDocume
 function operatorDocument(notice: PendingNotice): EmailDocument {
   const day = purgeDay(notice.purgeAfter)
   return {
-    preheader: `Cancel the Stripe subscription for ${notice.organizationName}.`,
+    preheader: `${notice.organizationName} has asked to close; purge on ${day}.`,
     paragraphs: [
       [{ strong: notice.organizationName }, ' has asked to close its account.'],
       [
-        { strong: 'Cancel its subscription in Stripe now.' },
-        ' Cancellation is a manual step. Until it is done the agency will keep being billed, ',
-        'and the purge on ',
+        'Its data is due to be purged on ',
         { strong: day },
-        ' will refuse to run while a subscription is live.',
+        '. The agency has been asked to cancel its own subscription from Manage billing.',
+      ],
+      [
+        { strong: 'No action is needed now.' },
+        ' If its subscription is still live after that date, cancel it in Stripe so the ',
+        'deletion can proceed: the purge refuses to run while a subscription is live.',
       ],
       [`Agency id: ${notice.organizationId}`],
-      /*
-       * ONE INSTRUCTION. This used to add "in which case the subscription
-       * should not be cancelled", which cannot be followed alongside "cancel it
-       * now": the purge refuses while a subscription is live, so cancelling now
-       * is the step that lets the deletion happen at all. Restarting it if the
-       * agency comes back is the consequence, and it is what the Terms and the
-       * restore control both promise.
-       */
-      [
-        'If the agency restores itself before then, start its subscription again: a restored ',
-        'agency stays read-only until it is paying.',
-      ],
     ],
   }
 }
@@ -266,7 +259,7 @@ async function sendOperatorNotice(
   const to = (config.operatorAddress ?? '').trim()
   if (!to) {
     // The one place this gap can be seen: the state column is read by nobody, and
-    // a missing address means the Stripe cancellation is never prompted. A fixed
+    // a missing address means the operator never learns of the closure. A fixed
     // line, with no address and no agency, so it is safe in any log.
     console.error('account-closure-notice: no operator address configured')
     await recordSafely(deps, notice, {
@@ -276,7 +269,7 @@ async function sendOperatorNotice(
     return false
   }
 
-  const subject = `Cancel the Stripe subscription: ${oneLine(notice.organizationName)} is closing`
+  const subject = `Account closure: ${oneLine(notice.organizationName)} is closing`
   const outcome = await sendOne(to, subject, operatorDocument(notice), config, send)
   const state = aggregate([outcome])
   if (state === 'failed') {
