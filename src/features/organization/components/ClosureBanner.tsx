@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { paths } from '@/app/routes/paths'
 import { Alert } from '@/components/ui'
 import { useOrganization, useWorkspace } from '@/features/workspace/workspace-context'
+import { can } from '@/lib/authz/permissions'
 
 import { CLOSURE_WINDOW_DAYS, canRestoreAgency, formatPurgeDate } from '../closure'
 import { useClosureState } from '../queries'
@@ -50,10 +51,21 @@ export function ClosureBanner() {
     )
   }
 
-  return <SuspendedBanner canRestore={canRestoreAgency(role, state)} />
+  return (
+    <SuspendedBanner
+      canRestore={canRestoreAgency(role, state)}
+      canOpenBilling={can(role, 'billing.manage')}
+    />
+  )
 }
 
-function SuspendedBanner({ canRestore }: { canRestore: boolean }) {
+function SuspendedBanner({
+  canRestore,
+  canOpenBilling,
+}: {
+  canRestore: boolean
+  canOpenBilling: boolean
+}) {
   const organization = useOrganization()
   const purgeDate = formatPurgeDate(organization)
 
@@ -83,11 +95,26 @@ function SuspendedBanner({ canRestore }: { canRestore: boolean }) {
           : 'Ask an owner or administrator of this agency to restore it.'}
       </p>
       <p className="mt-1">
-        The subscription keeps running until it is cancelled. Cancel it from Manage billing in{' '}
-        <Link to={paths.billing} className="underline underline-offset-2">
-          Billing
-        </Link>
-        . Nothing is deleted until the subscription has ended.
+        {/*
+          Gated on raw can(), NOT usePermission: usePermission withdraws
+          billing.manage for a suspended agency, owner included, which would
+          strip the link from the one person who can use it. The /billing route
+          guard uses raw can() as well, so everyone else would land on "You do
+          not have access to this section".
+        */}
+        The subscription keeps running until it is cancelled.{' '}
+        {canOpenBilling ? (
+          <>
+            Cancel it from Manage billing in{' '}
+            <Link to={paths.billing} className="underline underline-offset-2">
+              Billing
+            </Link>
+            .
+          </>
+        ) : (
+          'An owner can cancel it from Manage billing.'
+        )}{' '}
+        Nothing is deleted until the subscription has ended.
       </p>
       <p className="mt-1">
         Questions, or need the data deleted sooner? Email <SupportLink />.

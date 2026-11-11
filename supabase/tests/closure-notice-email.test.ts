@@ -120,6 +120,15 @@ describe('the email to the operator', () => {
     expect(m.text).toContain('2026-12-10')
   })
 
+  it('has a preheader that names the agency and the purge date and says it was only requested', async () => {
+    const h = harness([notice])
+    await sendClosureNotices(h.deps, config, h.send)
+
+    const m = h.sent.find((s) => s.to[0] === OPERATOR)!
+    expect(m.html).toContain('Atlas Rentals has asked to close; purge on 2026-12-10.')
+    expect(m.html).not.toContain('has closed its account')
+  })
+
   it('never tells the operator to cancel now, which would break the grace-period undo', async () => {
     /*
      * Cancelling at request time would make a restore bring back an agency with

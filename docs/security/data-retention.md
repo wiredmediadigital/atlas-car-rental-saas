@@ -143,7 +143,8 @@ the purge.
 **Subscription cancellation is the agency's, not automatic.** Closing never
 cancels the Stripe subscription, so that restoring stays a clean undo. The agency
 is told in the closure dialog, the suspension banner and the Terms to cancel it
-itself from Manage billing, which stays available while it is suspended. The
+itself from Manage billing, which stays available while it is suspended. Only an
+owner can open Billing, so the banner tells everyone else that an owner can. The
 purge refuses to run while a live subscription exists, so deletion waits for it.
 The operator is emailed when closure is requested as a backstop: if the
 subscription is still live past the purge date, the operator cancels it so the
