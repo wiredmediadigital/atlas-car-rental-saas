@@ -239,3 +239,30 @@ describe('when there is nothing to send', () => {
     expect(report.organizations).toBe(0)
   })
 })
+
+describe('the report the scheduled drain acts on', () => {
+  it('counts an operator notice the provider did not accept', async () => {
+    const h = harness([notice])
+    const failing = vi.fn(() =>
+      Promise.resolve(new Response('no', { status: 500 })),
+    ) as unknown as typeof fetch
+    const report = await sendClosureNotices(h.deps, config, failing)
+    expect(report.operatorUndelivered).toBe(1)
+  })
+
+  it('counts an operator notice with no address configured', async () => {
+    const h = harness([notice])
+    const report = await sendClosureNotices(
+      h.deps,
+      { ...config, operatorAddress: undefined },
+      h.send,
+    )
+    expect(report.operatorUndelivered).toBe(1)
+  })
+
+  it('reports zero when the operator notice was accepted', async () => {
+    const h = harness([notice])
+    const report = await sendClosureNotices(h.deps, config, h.send)
+    expect(report.operatorUndelivered).toBe(0)
+  })
+})

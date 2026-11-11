@@ -20,7 +20,7 @@ License: MIT — see [LICENSE](./LICENSE).
 | `VITE_SUPABASE_URL`             | Build environment (inlined at build time) | Supabase → Project Settings → API → Project URL.                                                                                             |
 | `VITE_SUPABASE_PUBLISHABLE_KEY` | Build environment (inlined at build time) | The publishable key (`VITE_SUPABASE_ANON_KEY` is still accepted). The app refuses to start if a secret or `service_role` key is pasted here. |
 | Database schema                 | `supabase/migrations/`, applied in order  | `supabase db push`, or paste each file into the SQL editor. Nothing is created by hand.                                                      |
-| Edge Functions                  | `supabase functions deploy <name>`        | `team-invitations`, `gps-provider`, `billing`, `billing-webhook`.                                                                            |
+| Edge Functions                  | `supabase functions deploy <name>`        | `team-invitations`, `gps-provider`, `billing`, `billing-webhook`, `account-closure`, `account-closure-notice`.                               |
 | Auth redirect URLs              | Supabase → Auth → URL Configuration       | The application origin, plus `/auth/callback`, `/accept-invite`, `/auth/reset-password` and `/confirm-email`.                                |
 | Application base URL            | Wherever the static build is served       | `dist/` is a static SPA; `public/.htaccess` supplies the Apache/LiteSpeed rewrite.                                                           |
 
@@ -123,6 +123,24 @@ no sitemap.
    Stripe subscription. If it is missing, a closed agency keeps being billed while its
    data sits unpurged, and nothing in the product says so. The function logs
    `account-closure-notice: no operator address configured` when it is unset.
+8. **Account closure is scheduled.** Without this, closures suspend but nothing is ever
+   purged, and an operator notice that failed its first attempt is never retried.
+   - **Migrations applied**, after `npx supabase db push --dry-run`, in order:
+     `20261108100000_account_closure_state`, `20261108100100_account_closure_actions`,
+     `20261108100200_account_closure_purge`, `20261110100000_account_closure_notice_values`,
+     `20261110100100_account_closure_notices`,
+     `20261110100200_account_closure_notice_retries` and
+     `20261110100300_account_closure_operator_uncapped`. Item 2 confirms none is pending.
+   - **Both Edge Functions deployed**: `account-closure` and `account-closure-notice`.
+   - **`ACCOUNT_CLOSURE_RUNNER_SECRET`** set with `supabase secrets set`: at least 32
+     random characters, never a `VITE_` value. Shorter, or unset, and both functions
+     refuse every caller.
+   - **The same value as the GitHub Actions repository secret**
+     `ACCOUNT_CLOSURE_RUNNER_SECRET`, plus the repository variable `SUPABASE_FUNCTIONS_URL`
+     (`https://<ref>.supabase.co/functions/v1`). The workflow
+     `.github/workflows/account-closure.yml` runs daily at 03:17 UTC and by hand
+     (Actions, Run workflow). Run it once by hand and confirm both steps are green. A red
+     run is the alarm: a notice or a purge did not complete.
 
 ## Deleting an agency
 

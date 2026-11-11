@@ -29,12 +29,26 @@ import {
   renderEmailHtml,
   renderEmailText,
 } from './email-layout.ts'
+import { isAuthorizedRunner } from './account-closure.ts'
 import {
   deliverMessage,
   type DeliveryOutcome,
   type DeliveryState,
   type EmailTransportConfig,
 } from './team-email.ts'
+
+export type NoticeCaller = 'runner' | 'user' | 'refused'
+
+/**
+ * Who is calling. The runner secret (the same one the purge runner uses) means
+ * the scheduled drain over every agency; any other bearer token is a user
+ * session that the caller must still verify; no bearer token is refused.
+ * An unset or short secret can never produce 'runner'.
+ */
+export function resolveNoticeCaller(authorization: string | null, secret: string): NoticeCaller {
+  if (authorization === null || !/^Bearer\s+\S+/i.test(authorization.trim())) return 'refused'
+  return isAuthorizedRunner(authorization, secret) ? 'runner' : 'user'
+}
 
 export interface PendingNotice {
   readonly organizationId: string
@@ -68,6 +82,12 @@ export interface NoticeConfig {
 
 export interface NoticeReport {
   readonly organizations: number
+  /**
+   * Operator notices attempted this run that the provider did not accept (or that
+   * had nowhere to go). The scheduled drain turns a non-zero count into a failed
+   * job: the operator email is the only prompt to cancel the subscription.
+   */
+  readonly operatorUndelivered: number
 }
 
 const MEMBERS_DETAIL = {
@@ -214,7 +234,7 @@ async function sendOperatorNotice(
   notice: PendingNotice,
   config: NoticeConfig,
   send: typeof fetch,
-): Promise<void> {
+): Promise<boolean> {
   const to = (config.operatorAddress ?? '').trim()
   if (!to) {
     // The one place this gap can be seen: the state column is read by nobody, and
@@ -225,7 +245,7 @@ async function sendOperatorNotice(
       operator: 'not_configured',
       detail: OPERATOR_DETAIL.not_configured,
     })
-    return
+    return false
   }
 
   const subject = `Cancel the Stripe subscription: ${oneLine(notice.organizationName)} is closing`
@@ -241,6 +261,7 @@ async function sendOperatorNotice(
     operator: state,
     detail: OPERATOR_DETAIL[state],
   })
+  return state === 'accepted_by_provider'
 }
 
 /**
@@ -256,10 +277,13 @@ export async function sendClosureNotices(
 ): Promise<NoticeReport> {
   const pending = await deps.listPending()
 
+  let operatorUndelivered = 0
   for (const notice of pending) {
-    if (notice.sendOperator) await sendOperatorNotice(deps, notice, config, send)
+    if (notice.sendOperator && !(await sendOperatorNotice(deps, notice, config, send))) {
+      operatorUndelivered += 1
+    }
     if (notice.sendMembers) await sendMembersNotice(deps, notice, config, send)
   }
 
-  return { organizations: pending.length }
+  return { organizations: pending.length, operatorUndelivered }
 }

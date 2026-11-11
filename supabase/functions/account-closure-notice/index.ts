@@ -3,8 +3,9 @@
  *
  * Sends the emails that follow a closure request: one to every owner and
  * administrator, and one to the operator saying to cancel the agency's Stripe
- * subscription. The browser calls it right after a successful request; Task 7
- * will also drain it on a schedule, so a closed tab never loses an email.
+ * subscription. The browser calls it right after a successful request;
+ * also drained daily (see .github/workflows/account-closure.yml) with the
+ * runner secret, so a closed tab never loses an email.
  *
  * AUTHORIZATION. `verify_jwt` is off (this project's keys are not JWTs), so the
  * caller is established here: the Authorization header must be a live user
@@ -28,6 +29,7 @@ import { createClient, type SupabaseClient } from 'jsr:@supabase/supabase-js@2'
 import {
   sendClosureNotices,
   type NoticeDeps,
+  resolveNoticeCaller,
   type PendingNotice,
 } from '../_shared/closure-notice.ts'
 import { resolveAppOrigin } from '../_shared/team-email.ts'
@@ -61,7 +63,8 @@ function toNotice(row: any): PendingNotice {
   }
 }
 
-function buildDeps(service: SupabaseClient, organizationId: string): NoticeDeps {
+/** `organizationId` null drains every agency with an owed notice (the scheduled run). */
+function buildDeps(service: SupabaseClient, organizationId: string | null): NoticeDeps {
   return {
     listPending: async () => {
       const { data, error } = await service.schema('app').rpc('closure_notices_pending', {
@@ -91,8 +94,40 @@ Deno.serve(async (request) => {
   const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
   if (!supabaseUrl || !anonKey || !serviceKey) return json({ ok: false }, 500)
 
-  const authorization = request.headers.get('Authorization') ?? ''
-  if (!authorization.toLowerCase().startsWith('bearer ')) return json({ ok: false }, 401)
+  const runnerSecret = Deno.env.get('ACCOUNT_CLOSURE_RUNNER_SECRET') ?? ''
+  const authorization = request.headers.get('Authorization')
+  const caller = resolveNoticeCaller(authorization, runnerSecret)
+  if (caller === 'refused') return json({ ok: false }, 401)
+
+  const config = {
+    transport: {
+      provider: Deno.env.get('TEAM_EMAIL_PROVIDER'),
+      apiKey: Deno.env.get('TEAM_EMAIL_API_KEY'),
+      from: Deno.env.get('TEAM_EMAIL_FROM'),
+    },
+    operatorAddress: Deno.env.get('CLOSURE_OPERATOR_EMAIL'),
+    appOrigin: resolveAppOrigin(Deno.env.get('TEAM_APP_URL')),
+  }
+
+  if (caller === 'runner') {
+    // The scheduled drain: every agency with an owed notice. A failed operator
+    // send stays pending and is retried next run, but must not pass silently, so
+    // it (or a run that could not read or record) answers 500 and fails the job.
+    try {
+      const service = createClient(supabaseUrl, serviceKey, {
+        auth: { persistSession: false, autoRefreshToken: false },
+      })
+      const report = await sendClosureNotices(buildDeps(service, null), config)
+      // An operator notice nobody accepted is a failed run, not a quiet success.
+      const ok = report.operatorUndelivered === 0
+      return json({ ok, organizations: report.organizations }, ok ? 200 : 500)
+    } catch (error) {
+      console.error(
+        `account-closure-notice drain failed: ${error instanceof Error ? error.name : 'unknown'}`,
+      )
+      return json({ ok: false }, 500)
+    }
+  }
 
   let organizationId = ''
   try {
@@ -123,15 +158,7 @@ Deno.serve(async (request) => {
       auth: { persistSession: false, autoRefreshToken: false },
     })
 
-    const report = await sendClosureNotices(buildDeps(service, organizationId), {
-      transport: {
-        provider: Deno.env.get('TEAM_EMAIL_PROVIDER'),
-        apiKey: Deno.env.get('TEAM_EMAIL_API_KEY'),
-        from: Deno.env.get('TEAM_EMAIL_FROM'),
-      },
-      operatorAddress: Deno.env.get('CLOSURE_OPERATOR_EMAIL'),
-      appOrigin: resolveAppOrigin(Deno.env.get('TEAM_APP_URL')),
-    })
+    const report = await sendClosureNotices(buildDeps(service, organizationId), config)
 
     return json({ ok: true, organizations: report.organizations })
   } catch (error) {

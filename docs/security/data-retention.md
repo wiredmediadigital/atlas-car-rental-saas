@@ -58,7 +58,7 @@ that instruction.
 | Vehicles and their documents | `vehicles`, `vehicle_documents`, `vehicle_images` + buckets | Agency's choice |
 | Expenses and receipts | `expenses`, `expense_attachments` + `expense-receipts` bucket | Agency's choice |
 | Financing | `financing_*` + `financing-documents` bucket | Agency's choice |
-| Vehicle location history | `gps_positions` | **No limit today — see Gap 1** |
+| Vehicle location history | `gps_positions` | **No limit while the account is open — see Gap 1, still open**; deleted when the account is purged |
 | GPS sync attempts | `gps_sync_runs` | Newest 50 per connection, enforced by a database trigger |
 | GPS provider credentials | `gps_provider_credentials` | Until the connection is removed |
 | Notifications | `notifications`, `notification_events`, `notification_states` | While the account is open |
@@ -108,7 +108,7 @@ offered the chance to do so before an account is closed.
 
 ---
 
-## 5. Gaps — known, and not yet closed
+## 5. Gaps — known, and whether they are closed
 
 These are recorded because an undocumented gap is the one an auditor finds.
 
@@ -123,21 +123,26 @@ grows for three years."* `gps_sync_runs` is trimmed by a trigger;
 **Proposed:** an agency-configurable retention window, defaulting to 12
 months, enforced in the database rather than by a scheduled script.
 **Until then:** location history is kept indefinitely, and the privacy policy
-should not imply otherwise.
+should not imply otherwise. **Gap 1 remains open.** Account closure deletes
+`gps_positions` along with the rest of an agency's data, but only when the agency
+closes; it is not a retention rule for an agency that stays.
 
-### Gap 2 — there is no account-closure path
+### Gap 2 — there is no account-closure path — **CLOSED**
 
-The privacy policy says that when an account is closed its data is deleted or
-anonymised. No such path exists: `organizations` has no `archived_at`, and
-there is no deletion or purge routine. Today an account is abandoned rather
-than closed.
+Closed by the account-closure feature (design:
+`docs/superpowers/specs/2026-11-08-account-closure-design.md`). An owner requests
+closure; the agency is suspended (read-only, labelled, purge date shown,
+restorable in one click) and a runner purges it 30 days later, or sooner only
+when Adera Labs actions it. The purge deletes the tenant's rows and storage
+objects, and its members' sign-ins where this was their last agency; it retains
+the billing records tax law requires and leaves a counts-only evidence record.
+The Terms and privacy policy now describe it. A daily scheduled workflow
+(`.github/workflows/account-closure.yml`) drains the operator notices and runs
+the purge.
 
-**This is a commitment the product does not keep**, and closing it is the
-highest-priority item arising from this document.
-
-**Proposed:** a closure routine that exports on request, deletes processor
-data, retains the billing minimum required by tax law, and records what was
-done and when.
+**Still manual:** cancelling the agency's Stripe subscription. The operator is
+emailed when closure is requested, and the purge refuses to run while a live
+subscription exists.
 
 ### Gap 3 — statutory billing periods unconfirmed
 
