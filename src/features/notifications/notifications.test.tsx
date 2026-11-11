@@ -207,6 +207,22 @@ describe('what the copy claims', () => {
     }
   })
 
+  it('says that the agency was set to close, and when its data will be deleted', () => {
+    const copy = describeNotification(
+      row({
+        category: 'team',
+        kind: 'account_closure_requested',
+        subject_label: 'Atlas Cars',
+        context: { purge_after: '2026-12-10T10:00:00+00:00' },
+      }),
+    )
+
+    expect(copy.title).toMatch(/closed|close/i)
+    expect(copy.title).toContain('Atlas Cars')
+    expect(copy.detail).toContain('2026-12-10')
+    expect(copy.detail).toMatch(/restore/i)
+  })
+
   it('still says something for a kind this build has never heard of', () => {
     /*
      * The same defect from the other direction, and the one a type cannot

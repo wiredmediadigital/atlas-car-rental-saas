@@ -1762,6 +1762,7 @@ export type NotificationKind =
   | 'team_ownership_transferred'
   | 'team_role_changed'
   | 'team_member_removed'
+  | 'account_closure_requested'
   | 'billing_subscription_activated'
   | 'billing_payment_failed'
   | 'billing_payment_recovered'

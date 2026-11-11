@@ -50,6 +50,18 @@ itself as unconfigured rather than pretending to work.
 administrator is handed a one-time link to pass on themselves. Nothing claims an
 email was sent.
 
+### Account-closure notices
+
+| Secret                   | Turns on                                                                                                                                      |
+| ------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| `CLOSURE_OPERATOR_EMAIL` | Where the operator is told to cancel an agency's Stripe subscription when it asks to close. Server-side only: never give it a `VITE_` prefix. |
+
+Delivery reuses `TEAM_APP_URL`, `TEAM_EMAIL_PROVIDER`, `TEAM_EMAIL_API_KEY` and
+`TEAM_EMAIL_FROM` from above. **Without them the closure still works** and owners and
+administrators still see the in-app notification, but nobody is emailed and the
+operator is not prompted to cancel the subscription. The database records the notice
+as `not_configured` rather than sent.
+
 ### GPS tracking
 
 A Wialon account and token, entered by an administrator inside the product — not a

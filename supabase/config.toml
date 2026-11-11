@@ -543,3 +543,12 @@ verify_jwt = false
 # agency's subscription is a manual step.
 [functions.account-closure]
 verify_jwt = false
+
+# Sends the emails that follow a closure request: owners and administrators, and
+# the operator (cancel the agency's Stripe subscription). Called by the browser
+# right after the request, so verify_jwt is off for the same reason as the
+# runner above and the function authenticates the caller itself: a live user
+# session that can see the agency. It sends only what the database says is still
+# pending for that agency.
+[functions.account-closure-notice]
+verify_jwt = false

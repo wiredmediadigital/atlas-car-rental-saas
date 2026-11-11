@@ -58,6 +58,7 @@ function Glyph({ kind }: { kind: NotificationKind }) {
     case 'team_role_changed':
     case 'team_member_removed':
       return <Users className={className} />
+    case 'account_closure_requested':
     case 'billing_payment_failed':
     case 'billing_attention_required':
       return <AlertTriangle className={className} />

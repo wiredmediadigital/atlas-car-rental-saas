@@ -14,7 +14,24 @@ export async function requestClosure(organizationId: string): Promise<Organizati
     p_organization_id: organizationId,
   })
   if (error) throw toAppError(error)
+
+  // The request has committed and the in-app notification with it. The emails
+  // are sent by a separate function, and a failure to send one must never undo
+  // or mask the closure the owner just chose, so every failure here is dropped.
+  // The notice stays pending in the database and is sent on a later attempt.
+  // Not awaited: sending takes seconds, and the owner should not wait on it.
+  void sendClosureNotices(organizationId)
   return data
+}
+
+async function sendClosureNotices(organizationId: string): Promise<void> {
+  try {
+    await getSupabaseClient().functions.invoke('account-closure-notice', {
+      body: { organization_id: organizationId },
+    })
+  } catch {
+    // Deliberately silent: see requestClosure.
+  }
 }
 
 /** Withdraws a pending closure. Owner or administrator; refused once the purge has started. */
