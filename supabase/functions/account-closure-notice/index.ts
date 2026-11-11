@@ -8,20 +8,27 @@
  * runner secret, so a closed tab never loses an email.
  *
  * AUTHORIZATION. `verify_jwt` is off (this project's keys are not JWTs), so the
- * caller is established here: the Authorization header must be a live user
- * session, and that user must be able to see the agency named in the body
- * (row-level security answers that through their own client). What the call can
- * cause is bounded by the database: it sends only what `closure_notices_pending`
- * says is still pending for that one agency, so a member calling repeatedly
- * cannot make it send anything that was not already owed.
+ * caller is established here, and there are TWO kinds:
+ *   - the scheduler: the Authorization bearer equals ACCOUNT_CLOSURE_RUNNER_SECRET
+ *     (`resolveNoticeCaller`, constant time, a short or unset secret never
+ *     matches). It drains every agency with an owed notice and needs no body.
+ *   - a user: any other bearer must be a live user session, and that user must be
+ *     able to see the agency named in the body (row-level security answers that
+ *     through their own client). It sends only what `closure_notices_pending`
+ *     says is still owed for that one agency, so a member calling repeatedly
+ *     cannot make it send anything that was not already owed.
+ * No bearer at all is a bare 401. A user session can never reach the drain.
  *
  * This file is a Deno shim and decides nothing: the messages, their order and
  * the recorded outcomes live in `_shared/closure-notice.ts`, where they are
  * tested. The service-role client is used only for the two functions that are
  * granted to it alone.
  *
- * A FAILED EMAIL NEVER FAILS THE CALLER'S REQUEST: this endpoint answers 200 with
- * a count whatever the provider did. NOTHING HERE LOGS AN ADDRESS, A BODY OR A KEY.
+ * A FAILED EMAIL NEVER FAILS A USER'S REQUEST: the user path answers 200 with a
+ * count whatever the provider did. The RUNNER path differs on purpose: it answers
+ * 500 when an operator notice was not accepted (or a run could not read or
+ * record), so the scheduled job goes red. The operator email is the only prompt
+ * to cancel the Stripe subscription. NOTHING HERE LOGS AN ADDRESS, A BODY OR A KEY.
  */
 
 import { createClient, type SupabaseClient } from 'jsr:@supabase/supabase-js@2'
@@ -92,7 +99,8 @@ Deno.serve(async (request) => {
   const supabaseUrl = Deno.env.get('SUPABASE_URL')
   const anonKey = Deno.env.get('SUPABASE_ANON_KEY')
   const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
-  if (!supabaseUrl || !anonKey || !serviceKey) return json({ ok: false }, 500)
+  if (!supabaseUrl || !anonKey || !serviceKey)
+    return json({ ok: false, reason: 'not configured' }, 500)
 
   const runnerSecret = Deno.env.get('ACCOUNT_CLOSURE_RUNNER_SECRET') ?? ''
   const authorization = request.headers.get('Authorization')
@@ -120,12 +128,22 @@ Deno.serve(async (request) => {
       const report = await sendClosureNotices(buildDeps(service, null), config)
       // An operator notice nobody accepted is a failed run, not a quiet success.
       const ok = report.operatorUndelivered === 0
-      return json({ ok, organizations: report.organizations }, ok ? 200 : 500)
+      return json(
+        ok
+          ? { ok, organizations: report.organizations }
+          : {
+              ok,
+              organizations: report.organizations,
+              operatorUndelivered: report.operatorUndelivered,
+              reason: 'operator notice not accepted',
+            },
+        ok ? 200 : 500,
+      )
     } catch (error) {
       console.error(
         `account-closure-notice drain failed: ${error instanceof Error ? error.name : 'unknown'}`,
       )
-      return json({ ok: false }, 500)
+      return json({ ok: false, reason: 'drain aborted' }, 500)
     }
   }
 
