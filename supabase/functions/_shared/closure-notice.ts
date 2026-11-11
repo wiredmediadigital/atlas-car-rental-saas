@@ -158,7 +158,7 @@ function membersDocument(notice: PendingNotice, origin: URL | null): EmailDocume
 function operatorDocument(notice: PendingNotice): EmailDocument {
   const day = purgeDay(notice.purgeAfter)
   return {
-    preheader: `${notice.organizationName} has closed its account; purge on ${day}.`,
+    preheader: `${notice.organizationName} has asked to close; purge on ${day}.`,
     paragraphs: [
       [{ strong: notice.organizationName }, ' has asked to close its account.'],
       [
