@@ -574,6 +574,55 @@ describe('reading everything, or failing', () => {
   })
 })
 
+describe('a table nobody decided about', () => {
+  /*
+   * 20261108100200's header says the purge "refuses to start, having deleted
+   * nothing, if they disagree". That was true of app.organization_purge_data
+   * and false of the feature: finishOrganization swept Storage FIRST, and the
+   * catalogue check lived inside purge_data. So the day somebody added a table
+   * carrying organization_id without listing it, every due agency lost its
+   * entire Storage contents -- passport scans, licence scans, condition photos,
+   * contracts -- irreversibly, and only then did the check raise. The
+   * transaction rolled back, so the rows survived; the objects did not, and the
+   * agency was left 'purging', which organization_restore refuses.
+   */
+  it('stops a whole organization before a single object is removed', async () => {
+    const world = new World()
+    const a = await newAgency(world, 'Kilo')
+    await request(a.organizationId)
+    await db.sql(`create table public.stray_ledger (
+                    id uuid primary key default gen_random_uuid(),
+                    organization_id uuid not null)`)
+
+    try {
+      const report = await run(world)
+
+      // Nothing swept, and the agency is still exactly where it was.
+      expect(world.removeCalls).toEqual([])
+      for (const key of a.keys) expect(world.storage.has(`customer-documents/${key}`)).toBe(true)
+      expect(await count('customer_documents', a.organizationId)).toBe(5)
+      expect(await state(a.organizationId)).toBe('suspended')
+      expect(await userExists(a.owner)).toBe(true)
+
+      // And it is loud: not claimed, named as a failure, and the run is red.
+      const outcome = report.outcomes.find((o) => o.organizationId === a.organizationId)
+      expect(outcome?.status).toBe('failed')
+      expect(outcome?.detail).toMatch(/disagree/i)
+      expect(report.needsAttention).toBe(true)
+
+      // Still restorable, which is the whole point of refusing the claim.
+      await db.sql(
+        `update public.organizations set closure_requested_at = null,
+            closure_requested_by = null, closure_purge_after = null where id = $1`,
+        [a.organizationId],
+      )
+      expect(await state(a.organizationId)).toBe('open')
+    } finally {
+      await db.sql(`drop table public.stray_ledger`)
+    }
+  }, 60_000)
+})
+
 describe('the caller check', () => {
   const SECRET = 'r'.repeat(48)
 
