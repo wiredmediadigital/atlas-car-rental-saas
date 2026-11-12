@@ -68,6 +68,23 @@ export async function completeEnrolment(factorId: string, code: string): Promise
   await verifyCode(factorId, code)
 }
 
+/**
+ * Removes a factor the user holds, so that a new one can take its place.
+ *
+ * This is the replace path in Settings, and it needs the aal2 session the user
+ * already has to be there. It leaves the account with NO second factor until a
+ * new one is verified, which is why the screen that offers it says so and why
+ * the guard sends the user straight to enrolment afterwards: an account that is
+ * required to have a factor and has none can reach nothing until it does.
+ *
+ * Losing an authenticator this way also abandons the recovery codes it was
+ * minted with — enrolment issues a fresh set, replacing them.
+ */
+export async function removeFactor(factorId: string): Promise<void> {
+  const { error } = await getSupabaseClient().auth.mfa.unenroll({ factorId })
+  if (error) throw toAppError(error)
+}
+
 /** Passes the second-factor challenge for an already verified factor. */
 export async function challenge(factorId: string, code: string): Promise<void> {
   await verifyCode(factorId, code)

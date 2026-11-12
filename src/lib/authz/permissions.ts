@@ -86,6 +86,14 @@ export const PERMISSIONS = {
   'team.remove': 'admin',
   'team.history': 'admin',
   'team.transferOwnership': 'owner',
+  /*
+   * Removing another member's second factor. An owner's alone, which is what
+   * supabase/functions/_shared/mfa-reset.ts enforces — this entry only decides
+   * whether the control is rendered. It is a write, so the interface withdraws
+   * it from a restricted or closing agency along with everything else; a member
+   * locked out of one still has their own recovery codes.
+   */
+  'team.resetFactor': 'owner',
 
   'vehicles.view': 'staff',
   'vehicles.create': 'manager',

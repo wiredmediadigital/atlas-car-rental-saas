@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { paths } from '@/app/routes/paths'
 import { ToastProvider } from '@/components/ui'
+import { SecondFactorContext, type SecondFactorGate } from '@/features/auth/second-factor-context'
 import { AppError } from '@/lib/supabase/errors'
 
 import { EnrollFactorPage } from './EnrollFactorPage'
@@ -25,22 +26,35 @@ vi.mock('@/features/auth/mfa-recovery', () => ({
   generateRecoveryCodes: mfa.generateRecoveryCodes,
 }))
 
+/** The shared answer the guard above the application is holding. */
+const refresh = vi.fn()
+const gate: SecondFactorGate = {
+  state: { status: 'none', factorId: null },
+  level: 'aal1',
+  isLoading: false,
+  refresh: () => {
+    refresh()
+  },
+}
+
 const CODES = Array.from({ length: 10 }, (_, index) => `CODE00000${index}`)
 const SECRET = 'JBSWY3DPEHPK3PXP'
 
 function renderPage(from?: string) {
   const entry = from ? { pathname: paths.enrollFactor, state: { from } } : paths.enrollFactor
   return render(
-    <ToastProvider>
-      <MemoryRouter initialEntries={[entry]}>
-        <Routes>
-          <Route path={paths.enrollFactor} element={<EnrollFactorPage />} />
-          <Route path={paths.challengeFactor} element={<p>challenge screen</p>} />
-          <Route path={paths.overview} element={<p>overview screen</p>} />
-          <Route path="/rentals" element={<p>rentals screen</p>} />
-        </Routes>
-      </MemoryRouter>
-    </ToastProvider>,
+    <SecondFactorContext.Provider value={gate}>
+      <ToastProvider>
+        <MemoryRouter initialEntries={[entry]}>
+          <Routes>
+            <Route path={paths.enrollFactor} element={<EnrollFactorPage />} />
+            <Route path={paths.challengeFactor} element={<p>challenge screen</p>} />
+            <Route path={paths.overview} element={<p>overview screen</p>} />
+            <Route path="/rentals" element={<p>rentals screen</p>} />
+          </Routes>
+        </MemoryRouter>
+      </ToastProvider>
+    </SecondFactorContext.Provider>,
   )
 }
 
@@ -61,6 +75,7 @@ beforeEach(() => {
   })
   mfa.completeEnrolment.mockResolvedValue(undefined)
   mfa.generateRecoveryCodes.mockResolvedValue(CODES)
+  refresh.mockReset()
 })
 
 describe('EnrollFactorPage scan step', () => {
@@ -124,6 +139,22 @@ describe('EnrollFactorPage scan step', () => {
 
     expect(await screen.findByText('challenge screen')).toBeVisible()
     expect(mfa.beginEnrolment).not.toHaveBeenCalled()
+  })
+})
+
+describe('what enrolment tells the rest of the application', () => {
+  it('refreshes the shared factor state as soon as the first code is proved', async () => {
+    /*
+     * Without this the guard above the application is still holding "no factor,
+     * aal1" when the user finishes, and sends them straight back here — forever,
+     * on the first sign-in of every account.
+     */
+    renderPage()
+    expect(refresh).not.toHaveBeenCalled()
+
+    await enterCode('123456')
+
+    await waitFor(() => expect(refresh).toHaveBeenCalled())
   })
 })
 

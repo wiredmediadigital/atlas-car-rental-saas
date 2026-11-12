@@ -3,6 +3,7 @@ import { type ReactNode, useState } from 'react'
 
 import { ToastProvider } from '@/components/ui'
 import { AuthProvider } from '@/features/auth/AuthProvider'
+import { SecondFactorProvider } from '@/features/auth/SecondFactorProvider'
 import { toAppError } from '@/lib/supabase/errors'
 
 function createQueryClient(): QueryClient {
@@ -36,7 +37,14 @@ export function AppProviders({ children }: { children: ReactNode }) {
   return (
     <QueryClientProvider client={queryClient}>
       <ToastProvider>
-        <AuthProvider>{children}</AuthProvider>
+        <AuthProvider>
+          {/*
+           * Above the router, because the guard and the second-factor screens
+           * are different branches of it and must share one answer: the screens
+           * are the only things that can tell the guard they have changed it.
+           */}
+          <SecondFactorProvider>{children}</SecondFactorProvider>
+        </AuthProvider>
       </ToastProvider>
     </QueryClientProvider>
   )

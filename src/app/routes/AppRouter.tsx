@@ -11,6 +11,7 @@ import {
   RequireNoOrganization,
   RequireOrganization,
   RequirePermission,
+  RequireSecondFactor,
   WithWorkspace,
 } from './guards'
 import { paths } from './paths'
@@ -301,137 +302,144 @@ export function AppRouter() {
           {/* Authenticated — except `/`, which a signed-out visitor sees the
               public marketing page for instead of being sent to sign in. */}
           <Route element={<RequireAuth publicHome={<MarketingHomePage />} />}>
-            <Route element={<WithWorkspace />}>
-              <Route element={<RequireNoOrganization />}>
-                <Route path={paths.createAgency} element={<CreateAgencyPage />} />
-              </Route>
+            {/*
+             * Before WithWorkspace, and that order is load-bearing: an aal1
+             * session is refused tenant data, so a workspace that mounted first
+             * would read nothing and show a broken agency rather than a prompt.
+             */}
+            <Route element={<RequireSecondFactor />}>
+              <Route element={<WithWorkspace />}>
+                <Route element={<RequireNoOrganization />}>
+                  <Route path={paths.createAgency} element={<CreateAgencyPage />} />
+                </Route>
 
-              <Route element={<RequireOrganization />}>
-                <Route element={<AppShell />}>
-                  <Route path={paths.overview} element={<OverviewPage />} />
-                  <Route path={paths.settings} element={<SettingsPage />} />
+                <Route element={<RequireOrganization />}>
+                  <Route element={<AppShell />}>
+                    <Route path={paths.overview} element={<OverviewPage />} />
+                    <Route path={paths.settings} element={<SettingsPage />} />
 
-                  {/* Fleet. Creation is gated separately from viewing, so staff
+                    {/* Fleet. Creation is gated separately from viewing, so staff
                       can look up a vehicle without being offered Add. */}
-                  <Route element={<RequirePermission permission="vehicles.view" />}>
-                    <Route path={paths.vehicles} element={<VehiclesPage />} />
-                    <Route path={paths.vehicleDetail} element={<VehicleDetailPage />} />
-                    <Route element={<RequirePermission permission="vehicles.create" />}>
-                      <Route path={paths.vehicleNew} element={<VehicleNewPage />} />
+                    <Route element={<RequirePermission permission="vehicles.view" />}>
+                      <Route path={paths.vehicles} element={<VehiclesPage />} />
+                      <Route path={paths.vehicleDetail} element={<VehicleDetailPage />} />
+                      <Route element={<RequirePermission permission="vehicles.create" />}>
+                        <Route path={paths.vehicleNew} element={<VehicleNewPage />} />
+                      </Route>
                     </Route>
-                  </Route>
 
-                  {/* Tracking. Viewing sits with the manager, not the desk: a
+                    {/* Tracking. Viewing sits with the manager, not the desk: a
                       vehicle's position during an active rental is a customer's
                       movements. Connecting a provider and assigning a device are
                       gated separately again, inside the page. */}
-                  <Route element={<RequirePermission permission="gps.view" />}>
-                    <Route path={paths.gpsTracking} element={<GpsTrackingPage />} />
-                  </Route>
+                    <Route element={<RequirePermission permission="gps.view" />}>
+                      <Route path={paths.gpsTracking} element={<GpsTrackingPage />} />
+                    </Route>
 
-                  {/* Rentals. Viewing is gated separately from creating, so a
+                    {/* Rentals. Viewing is gated separately from creating, so a
                       read-only role can look a contract up without being
                       offered New rental. */}
-                  <Route element={<RequirePermission permission="rentals.view" />}>
-                    <Route path={paths.rentals} element={<RentalsPage />} />
-                    <Route path={paths.rentalDetail} element={<RentalDetailPage />} />
-                    <Route element={<RequirePermission permission="rentals.create" />}>
-                      <Route path={paths.rentalNew} element={<RentalNewPage />} />
-                    </Route>
+                    <Route element={<RequirePermission permission="rentals.view" />}>
+                      <Route path={paths.rentals} element={<RentalsPage />} />
+                      <Route path={paths.rentalDetail} element={<RentalDetailPage />} />
+                      <Route element={<RequirePermission permission="rentals.create" />}>
+                        <Route path={paths.rentalNew} element={<RentalNewPage />} />
+                      </Route>
 
-                    {/* The Calendar reads the same rentals under the same
+                      {/* The Calendar reads the same rentals under the same
                         permission: it is a view over the domain, not a second
                         way into it. */}
-                    <Route path={paths.calendar} element={<CalendarPage />} />
-                  </Route>
+                      <Route path={paths.calendar} element={<CalendarPage />} />
+                    </Route>
 
-                  {/* Customers. Viewing is gated separately from creating, so
+                    {/* Customers. Viewing is gated separately from creating, so
                       a read-only role can look somebody up without being
                       offered Add. */}
-                  <Route element={<RequirePermission permission="customers.view" />}>
-                    <Route path={paths.customers} element={<CustomersPage />} />
-                    <Route path={paths.customerDetail} element={<CustomerDetailPage />} />
-                    <Route element={<RequirePermission permission="customers.create" />}>
-                      <Route path={paths.customerNew} element={<CustomerNewPage />} />
+                    <Route element={<RequirePermission permission="customers.view" />}>
+                      <Route path={paths.customers} element={<CustomersPage />} />
+                      <Route path={paths.customerDetail} element={<CustomerDetailPage />} />
+                      <Route element={<RequirePermission permission="customers.create" />}>
+                        <Route path={paths.customerNew} element={<CustomerNewPage />} />
+                      </Route>
                     </Route>
-                  </Route>
 
-                  {/* Costs. Reading the ledger is what most of the desk needs;
+                    {/* Costs. Reading the ledger is what most of the desk needs;
                       recording one is a separate permission again. */}
-                  <Route element={<RequirePermission permission="expenses.view" />}>
-                    <Route path={paths.expenses} element={<ExpensesPage />} />
-                    <Route path={paths.expenseDetail} element={<ExpenseDetailPage />} />
-                    <Route element={<RequirePermission permission="expenses.create" />}>
-                      <Route path={paths.expenseNew} element={<ExpenseNewPage />} />
+                    <Route element={<RequirePermission permission="expenses.view" />}>
+                      <Route path={paths.expenses} element={<ExpensesPage />} />
+                      <Route path={paths.expenseDetail} element={<ExpenseDetailPage />} />
+                      <Route element={<RequirePermission permission="expenses.create" />}>
+                        <Route path={paths.expenseNew} element={<ExpenseNewPage />} />
+                      </Route>
                     </Route>
-                  </Route>
 
-                  {/* Financing. Viewing is a manager's; recording an agreement
+                    {/* Financing. Viewing is a manager's; recording an agreement
                       or a lender payment is an administrator's, because both
                       move a balance the agency owes. */}
-                  <Route element={<RequirePermission permission="financing.view" />}>
-                    <Route path={paths.financing} element={<FinancingPage />} />
-                    <Route path={paths.financingDetail} element={<FinancingDetailPage />} />
-                    <Route element={<RequirePermission permission="financing.create" />}>
-                      <Route path={paths.financingNew} element={<FinancingNewPage />} />
-                    </Route>
-                    {/* Correcting a draft is an update, not a creation: an
+                    <Route element={<RequirePermission permission="financing.view" />}>
+                      <Route path={paths.financing} element={<FinancingPage />} />
+                      <Route path={paths.financingDetail} element={<FinancingDetailPage />} />
+                      <Route element={<RequirePermission permission="financing.create" />}>
+                        <Route path={paths.financingNew} element={<FinancingNewPage />} />
+                      </Route>
+                      {/* Correcting a draft is an update, not a creation: an
                         agency that may fix a wrong agreement is not thereby
                         allowed to add new ones. The page refuses anything
                         that is no longer a draft. */}
-                    <Route element={<RequirePermission permission="financing.update" />}>
-                      <Route path={paths.financingEdit} element={<FinancingEditPage />} />
+                      <Route element={<RequirePermission permission="financing.update" />}>
+                        <Route path={paths.financingEdit} element={<FinancingEditPage />} />
+                      </Route>
                     </Route>
-                  </Route>
 
-                  {/* Reports. A manager's, like Financing and Tracking: it
+                    {/* Reports. A manager's, like Financing and Tracking: it
                       combines financial, customer and location data, and the
                       front desk needs none of it. */}
-                  <Route element={<RequirePermission permission="reports.view" />}>
-                    <Route path={paths.reports} element={<ReportsPage />} />
-                  </Route>
+                    <Route element={<RequirePermission permission="reports.view" />}>
+                      <Route path={paths.reports} element={<ReportsPage />} />
+                    </Route>
 
-                  {/* Notifications. No permission of its own: the feed decides
+                    {/* Notifications. No permission of its own: the feed decides
                       per category what this member may be told, so the page is
                       safe for anybody with a membership and shows each person a
                       different list. */}
-                  <Route path={paths.notifications} element={<NotificationsPage />} />
+                    <Route path={paths.notifications} element={<NotificationsPage />} />
 
-                  {/* Team. Every member may see who else is here; the actions
+                    {/* Team. Every member may see who else is here; the actions
                       that change membership are gated inside the page and, far
                       more importantly, in the database. */}
-                  <Route element={<RequirePermission permission="team.view" />}>
-                    <Route path={paths.team} element={<TeamPage />} />
-                  </Route>
+                    <Route element={<RequirePermission permission="team.view" />}>
+                      <Route path={paths.team} element={<TeamPage />} />
+                    </Route>
 
-                  {/* Billing. Owner-only, and the database says so too: an
+                    {/* Billing. Owner-only, and the database says so too: an
                       administrator who types the URL is refused by
                       billing_overview, not by a missing menu entry. */}
-                  <Route element={<RequirePermission permission="billing.manage" />}>
-                    <Route path={paths.billing} element={<BillingPage />} />
-                    <Route path={paths.billingReturn} element={<BillingReturnPage />} />
+                    <Route element={<RequirePermission permission="billing.manage" />}>
+                      <Route path={paths.billing} element={<BillingPage />} />
+                      <Route path={paths.billingReturn} element={<BillingReturnPage />} />
+                    </Route>
+
+                    {upcomingModules.map(({ path, ...module }) => {
+                      const permission = permissionForPath.get(path)
+                      const element = <ModulePage {...module} />
+
+                      return permission ? (
+                        <Route key={path} element={<RequirePermission permission={permission} />}>
+                          <Route path={path} element={element} />
+                        </Route>
+                      ) : (
+                        <Route key={path} path={path} element={element} />
+                      )
+                    })}
+
+                    {/*
+                     * The catch-all lives inside the shell rather than at the top
+                     * level, so an unknown path is still subject to RequireAuth:
+                     * a signed-out visitor is sent to sign in, a signed-in one
+                     * gets a not-found page with navigation still around them.
+                     */}
+                    <Route path="*" element={<NotFoundPage />} />
                   </Route>
-
-                  {upcomingModules.map(({ path, ...module }) => {
-                    const permission = permissionForPath.get(path)
-                    const element = <ModulePage {...module} />
-
-                    return permission ? (
-                      <Route key={path} element={<RequirePermission permission={permission} />}>
-                        <Route path={path} element={element} />
-                      </Route>
-                    ) : (
-                      <Route key={path} path={path} element={element} />
-                    )
-                  })}
-
-                  {/*
-                   * The catch-all lives inside the shell rather than at the top
-                   * level, so an unknown path is still subject to RequireAuth:
-                   * a signed-out visitor is sent to sign in, a signed-in one
-                   * gets a not-found page with navigation still around them.
-                   */}
-                  <Route path="*" element={<NotFoundPage />} />
                 </Route>
               </Route>
             </Route>

@@ -15,6 +15,7 @@ import {
   Select,
   useToast,
 } from '@/components/ui'
+import { memberResetErrorMessage } from '@/features/auth/mfa-messages'
 import { InvitationsPanel } from '@/features/team/components/InvitationsPanel'
 import { InviteDialog } from '@/features/team/components/InviteDialog'
 import { ManualLinkDialog } from '@/features/team/components/ManualLinkDialog'
@@ -22,6 +23,7 @@ import {
   ChangeRoleDialog,
   LeaveOrganizationDialog,
   RemoveMemberDialog,
+  ResetFactorDialog,
   TransferOwnershipDialog,
 } from '@/features/team/components/MembershipDialogs'
 import { TeamActivity } from '@/features/team/components/TeamActivity'
@@ -36,6 +38,7 @@ import {
   useLeaveOrganization,
   useRemoveMember,
   useResendInvitation,
+  useResetMemberFactor,
   useRevokeInvitation,
   useTeamEvents,
   useTeamInvitations,
@@ -81,6 +84,8 @@ export function TeamPage() {
   const [roleTarget, setRoleTarget] = useState<TeamMemberRow | null>(null)
   const [removeTarget, setRemoveTarget] = useState<TeamMemberRow | null>(null)
   const [transferTarget, setTransferTarget] = useState<TeamMemberRow | null>(null)
+  const [factorTarget, setFactorTarget] = useState<TeamMemberRow | null>(null)
+  const [factorError, setFactorError] = useState<string | null>(null)
   const [leaveOpen, setLeaveOpen] = useState(false)
   const [actionError, setActionError] = useState<string | null>(null)
   const [busyInvitation, setBusyInvitation] = useState<string | null>(null)
@@ -130,6 +135,7 @@ export function TeamPage() {
   const remove = useRemoveMember()
   const leave = useLeaveOrganization()
   const transfer = useTransferOwnership()
+  const resetFactor = useResetMemberFactor()
 
   const members = useMemo(() => membersQuery.data ?? [], [membersQuery.data])
 
@@ -195,6 +201,21 @@ export function TeamPage() {
     leave.mutate(undefined, {
       onSuccess: () => setLeaveOpen(false),
       onError: (error) => setActionError(toErrorMessage(error)),
+    })
+  }
+
+  const handleResetFactor = () => {
+    if (!factorTarget) return
+    setFactorError(null)
+    resetFactor.mutate(factorTarget.user_id, {
+      onSuccess: () => {
+        toast.success(
+          'Two-factor reset',
+          `${factorTarget.display_name} will set up a new authenticator the next time they sign in.`,
+        )
+        setFactorTarget(null)
+      },
+      onError: (error) => setFactorError(memberResetErrorMessage(error)),
     })
   }
 
@@ -335,6 +356,10 @@ export function TeamPage() {
                 setRemoveTarget(member)
               }}
               onTransferOwnership={setTransferTarget}
+              onResetFactor={(member) => {
+                setFactorError(null)
+                setFactorTarget(member)
+              }}
               onLeave={() => {
                 setActionError(null)
                 setLeaveOpen(true)
@@ -521,6 +546,14 @@ export function TeamPage() {
           )
           setTransferTarget(null)
         }}
+      />
+
+      <ResetFactorDialog
+        member={factorTarget}
+        isPending={resetFactor.isPending}
+        error={factorError}
+        onCancel={() => setFactorTarget(null)}
+        onConfirm={handleResetFactor}
       />
 
       <LeaveOrganizationDialog

@@ -10,6 +10,7 @@ import { AuthLayout } from '@/features/auth/components/AuthLayout'
 import { challenge, listFactorState } from '@/features/auth/mfa'
 import { verificationErrorMessage } from '@/features/auth/mfa-messages'
 import { type TotpCodeInput, totpCodeSchema } from '@/features/auth/schemas'
+import { useSecondFactorGate } from '@/features/auth/second-factor-context'
 import { toErrorMessage } from '@/lib/supabase/errors'
 
 type Phase =
@@ -32,6 +33,7 @@ export function ChallengeFactorPage() {
   const location = useLocation()
   const routeState: unknown = location.state
   const state = routeState as LocationState | null
+  const { refresh } = useSecondFactorGate()
 
   const [phase, setPhase] = useState<Phase>({ kind: 'loading' })
   const [attempt, setAttempt] = useState(0)
@@ -81,6 +83,9 @@ export function ChallengeFactorPage() {
       setFormError(verificationErrorMessage(error))
       return
     }
+    // The guard sent the user here because this session was aal1. It still
+    // believes that, and would send them straight back, so it is told first.
+    refresh()
     // Return the user to wherever they were headed before the redirect.
     void navigate(state?.from ?? paths.overview, { replace: true })
   })

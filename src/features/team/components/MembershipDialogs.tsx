@@ -339,3 +339,60 @@ export function TransferOwnershipDialog({
     </Dialog>
   )
 }
+
+// -----------------------------------------------------------------------------
+
+export interface ResetFactorDialogProps {
+  member: TeamMemberRow | null
+  isPending: boolean
+  error: string | null
+  onCancel: () => void
+  onConfirm: () => void
+}
+
+/**
+ * Removing a member's authenticator.
+ *
+ * The last resort for somebody who has lost their phone and their recovery
+ * codes with it. What the copy insists on is that this is not a way in: the
+ * member is not signed in by it and cannot reach anything until they have set
+ * up a new authenticator — an owner who expects to have "fixed" their
+ * colleague's account will otherwise read the next phone call as the product
+ * being broken.
+ */
+export function ResetFactorDialog({
+  member,
+  isPending,
+  error,
+  onCancel,
+  onConfirm,
+}: ResetFactorDialogProps) {
+  return (
+    <ConfirmDialog
+      open={member !== null}
+      onOpenChange={(open) => !open && onCancel()}
+      title={member ? `Reset two-factor for ${member.display_name}?` : 'Reset two-factor'}
+      confirmLabel="Reset two-factor"
+      tone="danger"
+      isPending={isPending}
+      onConfirm={onConfirm}
+    >
+      <div className="space-y-3 text-[0.8125rem] leading-5">
+        {error ? <Alert tone="critical">{error}</Alert> : null}
+        <p>
+          Their authenticator app is removed. This does not sign them in and it does not change
+          their password.
+        </p>
+        <p>
+          The next time they sign in they will have to set up a new authenticator before they can
+          reach anything. They are given a fresh set of recovery codes when they do, and any codes
+          they still hold stop working at that point.
+        </p>
+        <p className="text-ink-muted">
+          Do this only once you are sure it is really them asking — anyone who can have a second
+          factor removed can be locked out of their own account by somebody else asking for it.
+        </p>
+      </div>
+    </ConfirmDialog>
+  )
+}

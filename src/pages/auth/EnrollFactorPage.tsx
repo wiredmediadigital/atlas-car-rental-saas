@@ -16,6 +16,7 @@ import {
 import { verificationErrorMessage } from '@/features/auth/mfa-messages'
 import { generateRecoveryCodes } from '@/features/auth/mfa-recovery'
 import { type TotpCodeInput, totpCodeSchema } from '@/features/auth/schemas'
+import { useSecondFactorGate } from '@/features/auth/second-factor-context'
 import { toErrorMessage } from '@/lib/supabase/errors'
 
 type Phase =
@@ -42,6 +43,7 @@ export function EnrollFactorPage() {
   const location = useLocation()
   const routeState: unknown = location.state
   const state = routeState as LocationState | null
+  const { refresh } = useSecondFactorGate()
 
   const [phase, setPhase] = useState<Phase>({ kind: 'preparing' })
   const [attempt, setAttempt] = useState(0)
@@ -74,6 +76,15 @@ export function EnrollFactorPage() {
   }
 
   const loadCodes = async () => {
+    /*
+     * The guard above the application is still holding the answer it read before
+     * any of this started — no factor, aal1. Without this it sends the user
+     * straight back here when they leave, forever, on every first sign-in.
+     *
+     * It happens here rather than on Continue so that the read has settled while
+     * the recovery codes are being written down, and the way out is instant.
+     */
+    refresh()
     try {
       setPhase({ kind: 'codes', codes: await generateRecoveryCodes() })
     } catch (error) {

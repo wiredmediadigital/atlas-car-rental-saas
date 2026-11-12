@@ -8,6 +8,7 @@ import {
   challenge,
   completeEnrolment,
   listFactorState,
+  removeFactor,
 } from './mfa'
 
 const FACTOR_CEILING = 10
@@ -222,6 +223,33 @@ describe('completeEnrolment and challenge', () => {
   it('converts a completeEnrolment failure with toAppError', async () => {
     backend.failNext = { op: 'verify', error: NETWORK_FAILURE }
     await expect(completeEnrolment('x', '1')).rejects.toMatchObject({ kind: 'network' })
+  })
+})
+
+describe('removeFactor', () => {
+  it('removes the named factor and leaves the account with none', async () => {
+    backend.factors = [totp('factor-1', 'verified')]
+
+    await removeFactor('factor-1')
+
+    expect(backend.calls).toEqual(['unenroll:factor-1'])
+    await expect(listFactorState()).resolves.toEqual({ status: 'none', factorId: null })
+  })
+
+  it('touches nothing else the user has enrolled', async () => {
+    backend.factors = [totp('factor-1', 'verified'), totp('factor-2', 'unverified')]
+
+    await removeFactor('factor-1')
+
+    expect(backend.factors.map((factor) => factor.id)).toEqual(['factor-2'])
+  })
+
+  it('throws an app error rather than reporting a removal that did not happen', async () => {
+    backend.factors = [totp('factor-1', 'verified')]
+    backend.failNext = { op: 'unenroll', error: NETWORK_FAILURE }
+
+    await expect(removeFactor('factor-1')).rejects.toBeInstanceOf(AppError)
+    expect(backend.factors).toHaveLength(1)
   })
 })
 

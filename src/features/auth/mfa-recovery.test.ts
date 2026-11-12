@@ -2,7 +2,12 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { AppError } from '@/lib/supabase/errors'
 
-import { FactorResetError, generateRecoveryCodes, resetOwnFactor } from './mfa-recovery'
+import {
+  FactorResetError,
+  generateRecoveryCodes,
+  resetMemberFactor,
+  resetOwnFactor,
+} from './mfa-recovery'
 
 const client = vi.hoisted(() => ({
   rpc: vi.fn(),
@@ -93,5 +98,41 @@ describe('resetOwnFactor', () => {
 
     const failure = (await resetOwnFactor('ABCDEFGHJK').catch((error: unknown) => error)) as Error
     expect(`${failure.name} ${failure.message}`).not.toContain('ABCDEFGHJK')
+  })
+})
+
+describe('resetMemberFactor', () => {
+  it('asks the mfa-reset function to reset that member of that agency', async () => {
+    client.invoke.mockResolvedValue({ data: { ok: true, factorsRemoved: 1 }, error: null })
+
+    await resetMemberFactor({ subjectUserId: 'user-2', organizationId: 'org-1' })
+
+    expect(client.invoke).toHaveBeenCalledWith('mfa-reset', {
+      body: { mode: 'member', subjectUserId: 'user-2', organizationId: 'org-1' },
+    })
+  })
+
+  it.each([
+    [400, 'invalid_code'],
+    [403, 'not_permitted'],
+    [404, 'no_factor'],
+  ])('reports the reason behind a %i', async (status, reason) => {
+    client.invoke.mockResolvedValue(httpFailure(status, { ok: false, reason }))
+
+    await expect(
+      resetMemberFactor({ subjectUserId: 'user-2', organizationId: 'org-1' }),
+    ).rejects.toMatchObject({ reason })
+  })
+
+  it('never carries anything about the member beyond the reason', async () => {
+    client.invoke.mockResolvedValue(httpFailure(403, { ok: false, reason: 'not_permitted' }))
+
+    const error = await resetMemberFactor({
+      subjectUserId: 'user-2',
+      organizationId: 'org-1',
+    }).catch((cause: unknown) => cause)
+
+    expect(error).toBeInstanceOf(FactorResetError)
+    expect(JSON.stringify(error)).not.toContain('user-2')
   })
 })

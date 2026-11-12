@@ -54,6 +54,36 @@ export async function resetOwnFactor(recoveryCode: string): Promise<void> {
   throw new FactorResetError(await readReason(error))
 }
 
+/**
+ * An owner removes a member's authenticator.
+ *
+ * For the member who has lost their phone AND their recovery codes — the only
+ * remaining way back that does not involve the operator. Needs the owner's own
+ * aal2 session, which anyone inside the application already has: without that
+ * requirement, a password-only attacker holding an owner's password could strip
+ * every second factor in the agency.
+ *
+ * The server refuses an owner who names themselves. Removing your own factor is
+ * the recovery-code path and nothing else, so an owner cannot step around their
+ * own second factor by being an owner.
+ */
+export async function resetMemberFactor(input: {
+  readonly subjectUserId: string
+  readonly organizationId: string
+}): Promise<void> {
+  const invocation: { error: unknown } = await getSupabaseClient().functions.invoke('mfa-reset', {
+    body: {
+      mode: 'member',
+      subjectUserId: input.subjectUserId,
+      organizationId: input.organizationId,
+    },
+  })
+  const { error } = invocation
+  if (!error) return
+
+  throw new FactorResetError(await readReason(error))
+}
+
 /** supabase-js leaves a non-2xx body unread on `error.context`; the reason lives there. */
 async function readReason(error: unknown): Promise<ResetFailureReason> {
   if ((error as { name?: unknown }).name === 'FunctionsFetchError') return 'unreachable'

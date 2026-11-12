@@ -4,6 +4,7 @@ import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { paths } from '@/app/routes/paths'
+import { SecondFactorContext, type SecondFactorGate } from '@/features/auth/second-factor-context'
 import { AppError } from '@/lib/supabase/errors'
 
 import { ChallengeFactorPage } from './ChallengeFactorPage'
@@ -13,6 +14,17 @@ const mfa = vi.hoisted(() => ({
   challenge: vi.fn(),
 }))
 
+/** The shared answer the guard above the application is holding. */
+const refresh = vi.fn()
+const gate: SecondFactorGate = {
+  state: { status: 'verified', factorId: 'factor-1' },
+  level: 'aal1',
+  isLoading: false,
+  refresh: () => {
+    refresh()
+  },
+}
+
 vi.mock('@/features/auth/mfa', () => ({
   listFactorState: mfa.listFactorState,
   challenge: mfa.challenge,
@@ -21,15 +33,17 @@ vi.mock('@/features/auth/mfa', () => ({
 function renderPage(from?: string) {
   const entry = from ? { pathname: paths.challengeFactor, state: { from } } : paths.challengeFactor
   return render(
-    <MemoryRouter initialEntries={[entry]}>
-      <Routes>
-        <Route path={paths.challengeFactor} element={<ChallengeFactorPage />} />
-        <Route path={paths.recoverFactor} element={<p>recovery screen</p>} />
-        <Route path={paths.enrollFactor} element={<p>enrolment screen</p>} />
-        <Route path={paths.overview} element={<p>overview screen</p>} />
-        <Route path="/vehicles" element={<p>vehicles screen</p>} />
-      </Routes>
-    </MemoryRouter>,
+    <SecondFactorContext.Provider value={gate}>
+      <MemoryRouter initialEntries={[entry]}>
+        <Routes>
+          <Route path={paths.challengeFactor} element={<ChallengeFactorPage />} />
+          <Route path={paths.recoverFactor} element={<p>recovery screen</p>} />
+          <Route path={paths.enrollFactor} element={<p>enrolment screen</p>} />
+          <Route path={paths.overview} element={<p>overview screen</p>} />
+          <Route path="/vehicles" element={<p>vehicles screen</p>} />
+        </Routes>
+      </MemoryRouter>
+    </SecondFactorContext.Provider>,
   )
 }
 
@@ -44,6 +58,7 @@ beforeEach(() => {
   vi.resetAllMocks()
   mfa.listFactorState.mockResolvedValue({ status: 'verified', factorId: 'factor-1' })
   mfa.challenge.mockResolvedValue(undefined)
+  refresh.mockReset()
 })
 
 describe('ChallengeFactorPage', () => {
@@ -69,6 +84,16 @@ describe('ChallengeFactorPage', () => {
     await submitCode('123456')
 
     expect(await screen.findByText('overview screen')).toBeVisible()
+  })
+
+  it('refreshes the shared factor state before leaving, so the guard sees aal2', async () => {
+    // The guard sent the user here because the session was aal1. It still
+    // believes that, and would send them straight back.
+    renderPage('/vehicles')
+    await submitCode('123456')
+
+    expect(refresh).toHaveBeenCalled()
+    expect(await screen.findByText('vehicles screen')).toBeVisible()
   })
 
   it('shows an error on a wrong code, stays put, and allows another try', async () => {
