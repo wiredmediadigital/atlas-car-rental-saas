@@ -336,3 +336,47 @@ describe('Data processing terms', () => {
     expect(dpaText()).toMatch(/conflict about personal data, these win/i)
   })
 })
+
+/*
+ * A legal document is read by someone looking for one clause, and cited by
+ * its number. Both need the structure to be real markup rather than visual
+ * weight: a contents list that links somewhere, headings in the right order,
+ * and an id on every section so a lawyer can send a colleague the clause
+ * rather than the document.
+ */
+describe('Document structure', () => {
+  for (const [name, page] of [
+    ['Terms', <TermsPage key="t" />],
+    ['Privacy policy', <PrivacyPolicyPage key="p" />],
+    ['Data processing terms', <DataProcessingPage key="d" />],
+  ] as const) {
+    it(`${name}: has exactly one h1, and every section is an h2 beneath it`, () => {
+      renderPage(page)
+      expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1)
+      expect(screen.getAllByRole('heading', { level: 2 }).length).toBeGreaterThan(3)
+    })
+
+    it(`${name}: every contents entry points at a section that exists`, () => {
+      const { container } = renderPage(page)
+      const entries = Array.from(
+        container.querySelectorAll<HTMLAnchorElement>(
+          'nav[aria-labelledby="contents-heading"] a[href^="#"]',
+        ),
+      )
+      expect(entries.length).toBeGreaterThan(3)
+      for (const entry of entries) {
+        const id = entry.getAttribute('href')?.slice(1) ?? ''
+        expect(
+          container.querySelector(`section[id="${id}"]`),
+          `#${id} has no section`,
+        ).not.toBeNull()
+      }
+    })
+  }
+
+  it('does not skip from h2 to h4 where a section has parts', () => {
+    renderPage(<DataProcessingPage />)
+    expect(screen.getAllByRole('heading', { level: 3 }).length).toBeGreaterThan(0)
+    expect(screen.queryAllByRole('heading', { level: 4 })).toHaveLength(0)
+  })
+})

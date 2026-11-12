@@ -2,7 +2,7 @@ import { Link } from 'react-router-dom'
 
 import { paths } from '@/app/routes/paths'
 
-import { LegalLayout, LegalList, LegalSection } from './LegalLayout'
+import { LegalLayout, LegalList, LegalSection, LegalSubsection } from './LegalLayout'
 import { LEGAL } from './legal-config'
 
 /**
@@ -55,27 +55,34 @@ export function DataProcessingPage() {
       </LegalSection>
 
       <LegalSection heading="What we process, and for whom">
-        <p>
-          <strong>Why.</strong> So that {product} works for you: storing, displaying, searching,
-          exporting and deleting your records, generating the documents you ask for, and sending the
-          messages you trigger.
-        </p>
-        <p>
-          <strong>For how long.</strong> For as long as your agency has an account, and then as set
-          out under &ldquo;Giving it back, and deleting it&rdquo; below.
-        </p>
-        <p>
-          <strong>Whose data.</strong> The renters and drivers your agency records, the people named
-          on their documents, and your own staff who use the product.
-        </p>
-        <p>
-          <strong>What kind.</strong> Names and contact details; dates of birth, nationality and
-          address; identity and driving documents, including their numbers, issuing country, dates
-          and any scan uploaded — passports, national identity cards, residence permits and driving
-          licences; rental records, contracts, condition photographs, charges and payments; vehicle
-          location data where a GPS provider is connected; and anything written into a free-text
-          note.
-        </p>
+        <LegalSubsection heading="Why">
+          <p>
+            So that {product} works for you: storing, displaying, searching, exporting and deleting
+            your records, generating the documents you ask for, and sending the messages you
+            trigger.
+          </p>
+        </LegalSubsection>
+        <LegalSubsection heading="For how long">
+          <p>
+            For as long as your agency has an account, and then as set out under &ldquo;Giving it
+            back, and deleting it&rdquo; below.
+          </p>
+        </LegalSubsection>
+        <LegalSubsection heading="Whose data">
+          <p>
+            The renters and drivers your agency records, the people named on their documents, and
+            your own staff who use the product.
+          </p>
+        </LegalSubsection>
+        <LegalSubsection heading="What kind">
+          <p>
+            Names and contact details; dates of birth, nationality and address; identity and driving
+            documents, including their numbers, issuing country, dates and any scan uploaded —
+            passports, national identity cards, residence permits and driving licences; rental
+            records, contracts, condition photographs, charges and payments; vehicle location data
+            where a GPS provider is connected; and anything written into a free-text note.
+          </p>
+        </LegalSubsection>
         <p>
           Some of that is sensitive in ordinary terms even where the law does not use that word. We
           treat identity documents and location data as the highest-risk records in the product, and
