@@ -81,3 +81,39 @@ export const createOrganizationSchema = z.object({
 })
 
 export type CreateOrganizationInput = z.infer<typeof createOrganizationSchema>
+
+/**
+ * The six digits an authenticator app shows. Apps display them as "123 456", so
+ * spaces are dropped before the check rather than rejected.
+ */
+export const totpCodeSchema = z.object({
+  code: z
+    .string()
+    .transform((value) => value.replace(/\s+/g, ''))
+    .pipe(z.string().regex(/^\d{6}$/, 'Enter the 6-digit code from your app.')),
+})
+
+export type TotpCodeInput = z.infer<typeof totpCodeSchema>
+
+/**
+ * Recovery codes are ten characters of Crockford base32, which has no I, L, O or
+ * U. A code copied by hand is often typed with those read as 1 and 0, in lower
+ * case, or split with a space or hyphen; the server compares exactly, so all of
+ * that is tidied here.
+ */
+export function normaliseRecoveryCode(value: string): string {
+  return value
+    .replace(/[\s-]+/g, '')
+    .toUpperCase()
+    .replace(/[IL]/g, '1')
+    .replace(/O/g, '0')
+}
+
+export const recoveryCodeSchema = z.object({
+  code: z
+    .string()
+    .transform(normaliseRecoveryCode)
+    .pipe(z.string().regex(/^[0-9A-HJKMNP-TV-Z]{10}$/, 'Enter the 10-character recovery code.')),
+})
+
+export type RecoveryCodeInput = z.infer<typeof recoveryCodeSchema>

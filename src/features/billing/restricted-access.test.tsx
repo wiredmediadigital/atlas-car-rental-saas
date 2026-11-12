@@ -83,6 +83,17 @@ describe('what the interface offers a restricted agency', () => {
     expect(askFor('team.transferOwnership', 'owner', 'restricted')).toBe('offered')
   })
 
+  it('leaves an owner able to rescue a member locked out of their own account', () => {
+    /*
+     * The billing gate exists to stop an unpaid agency creating new value, not
+     * to strand its staff outside their own records. A member who loses their
+     * phone during a lapse would otherwise have no route back at all except the
+     * operator running SQL by hand — which this whole design treats as the last
+     * resort, not as the billing-restricted default.
+     */
+    expect(askFor('team.resetFactor', 'owner', 'restricted')).toBe('offered')
+  })
+
   it('withdraws inviting, because that is growth', () => {
     // Matches the guard in public.create_team_invitation. If one of the two
     // changes without the other, the interface offers a control the database
@@ -141,6 +152,7 @@ describe('what the interface offers a restricted agency', () => {
       'reports.view',
       'team.history',
       'team.remove',
+      'team.resetFactor',
       'team.transferOwnership',
       'team.update',
       'team.view',

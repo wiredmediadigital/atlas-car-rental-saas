@@ -7,6 +7,8 @@
 
 export declare const ORIGINAL_ATLAS_REPOSITORY: string
 export declare const GIT_PUSH_WARNING_BELOW: string
+export declare const SECOND_FACTOR_MIGRATION: string
+export declare const TOTP_CONFIRMATION_VARIABLE: string
 
 export type KeyKind = 'missing' | 'publishable' | 'legacy-anon' | 'secret' | 'unknown'
 
@@ -25,6 +27,7 @@ export interface SetupFacts {
   linkedRef: string | null
   migrationCount: number
   latestMigration: string | null
+  hasSecondFactorMigration: boolean
   isGitRepository: boolean
   envIgnored: boolean | null
   remotes: Remote[]
@@ -54,6 +57,12 @@ export declare function pickBrowserKey(
   apiKeys: unknown,
 ): { kind: 'publishable' | 'legacy-anon'; value: string } | null
 export declare function envFileContents(projectRef: string, key: string): string
+export declare const MANAGED_ENV_KEYS: readonly string[]
+export declare function mergeEnvFileContents(
+  existing: string | null | undefined,
+  projectRef: string,
+  key: string,
+): string
 
 export declare const SITE_ROUTES: readonly string[]
 

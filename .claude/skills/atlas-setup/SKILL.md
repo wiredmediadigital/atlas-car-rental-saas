@@ -44,12 +44,14 @@ first agency is created on the live site.
 
 1. **Supabase project:** create one and paste its ID (plus `npx supabase login`, only if the CLI is
    not signed in).
-2. **Install approval:** one yes to install Pevvy into that exact project.
-3. **GitHub:** an empty private repository, then one yes to publish to it (plus a Git sign-in or
+2. **App Authenticator:** switch on TOTP in that project, then answer whether it is on. This is its
+   own question; a yes to anything else never stands in for it.
+3. **Install approval:** one yes to install Pevvy into that exact project.
+4. **GitHub:** an empty private repository, then one yes to publish to it (plus a Git sign-in or
    name/email only if Git asks).
-4. **Hostinger:** the hPanel steps, then paste the live address.
-5. **Live sign-in settings:** the Auth URLs for that address.
-6. **First agency:** sign up on the live site and confirm the email.
+5. **Hostinger:** the hPanel steps, then paste the live address.
+6. **Live sign-in settings:** the Auth URLs for that address.
+7. **First agency:** sign up on the live site and confirm the email.
 
 ## Resuming
 
@@ -90,13 +92,34 @@ and files there are the owner's own.
    add: run `npx supabase login` in the terminal panel and finish the sign-in in the browser.
    Never pick a project yourself, even though you can see every project in their account.
 2. Find the ref in `npx supabase projects list -o json`. Not there → they are signed in to another
-   account: say so and stop. Otherwise **user moment 2 — one message:** show the project's name,
-   region and creation date and ask: "Install Pevvy into this project? I'll connect this folder to
-   it, make sure it is empty, create the Pevvy database (every migration in
-   `supabase/migrations/`) and install its 4 background
-   services. If it is not empty, or anything differs from that plan, I'll stop and change
-   nothing." A yes approves exactly that.
+   account: say so and stop. Otherwise **user moment 2 — one message, about TOTP and nothing
+   else:** show the project's name and ask them to open, in that project, **Authentication →
+   Multi-Factor Authentication** and turn on the **App Authenticator (TOTP)**. Explain that Pevvy
+   requires two-factor sign-in for every user, so without it nobody — including them — can finish
+   creating their account. Ask: "Have you switched on the App Authenticator in this project?"
+   Do not mention installing in this message, and stop.
+   - They answer that it is on → append `SUPABASE_TOTP_ENABLED_FOR=<ref>` to `.env.local`
+     (create the file if it does not exist; `setup:env` keeps the line later). That is what
+     `npm run setup:check` reads.
+   - Anything else — not yet, unsure, a question, or silence → record nothing, help them find the
+     setting, and ask again.
+   - Only an answer to this question counts. Never write the line because they approved
+     something else, because the project looks ready, or because `.env.local` already holds the
+     line for another project. Never write it yourself to get past the check.
+
+   Do not push migrations without it: the enforcement migration makes a second factor mandatory,
+   so applying it to a project where enrolment is switched off leaves every user unable to enrol
+   and unable to reach anything, with no way back from inside Pevvy.
+
+   **User moment 3 — one message:** show the project's name, region and creation date and ask:
+   "Install Pevvy into this project? I'll connect this folder to it, make sure it is empty,
+   create the Pevvy database (every migration in `supabase/migrations/`) and install its 4
+   background services. If it is not empty, or anything differs from that plan, I'll stop and
+   change nothing." A yes approves exactly that, and nothing about the App Authenticator.
+
 3. Then, without asking again:
+   - Before anything reaches Supabase, run `npm run setup:check`: the App Authenticator check must
+     pass. If it blocks, go back to user moment 2; do not edit the file to clear it.
    - `npx supabase link --project-ref <ref>` (if it asks for the database password, ask the user
      to run the same command in the terminal panel); confirm `supabase/.temp/project-ref`.
 4. Read-only state check:
@@ -126,7 +149,9 @@ and files there are the owner's own.
    without its pricing section, silently.
 8. `npm run setup:env -- <ref>` writes `.env.local` with the browser-safe values (it prints only
    the kind of key). Never run `supabase projects api-keys` yourself — its output holds secret
-   keys. If `.env.local` already exists, ask before adding `--force`.
+   keys. It updates an existing `.env.local` in place and keeps every other key in it, including
+   the TOTP confirmation. Only if the file already holds a different Supabase URL or key does it
+   refuse; ask before adding `--force`, which replaces just those two values.
 
 ## C. Internal checks — automatic, nothing remote, nothing for the user
 
@@ -146,7 +171,7 @@ straight to D.
      `origin` will become `upstream` with pushing disabled.
    - Downloaded as a ZIP (no `.git`) → a repository will be created (`git init` then
      `git checkout -b main`; `git init -b` needs Git 2.28+).
-2. **User moment 3 — one message:** create an **empty, private** repository at github.com/new (no
+2. **User moment 4 — one message:** create an **empty, private** repository at github.com/new (no
    README, licence or .gitignore) and paste its URL. If it is the upstream repository or not
    a GitHub URL, say so and ask again — never publish there. Otherwise show in one short block: the
    repository, branch `main`, that `.env.local` and the Supabase link stay on this computer, that
@@ -174,7 +199,7 @@ straight to D.
 
 ## E. Hostinger
 
-1. **User moment 4 — one message** with their real values: **Hostinger → Websites → Add Website →
+1. **User moment 5 — one message** with their real values: **Hostinger → Websites → Add Website →
    Web App → Import Git Repository**; connect GitHub (**Only select repositories** → theirs);
    branch **main**; the free temporary domain or their own; **Node.js 22** (or the newest offered);
    build command **`npm run build`**; output directory **`dist`**; exactly two environment
@@ -200,7 +225,7 @@ straight to D.
 
 ## F. Sign-in settings for the live address
 
-**User moment 5 — one message**, with their domain filled in: Supabase → **Authentication → URL
+**User moment 6 — one message**, with their domain filled in: Supabase → **Authentication → URL
 Configuration**:
 
 - **Site URL**: `https://<their domain>`
@@ -213,7 +238,7 @@ Do not ask for localhost URLs. Leave **Confirm email** on.
 
 ## G. The first agency, on the live site
 
-1. **User moment 6 — one message:** open `https://<their domain>/sign-up`, create the agency, then
+1. **User moment 7 — one message:** open `https://<their domain>/sign-up`, create the agency, then
    open the confirmation email **in the same browser** and sign in. Use the **same email as their
    Supabase account**: until they set up their own email provider, Supabase only sends to its
    project's team members, about two emails an hour. Reply when the dashboard shows the agency.

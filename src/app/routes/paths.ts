@@ -55,6 +55,12 @@ export const paths = {
   terms: '/terms',
 
   signIn: '/sign-in',
+  /** Two-factor set-up: scan a code, then save the recovery codes. */
+  enrollFactor: '/sign-in/set-up',
+  /** Two-factor challenge: the code from the authenticator app. */
+  challengeFactor: '/sign-in/verify',
+  /** For someone who has lost their authenticator: spend a recovery code. */
+  recoverFactor: '/sign-in/recover',
   signUp: '/sign-up',
   forgotPassword: '/forgot-password',
   resetPassword: '/auth/reset-password',

@@ -3193,6 +3193,14 @@ export interface Database {
         }
         Returns: string[]
       }
+      mfa_generate_recovery_codes: {
+        Args: Record<string, never>
+        Returns: string[]
+      }
+      mfa_record_enrolment: {
+        Args: Record<string, never>
+        Returns: undefined
+      }
     }
     Enums: {
       org_role: OrgRole

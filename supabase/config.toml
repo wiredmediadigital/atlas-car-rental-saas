@@ -382,9 +382,12 @@ auth_token = "env(SUPABASE_AUTH_SMS_TWILIO_AUTH_TOKEN)"
 max_enrolled_factors = 10
 
 # Control MFA via App Authenticator (TOTP)
+# Both must be true before 20261112100200_require_second_factor.sql is applied to
+# a project: that migration makes every session below aal2 blind to tenant data,
+# and with enrolment off there would be no way to reach aal2.
 [auth.mfa.totp]
-enroll_enabled = false
-verify_enabled = false
+enroll_enabled = true
+verify_enabled = true
 
 # Configure MFA via Phone Messaging
 [auth.mfa.phone]
@@ -557,3 +560,10 @@ verify_jwt = false
 # see is 403, and a function missing its own configuration is 500.
 [functions.account-closure-notice]
 verify_jwt = false
+
+# Factor reset. Called by a signed-in user, so verify_jwt stays on: it rejects an
+# unauthenticated request before the function runs and does not interfere with an
+# aal1 caller, whose JWT is valid. mode self (recovery code) must work at aal1;
+# mode member requires aal2, read from the verified JWT inside the function.
+[functions.mfa-reset]
+verify_jwt = true

@@ -6,7 +6,7 @@ import { PERMISSIONS } from '@/lib/authz/permissions'
 import type { OrgRole, TeamEventRow, TeamInvitationRow, TeamMemberRow } from '@/types/database'
 
 import { InvitationsPanel } from './components/InvitationsPanel'
-import { ChangeRoleDialog } from './components/MembershipDialogs'
+import { ChangeRoleDialog, ResetFactorDialog } from './components/MembershipDialogs'
 import { InviteDialog } from './components/InviteDialog'
 import { ManualLinkDialog } from './components/ManualLinkDialog'
 import { TeamActivity } from './components/TeamActivity'
@@ -101,6 +101,7 @@ describe('the roster', () => {
     onRemove: vi.fn(),
     onTransferOwnership: vi.fn(),
     onLeave: vi.fn(),
+    onResetFactor: vi.fn(),
   }
 
   it('offers a staff member no action against anybody', () => {
@@ -571,5 +572,149 @@ describe('membership history', () => {
 
     expect(screen.getByText('<script>alert(1)</script>')).toBeInTheDocument()
     expect(document.querySelector('script')).toBeNull()
+  })
+})
+
+// -----------------------------------------------------------------------------
+
+/**
+ * Resetting a member's authenticator.
+ *
+ * The one control on this page that is an owner's alone, and the only way back
+ * for a member who has lost their phone and their recovery codes with it. The
+ * server refuses actor === subject outright — an owner removing their own
+ * factor must spend a recovery code like everybody else — so it is never
+ * offered against the owner's own row.
+ */
+describe('resetting a member’s authenticator', () => {
+  const handlers = {
+    onChangeRole: vi.fn(),
+    onRemove: vi.fn(),
+    onTransferOwnership: vi.fn(),
+    onLeave: vi.fn(),
+    onResetFactor: vi.fn(),
+  }
+
+  it('keeps the reset at owner in the declared matrix', () => {
+    expect((PERMISSIONS as Record<string, OrgRole>)['team.resetFactor']).toBe('owner')
+  })
+
+  it('offers an owner the reset against another member', async () => {
+    const user = userEvent.setup()
+    render(
+      <TeamMembersTable
+        members={[
+          member({ user_id: 'a', role: 'owner', display_name: 'Owner One', is_self: true }),
+          member({ user_id: 'b', role: 'manager', display_name: 'Manager One' }),
+        ]}
+        actorRole="owner"
+        {...display}
+        {...handlers}
+      />,
+    )
+
+    await user.click(screen.getAllByRole('button', { name: 'Actions for Manager One' })[0]!)
+    const item = await screen.findByRole('menuitem', { name: /reset two-factor/i })
+    await user.click(item)
+
+    expect(handlers.onResetFactor).toHaveBeenCalledWith(expect.objectContaining({ user_id: 'b' }))
+  })
+
+  it('never offers it against the owner’s own row', () => {
+    // The reset function refuses actor === subject, so the owner's own row is
+    // offered nothing at all rather than a control that would be refused.
+    render(
+      <TeamMembersTable
+        members={[
+          member({ user_id: 'a', role: 'owner', display_name: 'Owner One', is_self: true }),
+        ]}
+        actorRole="owner"
+        {...display}
+        {...handlers}
+      />,
+    )
+
+    expect(screen.queryByRole('button', { name: 'Actions for Owner One' })).not.toBeInTheDocument()
+  })
+
+  /*
+   * ASSERTING ON A CLOSED MENU PROVES NOTHING. The menu content is a portal
+   * with no forceMount, so no menuitem exists in the DOM for ANY role until the
+   * trigger is pressed. An administrator who was wrongly offered the reset
+   * would sail through a test that only queried for the item. So each role is
+   * asked the question it can actually answer: an administrator has a menu, so
+   * it is opened and read; a manager and a staff member have no menu at all.
+   */
+  it('opens an administrator’s menu and finds no reset among what it offers', async () => {
+    const user = userEvent.setup()
+    render(
+      <TeamMembersTable
+        members={[member({ user_id: 'b', role: 'staff', display_name: 'Staff One' })]}
+        actorRole="admin"
+        {...display}
+        {...handlers}
+      />,
+    )
+
+    await user.click(screen.getAllByRole('button', { name: 'Actions for Staff One' })[0]!)
+
+    // The menu really is open, so the absence below is an absence and not a
+    // closed portal.
+    expect(await screen.findByRole('menuitem', { name: /change role/i })).toBeVisible()
+    expect(screen.getByRole('menuitem', { name: /remove from agency/i })).toBeVisible()
+    expect(screen.queryByRole('menuitem', { name: /reset two-factor/i })).not.toBeInTheDocument()
+  })
+
+  it.each(['manager', 'staff'] as const)('offers a %s no row menu to open at all', (role) => {
+    render(
+      <TeamMembersTable
+        members={[member({ user_id: 'b', role: 'staff', display_name: 'Staff One' })]}
+        actorRole={role}
+        {...display}
+        {...handlers}
+      />,
+    )
+
+    expect(screen.queryByRole('button', { name: 'Actions for Staff One' })).not.toBeInTheDocument()
+  })
+
+  it('says the member will have to enrol again before confirming', async () => {
+    const onConfirm = vi.fn(() => Promise.resolve())
+    render(
+      <ResetFactorDialog
+        member={member({ display_name: 'Sara Bennani' })}
+        isPending={false}
+        error={null}
+        onCancel={() => undefined}
+        onConfirm={onConfirm}
+      />,
+    )
+
+    expect(screen.getByText(/set up a new authenticator/i)).toBeVisible()
+    expect(screen.getByText(/stop working/i)).toBeVisible()
+    /*
+     * An owner reaching for this because a phone was STOLEN will assume it cuts
+     * off whoever holds it. It does not: the member's current token still
+     * carries a passed second factor until it expires. Pinned, because copy
+     * that corrects a dangerous assumption must not be able to drift out.
+     */
+    expect(screen.getByText(/does not end a session they are already signed in to/i)).toBeVisible()
+
+    await userEvent.setup().click(screen.getByRole('button', { name: /reset two-factor/i }))
+    expect(onConfirm).toHaveBeenCalled()
+  })
+
+  it('shows a refusal rather than closing as though it worked', () => {
+    render(
+      <ResetFactorDialog
+        member={member({ display_name: 'Sara Bennani' })}
+        isPending={false}
+        error="That was refused."
+        onCancel={() => undefined}
+        onConfirm={() => Promise.resolve()}
+      />,
+    )
+
+    expect(screen.getByRole('alert')).toHaveTextContent('That was refused.')
   })
 })

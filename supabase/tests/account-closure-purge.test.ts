@@ -282,6 +282,10 @@ async function seed(agency: Agency): Promise<Seeded> {
     `insert into public.organization_team_events (organization_id, event) values ($1, 'invitation_created')`,
     [org],
   )
+  await db.sql(`select app.record_security_event('factor_enrolled', $1, $2, '{}'::jsonb)`, [
+    agency.owner,
+    org,
+  ])
   const event = await one<{ id: string }>(
     `insert into public.notification_events (organization_id, kind, source_table, source_id)
      values ($1, 'financing_due', 'financing_installments', gen_random_uuid()) returning id`,

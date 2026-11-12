@@ -1,5 +1,6 @@
 import { type QueryClient, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
+import { resetMemberFactor } from '@/features/auth/mfa-recovery'
 import { useOrganization, useWorkspace } from '@/features/workspace/workspace-context'
 import type { OrgRole } from '@/types/database'
 
@@ -163,6 +164,22 @@ export function useRemoveMember() {
       await invalidateTeam(client, organization.id)
       await refresh()
     },
+  })
+}
+
+/**
+ * An owner removing a member's authenticator.
+ *
+ * Nothing in the roster changes, so nothing is invalidated: membership, role and
+ * seat count are all exactly as they were. What changed lives in GoTrue and in
+ * the security event the function recorded.
+ */
+export function useResetMemberFactor() {
+  const organization = useOrganization()
+
+  return useMutation({
+    mutationFn: (userId: string) =>
+      resetMemberFactor({ subjectUserId: userId, organizationId: organization.id }),
   })
 }
 

@@ -128,6 +128,16 @@ const PERMISSIONS_WITHOUT_A_TABLE: readonly Permission[] = [
   'team.remove',
   'team.transferOwnership',
   'team.history',
+  /*
+   * Resetting a member's second factor touches no table in this schema at all:
+   * the factors live in GoTrue, and the `mfa-reset` Edge Function is the only
+   * thing that can delete one. It checks for itself that the caller is an
+   * active owner of the agency, that the subject is an active member of the
+   * same agency, and that the two are not the same person — none of which a
+   * policy on a table that does not exist here could express.
+   * `supabase/functions/tests/mfa-reset.test.ts` attacks it from every role.
+   */
+  'team.resetFactor',
 ]
 
 const COMMAND_CODES: Record<string, 'select' | 'insert' | 'update' | 'delete'> = {

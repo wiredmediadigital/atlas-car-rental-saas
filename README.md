@@ -204,6 +204,43 @@ isn't available.
 Nothing is created by hand in the dashboard. If a table exists, it exists because a
 migration in this repository created it.
 
+### Before you apply them: turn on the App Authenticator
+
+Pevvy requires two-factor authentication of every account. In your Supabase project, open
+**Authentication → Multi-Factor Authentication** and enable the **App Authenticator
+(TOTP)** — both enrolment and verification — **before** running `supabase db push` for
+the first time, and before any upgrade that brings in
+`20261112100200_require_second_factor.sql`.
+
+That migration makes a verified second factor part of the tenant predicate: a session
+that has only passed a password sees no agency data. If the App Authenticator is off,
+nobody can enrol, so no session ever reaches that level — a new account is sent to the
+set-up screen, the set-up screen cannot start an enrolment the project refuses, and the
+first agency can never be created. Getting out of that state afterwards needs service-key
+SQL.
+
+`npm run setup:check` blocks on this. It cannot see your project's settings — it contacts
+no server — so once the switch is on, record it in `.env.local`:
+
+```bash
+SUPABASE_TOTP_ENABLED_FOR=<your-project-ref>
+```
+
+It names the project deliberately: pointing the folder at a different Supabase project
+asks the question again rather than inheriting the first project's answer.
+
+This is a dashboard setting, not a repository one. `supabase/config.toml` has
+`[auth.mfa.totp] enroll_enabled = true`, which is correct for local development and for
+anyone who runs `supabase config push` themselves — but that file configures nothing on a
+hosted project until it is pushed, and Pevvy's setup never pushes config on your behalf.
+
+### When somebody is locked out anyway
+
+A user who has lost both their authenticator and their recovery codes, with no other
+active owner of their agency to reset them, cannot be helped from inside the product.
+The operator of the Supabase project unblocks them by hand, against their own project:
+[`docs/security/second-factor-recovery.md`](docs/security/second-factor-recovery.md).
+
 ---
 
 ## Architecture

@@ -21,6 +21,7 @@ import { ContractTermsSection } from '@/features/rentals/components/ContractTerm
 import { NotificationPreferences } from '@/features/notifications/components/NotificationPreferences'
 import { AboutSection } from '@/features/settings/components/AboutSection'
 import { LogoUploader } from '@/features/settings/components/LogoUploader'
+import { SecurityCard } from '@/features/settings/components/SecurityCard'
 import { SettingsNav } from '@/features/settings/components/SettingsNav'
 import { type AgencySettingsInput, agencySettingsSchema } from '@/features/settings/schemas'
 import { updateOrganization } from '@/features/workspace/api'
@@ -41,6 +42,7 @@ const SECTION_IDS = [
   'branding',
   'contract',
   'notifications',
+  'security',
   'account',
   'about',
 ] as const
@@ -217,6 +219,7 @@ export function SettingsPage() {
     { id: 'branding', label: 'Branding' },
     { id: 'contract', label: 'Contract terms', isDirty: isTermsDirty },
     { id: 'notifications', label: 'Notifications' },
+    { id: 'security', label: 'Security' },
     ...(canSeeAccount ? [{ id: 'account', label: 'Close account' }] : []),
     { id: 'about', label: 'About' },
   ]
@@ -483,6 +486,21 @@ export function SettingsPage() {
             description={`What ${getAppName()} tells you about in this agency. These preferences are yours alone.`}
           >
             <NotificationPreferences />
+          </Section>
+
+          {/*
+            Personal too, and beside Notifications for that reason: the sections
+            above decide what the agency is, these two decide what happens to
+            one person's own account. Every role has it — a second factor is
+            required of everybody, so everybody must be able to replace theirs.
+          */}
+          <Section
+            id="security"
+            isActive={activeSection === 'security'}
+            title="Security"
+            description="How you prove it is you. These settings are yours alone."
+          >
+            <SecurityCard />
           </Section>
 
           {canSeeAccount ? (

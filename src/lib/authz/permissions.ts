@@ -86,6 +86,13 @@ export const PERMISSIONS = {
   'team.remove': 'admin',
   'team.history': 'admin',
   'team.transferOwnership': 'owner',
+  /*
+   * Removing another member's second factor. An owner's alone, which is what
+   * supabase/functions/_shared/mfa-reset.ts enforces — this entry only decides
+   * whether the control is rendered. It survives both wind-downs; see
+   * AVAILABLE_WHEN_RESTRICTED for why.
+   */
+  'team.resetFactor': 'owner',
 
   'vehicles.view': 'staff',
   'vehicles.create': 'manager',
@@ -211,8 +218,8 @@ const READ_ACTIONS: readonly string[] = ['view', 'history']
 /**
  * Write actions that stay available to a restricted agency.
  *
- * Every one of them is a way OUT of the restriction, and a restriction nobody
- * can undo from inside is not a restriction but a trap.
+ * Almost every one of them is a way OUT of the restriction, and a restriction
+ * nobody can undo from inside is not a restriction but a trap.
  *
  *   billing.manage            Where the subscription is restarted.
  *   organization.update       The agency's own name, address and contact
@@ -222,6 +229,16 @@ const READ_ACTIONS: readonly string[] = ['view', 'history']
  *                             of winding down.
  *   team.transferOwnership    For an agency whose owner has gone, the only
  *                             route back to a paying subscription.
+ *   team.resetFactor          Not a way out, and the one entry here that is
+ *                             not. It is a way IN: a second factor is required
+ *                             of everybody, so a member who has lost their
+ *                             phone cannot reach their own records at all
+ *                             until it is reset, and the only other route is
+ *                             the operator running SQL by hand. The billing
+ *                             gate exists to stop an unpaid agency creating
+ *                             new value, not to strand its staff outside their
+ *                             own data — the same reasoning that already
+ *                             leaves recovery-code generation ungated.
  *
  * `team.invite` is deliberately NOT here: taking on new staff is growth, and
  * the database refuses it in public.create_team_invitation.
@@ -232,6 +249,7 @@ const AVAILABLE_WHEN_RESTRICTED: readonly Permission[] = [
   'team.update',
   'team.remove',
   'team.transferOwnership',
+  'team.resetFactor',
 ]
 
 /**
@@ -256,6 +274,14 @@ const AVAILABLE_WHEN_RESTRICTED: readonly Permission[] = [
  *   organization.update     KEPT. No gate covers it (organizations_update has
  *                           no write gate at all), and correcting the agency's
  *                           own details harms nothing.
+ *   team.resetFactor        KEPT, and for its own reason rather than an
+ *                           inherited one. A closing agency is read-only, but
+ *                           its people still have to reach their records to
+ *                           take them away before the purge, and a member who
+ *                           loses their phone inside the grace period would
+ *                           otherwise have no route back at all. It cannot
+ *                           shrink the set of people who can restore either:
+ *                           it removes an authenticator, never a membership.
  *   team.transferOwnership  KEPT. It keeps an owner rather than removing one,
  *                           so it cannot shrink the set of people who can
  *                           restore, and for an agency whose owner has gone it

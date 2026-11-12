@@ -4,6 +4,7 @@ import { Navigate, Outlet, useLocation } from 'react-router-dom'
 import { ErrorState } from '@/components/feedback/ErrorState'
 import { FullPageLoader } from '@/components/feedback/FullPageLoader'
 import { useAuth } from '@/features/auth/auth-context'
+import { useSecondFactorGate } from '@/features/auth/second-factor-context'
 import { WorkspaceProvider } from '@/features/workspace/WorkspaceProvider'
 import { useWorkspace } from '@/features/workspace/workspace-context'
 import type { Permission } from '@/lib/authz/permissions'
@@ -40,6 +41,52 @@ export function RequireAuth({ publicHome }: { publicHome?: ReactNode } = {}) {
     return (
       <Navigate to={paths.signIn} state={{ from: location.pathname + location.search }} replace />
     )
+  }
+
+  return <Outlet />
+}
+
+/**
+ * Requires a second factor before anything below it mounts.
+ *
+ * Two-factor authentication is mandatory here, so this is where a user who has
+ * not enrolled, or has not proved their factor on this session, is sent to the
+ * screen that fixes it. It sits between RequireAuth and WithWorkspace, and that
+ * is load-bearing: since 20261112100200_require_second_factor.sql an aal1
+ * session is refused tenant data outright, so a workspace provider that mounted
+ * first would read nothing and show a broken agency rather than a prompt.
+ *
+ * THE ORDER OF THE THREE DECISIONS IS THE WHOLE GUARD.
+ *
+ *   1. `isLoading` first. A refresh keeps the previous answers visible while the
+ *      new read is in flight; deciding on them would act on an answer that has
+ *      already been superseded — including letting a stale "verified" through.
+ *   2. Unknown second. A null state is a FAILED read, not an absent factor, and
+ *      it is treated as not enrolled. The alternative — reading unknown as
+ *      enrolled — turns any dropped connection into a way past the feature.
+ *   3. Status and assurance last, and an unknown assurance level is not aal2.
+ *
+ * The enrolment, challenge and recovery screens are deliberately NOT below this
+ * guard. Redirecting them is how a user with no factor ends up with nowhere to
+ * go at all.
+ *
+ * Like every guard here, this is navigation, not security. The database refuses
+ * an aal1 session on its own account; this turns an empty screen into a prompt.
+ */
+export function RequireSecondFactor() {
+  const { state, level, isLoading } = useSecondFactorGate()
+  const location = useLocation()
+
+  if (isLoading) return <FullPageLoader label="Checking your sign-in" />
+
+  const from = location.pathname + location.search
+
+  if (state === null || state.status !== 'verified') {
+    return <Navigate to={paths.enrollFactor} state={{ from }} replace />
+  }
+
+  if (level !== 'aal2') {
+    return <Navigate to={paths.challengeFactor} state={{ from }} replace />
   }
 
   return <Outlet />

@@ -32,6 +32,16 @@ site, read-only.
   migrations with `npx supabase db push` after a `--dry-run` and the user's approval.
   Do not apply them through the SQL editor or an MCP `apply_migration`: that records a
   different history, and several migrations are not safe to run twice.
+- **The App Authenticator must be on before migrations are pushed.** Pevvy requires a
+  verified second factor for every user, enforced in the database. Pushing that schema to
+  a project where Authentication → Multi-Factor Authentication has TOTP switched off
+  leaves every user of every agency unable to enrol and unable to read anything, with no
+  way back from inside Pevvy. `npm run setup:check` blocks on this; it reads
+  `SUPABASE_TOTP_ENABLED_FOR=<ref>` in `.env.local`, which records the user confirming it.
+  You write that line, but only after the user has answered a question about TOTP
+  specifically and said they have switched it on in their dashboard. Never infer it, assume
+  it, or carry it over from another approval — a yes to installing, publishing or anything
+  else is not that answer.
 - **Confirm the Supabase project before every remote command.** `supabase/.temp/project-ref`
   must equal the project in `.env.local` and the one the user confirmed. `npm run setup:check`
   fails when they differ — stop and ask.

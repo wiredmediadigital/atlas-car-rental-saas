@@ -1,4 +1,4 @@
-import { Crown, MoreHorizontal, ShieldCheck, UserMinus, UserCog } from 'lucide-react'
+import { Crown, MoreHorizontal, ShieldCheck, SmartphoneNfc, UserMinus, UserCog } from 'lucide-react'
 
 import {
   Badge,
@@ -11,7 +11,7 @@ import {
   SkeletonTable,
 } from '@/components/ui'
 import { formatDate } from '@/lib/datetime/format'
-import { ROLE_LABELS } from '@/lib/authz/permissions'
+import { ROLE_LABELS, can } from '@/lib/authz/permissions'
 import { cn } from '@/lib/utils/cn'
 import type { OrgRole, TeamMemberRow } from '@/types/database'
 
@@ -38,6 +38,7 @@ export interface TeamMembersTableProps {
   onChangeRole: (member: TeamMemberRow) => void
   onRemove: (member: TeamMemberRow) => void
   onTransferOwnership: (member: TeamMemberRow) => void
+  onResetFactor: (member: TeamMemberRow) => void
   onLeave: () => void
 }
 
@@ -52,6 +53,7 @@ interface RowActions {
   canChangeRole: boolean
   canRemove: boolean
   canTransfer: boolean
+  canResetFactor: boolean
   canLeave: boolean
 }
 
@@ -61,6 +63,13 @@ function actionsFor(member: TeamMemberRow, actorRole: OrgRole | null): RowAction
       canChangeRole: false,
       canRemove: false,
       canTransfer: false,
+      /*
+       * Never against your own row. The reset function refuses actor ===
+       * subject outright: an owner removes their own factor by spending a
+       * recovery code like everybody else, or ownership would be a way around
+       * the second factor it is supposed to be protected by.
+       */
+      canResetFactor: false,
       // An owner leaves by transferring first; the dialog says so.
       canLeave: actorRole !== 'owner',
     }
@@ -72,6 +81,7 @@ function actionsFor(member: TeamMemberRow, actorRole: OrgRole | null): RowAction
     canRemove: allowed,
     // Only an owner transfers, and only to somebody who is not already one.
     canTransfer: actorRole === 'owner' && member.role !== 'owner',
+    canResetFactor: can(actorRole, 'team.resetFactor'),
     canLeave: false,
   }
 }
@@ -82,6 +92,7 @@ function RowMenu({
   onChangeRole,
   onRemove,
   onTransferOwnership,
+  onResetFactor,
   onLeave,
 }: {
   member: TeamMemberRow
@@ -89,10 +100,15 @@ function RowMenu({
   onChangeRole: () => void
   onRemove: () => void
   onTransferOwnership: () => void
+  onResetFactor: () => void
   onLeave: () => void
 }) {
   const hasAny =
-    actions.canChangeRole || actions.canRemove || actions.canTransfer || actions.canLeave
+    actions.canChangeRole ||
+    actions.canRemove ||
+    actions.canTransfer ||
+    actions.canResetFactor ||
+    actions.canLeave
   if (!hasAny) return null
 
   return (
@@ -131,6 +147,18 @@ function RowMenu({
           </>
         ) : null}
 
+        {/*
+          Sits above the destructive group: it is a rescue, not a removal, and
+          the one thing an owner comes to this menu for when a colleague cannot
+          sign in at all.
+        */}
+        {actions.canResetFactor ? (
+          <DropdownMenuItem onSelect={onResetFactor}>
+            <SmartphoneNfc aria-hidden="true" />
+            Reset two-factor…
+          </DropdownMenuItem>
+        ) : null}
+
         {actions.canRemove ? (
           <>
             <DropdownMenuSeparator />
@@ -161,6 +189,7 @@ export function TeamMembersTable({
   onChangeRole,
   onRemove,
   onTransferOwnership,
+  onResetFactor,
   onLeave,
 }: TeamMembersTableProps) {
   if (isLoading) {
@@ -235,6 +264,7 @@ export function TeamMembersTable({
                       onChangeRole={() => onChangeRole(member)}
                       onRemove={() => onRemove(member)}
                       onTransferOwnership={() => onTransferOwnership(member)}
+                      onResetFactor={() => onResetFactor(member)}
                       onLeave={onLeave}
                     />
                   </td>
@@ -275,6 +305,7 @@ export function TeamMembersTable({
                   onChangeRole={() => onChangeRole(member)}
                   onRemove={() => onRemove(member)}
                   onTransferOwnership={() => onTransferOwnership(member)}
+                  onResetFactor={() => onResetFactor(member)}
                   onLeave={onLeave}
                 />
               </div>
