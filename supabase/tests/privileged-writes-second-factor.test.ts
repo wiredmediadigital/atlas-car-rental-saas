@@ -76,6 +76,14 @@ async function invitationCount(organizationId: string): Promise<number> {
   return row?.n ?? 0
 }
 
+async function notificationEventCount(organizationId: string): Promise<number> {
+  const [row] = await db.sql<{ n: number }>(
+    `select count(*)::int as n from public.notification_events where organization_id = $1`,
+    [organizationId],
+  )
+  return row?.n ?? 0
+}
+
 async function closureRequestedAt(organizationId: string): Promise<string | null> {
   const [row] = await db.sql<{ closure_requested_at: string | null }>(
     `select closure_requested_at from public.organizations where id = $1`,
@@ -204,6 +212,26 @@ describe('public.organization_request_closure', () => {
     const a = await seedAgency()
     expect(await outcomeOf(a.owner, aal, call(a))).toBe('42501')
     expect(await closureRequestedAt(a.organizationId)).toBeNull()
+    expect(await notificationEventCount(a.organizationId)).toBe(0)
+  })
+})
+
+describe('public.leave_organization', () => {
+  const call = (a: Agency) => (s: TestDatabase) =>
+    s.sql(`select public.leave_organization($1)`, [a.organizationId])
+
+  it('still lets a member at aal2 leave', async () => {
+    const a = await seedAgency()
+    expect(await outcomeOf(a.staff, undefined, call(a))).toBe('succeeded')
+    expect(await roleOf(a.organizationId, a.staff)).toBeUndefined()
+  })
+
+  it.each(WEAK_SESSIONS)('refuses a member $label and keeps the membership', async ({ aal }) => {
+    const a = await seedAgency()
+    const before = await membershipOf(a.organizationId)
+    expect(await outcomeOf(a.staff, aal, call(a))).toBe('42501')
+    expect(await roleOf(a.organizationId, a.staff)).toBe('staff')
+    expect(await membershipOf(a.organizationId)).toBe(before)
   })
 })
 

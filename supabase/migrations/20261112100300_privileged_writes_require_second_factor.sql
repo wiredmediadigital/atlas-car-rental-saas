@@ -14,6 +14,10 @@
 --   public.change_team_member_role           promote itself
 --   public.create_team_invitation            invite a second account for itself
 --   public.organization_request_closure      start closing the agency
+--   public.leave_organization                eject a victim from their own agency
+--                                            (added in a fix round: it reads
+--                                            organization_members directly and
+--                                            calls no helper, so nothing gated it)
 --
 -- Each now refuses with 42501 unless the request carries aal2. The check is the
 -- first thing each body does after identity (and, in create_team_invitation, it
@@ -31,6 +35,7 @@
 --   change_team_member_role          20261110100500_closure_closes_the_ways_out.sql
 --   create_team_invitation           20261103100200_billing_restricted_rpcs.sql
 --   organization_request_closure     20261110100200_account_closure_notice_retries.sql
+--   leave_organization               20260821100000_team_membership.sql
 --
 -- Restoring is already symmetric: organization_restore guards with
 -- app.has_min_role, which 20261112100200 gated.
@@ -571,14 +576,79 @@ begin
 end;
 $$;
 
+create or replace function public.leave_organization(p_organization_id uuid)
+returns void
+language plpgsql
+volatile
+security definer
+set search_path = ''
+as $$
+declare
+  v_actor  uuid := (select auth.uid());
+  v_role   public.org_role;
+  v_owners integer;
+  v_name   text;
+  v_email  text;
+begin
+  if v_actor is null then
+    raise exception 'Authentication required.' using errcode = '42501';
+  end if;
+
+  if not app.has_second_factor() then
+    raise exception 'A verified second factor is required to leave an agency.' using errcode = '42501';
+  end if;
+
+  v_owners := app.lock_and_count_active_owners(p_organization_id);
+
+  select m.role into v_role
+  from public.organization_members m
+  where m.organization_id = p_organization_id
+    and m.user_id = v_actor
+    and m.status = 'active'
+  for update;
+
+  if v_role is null then
+    raise exception 'You are not a member of this organization.' using errcode = 'P0002';
+  end if;
+
+  if v_role = 'owner' and v_owners <= 1 then
+    raise exception 'Transfer ownership before leaving: an organization must always keep an owner.'
+      using errcode = '23514';
+  end if;
+
+  select coalesce(nullif(btrim(p.full_name), ''), p.email, ''), p.email
+    into v_name, v_email
+  from public.profiles p where p.id = v_actor;
+
+  perform set_config('app.membership_operation', 'on', true);
+
+  delete from public.organization_members
+   where organization_id = p_organization_id
+     and user_id = v_actor;
+
+  perform set_config('app.membership_operation', 'off', true);
+
+  perform app.record_team_event(
+    p_organization_id, 'member_left', v_actor, v_email, v_role, null, null, null, v_name
+  );
+
+  -- After the departure, for the same reason removal revokes afterwards.
+  perform app.revoke_invitations_beyond_authority(
+    p_organization_id, v_actor, 'The person who sent it has left the organization.'
+  );
+end;
+$$;
+
 -- create or replace keeps existing grants; restated so the file stands alone.
 revoke all on function public.transfer_organization_ownership(uuid, uuid, public.org_role) from public, anon;
 revoke all on function public.remove_team_member(uuid, uuid) from public, anon;
 revoke all on function public.change_team_member_role(uuid, uuid, public.org_role) from public, anon;
 revoke all on function public.create_team_invitation(uuid, text, public.org_role) from public, anon;
 revoke all on function public.organization_request_closure(uuid) from public, anon;
+revoke all on function public.leave_organization(uuid) from public, anon;
 grant execute on function public.transfer_organization_ownership(uuid, uuid, public.org_role) to authenticated;
 grant execute on function public.remove_team_member(uuid, uuid) to authenticated;
 grant execute on function public.change_team_member_role(uuid, uuid, public.org_role) to authenticated;
 grant execute on function public.create_team_invitation(uuid, text, public.org_role) to authenticated;
 grant execute on function public.organization_request_closure(uuid) to authenticated, service_role;
+grant execute on function public.leave_organization(uuid) to authenticated;
