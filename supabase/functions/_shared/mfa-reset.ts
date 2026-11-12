@@ -17,6 +17,14 @@
  * ORDER IS LOAD-BEARING. The recovery code, or the owner's role, is verified
  * BEFORE any factor is deleted. A refused reset deletes nothing.
  *
+ * NOT ATOMIC, BY CHOICE. The code is spent before the factors are deleted, and the
+ * security event is written after them. There is no transaction spanning the
+ * GoTrue admin API and Postgres, so a deletion that fails part-way has already
+ * spent one of the user's ten codes, and an event can in principle go missing.
+ * Both are accepted: deleting before verifying would let any wrong code destroy a
+ * factor, and splitting verify from consume would open a code-reuse window.
+ * A part-way failure records an event for the factors it did remove.
+ *
  * Nothing here logs, returns or records a recovery code.
  *
  * No Deno.serve, no network and no client construction: the entrypoint builds the
@@ -59,9 +67,18 @@ export type ResetOutcome =
  * app.mfa_consume_recovery_code compares exactly what it is given, so the code is
  * reduced to its bare characters here: every character that cannot be part of a
  * code (whitespace, hyphens, dashes, dots, underscores) is dropped, then upper-cased.
+ *
+ * The ambiguous letters are then folded the way Crockford base32 does: O -> 0 and
+ * I or L -> 1. The generator's alphabet deliberately excludes I, L, O and U, so a
+ * generated code never contains them and the fold is unambiguous: any O a user
+ * types is a misread 0, any I or L a misread 1. (U is excluded and not folded.)
  */
 export function normaliseRecoveryCode(raw: string): string {
-  return raw.replace(/[^0-9A-Za-z]/g, '').toUpperCase()
+  return raw
+    .replace(/[^0-9A-Za-z]/g, '')
+    .toUpperCase()
+    .replace(/O/g, '0')
+    .replace(/[IL]/g, '1')
 }
 
 async function removeAllFactors(

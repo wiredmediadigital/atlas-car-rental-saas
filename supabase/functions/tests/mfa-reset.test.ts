@@ -78,6 +78,10 @@ describe('normaliseRecoveryCode', () => {
     expect(normaliseRecoveryCode('abcde fghjk')).toBe('ABCDEFGHJK')
     expect(normaliseRecoveryCode('abc_de.fg')).toBe('ABCDEFG')
   })
+
+  it('folds the ambiguous characters the alphabet excludes', () => {
+    expect(normaliseRecoveryCode('oOiIlL')).toBe('001111')
+  })
 })
 
 describe('resetOwnFactor', () => {
@@ -105,6 +109,23 @@ describe('resetOwnFactor', () => {
     })
 
     expect(outcome.ok).toBe(true)
+    expect(w.codesSeen).toEqual([VALID_CODE])
+  })
+
+  it('resolves a code typed with O for 0 and I or L for 1, with spaces and lower case', async () => {
+    const w = world({})
+    // VALID_CODE is 0123456789; the user has misread 0 as O and 1 as I.
+    const outcome = await resetOwnFactor(w.deps, {
+      userId: SUBJECT,
+      recoveryCode: 'o i23 4567 89',
+    })
+    const viaL = await resetOwnFactor(world({}).deps, {
+      userId: SUBJECT,
+      recoveryCode: 'Ol23-45678-9',
+    })
+
+    expect(outcome.ok).toBe(true)
+    expect(viaL.ok).toBe(true)
     expect(w.codesSeen).toEqual([VALID_CODE])
   })
 
