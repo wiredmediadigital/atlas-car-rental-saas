@@ -4,7 +4,7 @@
 
 **Goal:** Make TOTP two-factor authentication mandatory for every Pevvy user, enforced in the database, with recovery that cannot be used as a bypass.
 
-**Architecture:** Enrolment runs entirely against the GoTrue MFA API, which does not pass through RLS — so an unenrolled user needs *zero* database access, and a router guard placed above `WithWorkspace` can force enrolment without any carve-out in the policies. That is what makes it safe to enforce `aal2` inside the two existing authorization helpers (`app.is_org_member`, `app.has_min_role`), which propagates to every policy, every `security_invoker` view and the report read models at once. Recovery cannot mint an `aal2` session, so a recovery code instead authorises *deleting* the factor via an Edge Function holding the service key, after which the user enrols again.
+**Architecture:** Enrolment runs entirely against the GoTrue MFA API, which does not pass through RLS — so an unenrolled user needs _zero_ database access, and a router guard placed above `WithWorkspace` can force enrolment without any carve-out in the policies. That is what makes it safe to enforce `aal2` inside the two existing authorization helpers (`app.is_org_member`, `app.has_min_role`), which propagates to every policy, every `security_invoker` view and the report read models at once. Recovery cannot mint an `aal2` session, so a recovery code instead authorises _deleting_ the factor via an Edge Function holding the service key, after which the user enrols again.
 
 **Tech Stack:** Supabase Auth (GoTrue MFA, `totp`), `@supabase/supabase-js` 2.112.3, Postgres RLS, Deno Edge Functions, React 19 + React Router, Vitest + PGlite.
 
@@ -38,29 +38,31 @@ These are the failure modes the spec implies but no obvious task test covers. Ea
 
 ## File Structure
 
-| File | Responsibility |
-|---|---|
-| `supabase/migrations/20261112100000_security_events.sql` | Audit table + `app.record_security_event` |
-| `supabase/migrations/20261112100100_mfa_recovery_codes.sql` | Recovery code storage, generation, consumption |
-| `supabase/migrations/20261112100200_require_second_factor.sql` | `app.has_second_factor()` and its composition into the two helpers |
-| `supabase/functions/_shared/mfa-reset.ts` | Factor-reset logic: recovery-code path and owner path. All testable logic lives here. |
-| `supabase/functions/mfa-reset/index.ts` | Thin Deno entrypoint |
-| `src/features/auth/mfa.ts` | Typed wrapper over the GoTrue MFA API |
-| `src/features/auth/useSecondFactor.ts` | Hook exposing enrolment state to guards and pages |
-| `src/pages/auth/EnrollFactorPage.tsx` | Mandatory enrolment screen (QR + recovery codes) |
-| `src/pages/auth/ChallengeFactorPage.tsx` | 6-digit challenge after password |
-| `src/app/routes/guards.tsx` | `RequireSecondFactor` guard (modify) |
-| `src/pages/SettingsPage.tsx` | Security section: replace factor, regenerate codes (modify) |
+| File                                                           | Responsibility                                                                        |
+| -------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
+| `supabase/migrations/20261112100000_security_events.sql`       | Audit table + `app.record_security_event`                                             |
+| `supabase/migrations/20261112100100_mfa_recovery_codes.sql`    | Recovery code storage, generation, consumption                                        |
+| `supabase/migrations/20261112100200_require_second_factor.sql` | `app.has_second_factor()` and its composition into the two helpers                    |
+| `supabase/functions/_shared/mfa-reset.ts`                      | Factor-reset logic: recovery-code path and owner path. All testable logic lives here. |
+| `supabase/functions/mfa-reset/index.ts`                        | Thin Deno entrypoint                                                                  |
+| `src/features/auth/mfa.ts`                                     | Typed wrapper over the GoTrue MFA API                                                 |
+| `src/features/auth/useSecondFactor.ts`                         | Hook exposing enrolment state to guards and pages                                     |
+| `src/pages/auth/EnrollFactorPage.tsx`                          | Mandatory enrolment screen (QR + recovery codes)                                      |
+| `src/pages/auth/ChallengeFactorPage.tsx`                       | 6-digit challenge after password                                                      |
+| `src/app/routes/guards.tsx`                                    | `RequireSecondFactor` guard (modify)                                                  |
+| `src/pages/SettingsPage.tsx`                                   | Security section: replace factor, regenerate codes (modify)                           |
 
 ---
 
 ## Task 1: Security event audit table
 
 **Files:**
+
 - Create: `supabase/migrations/20261112100000_security_events.sql`
 - Test: `supabase/tests/security-events.test.ts`
 
 **Interfaces:**
+
 - Produces: table `public.security_events (id uuid, organization_id uuid null, actor_user_id uuid, subject_user_id uuid, event_type public.security_event_type, detail jsonb, created_at timestamptz)`; enum `public.security_event_type` with values `factor_enrolled`, `factor_removed`, `recovery_code_used`, `factor_reset_by_owner`, `factor_reset_by_operator`; function `app.record_security_event(p_event_type public.security_event_type, p_subject_user_id uuid, p_organization_id uuid, p_detail jsonb) returns uuid`.
 
 - [ ] **Step 1: Write the failing test** in `supabase/tests/security-events.test.ts`, following the shape of `supabase/tests/account-closure-actions.test.ts` (`TestDatabase`, `signUp`, `addMember`, `db.asUser`). Assert:
@@ -93,10 +95,12 @@ git commit -m "feat: security event audit table"
 ## Task 2: Recovery codes
 
 **Files:**
+
 - Create: `supabase/migrations/20261112100100_mfa_recovery_codes.sql`
 - Test: `supabase/tests/mfa-recovery-codes.test.ts`
 
 **Interfaces:**
+
 - Consumes: `app.record_security_event` from Task 1.
 - Produces: table `public.mfa_recovery_codes (id uuid, user_id uuid, code_hash text, used_at timestamptz null, created_at timestamptz)`; `public.mfa_generate_recovery_codes() returns setof text` (replaces any existing unused codes for the caller, returns 10 plaintext codes, once); `app.mfa_consume_recovery_code(p_user_id uuid, p_code text) returns boolean` (marks exactly one matching unused code used, returns whether it matched).
 
@@ -135,6 +139,7 @@ git commit -m "feat: single-use MFA recovery codes"
 **This is the dangerous task.** Read "Deployment ordering" above before the migration reaches any live project.
 
 **Files:**
+
 - Create: `supabase/migrations/20261112100200_require_second_factor.sql`
 - Modify: `supabase/tests/support/supabase-doubles.sql` (add an `auth.jwt()` double)
 - Modify: `supabase/tests/support/harness.ts:70` (`asUser` gains an optional assurance level)
@@ -142,6 +147,7 @@ git commit -m "feat: single-use MFA recovery codes"
 - Test: `supabase/tests/require-second-factor.test.ts`
 
 **Interfaces:**
+
 - Produces: `app.has_second_factor() returns boolean`; `app.is_org_member(uuid)` and `app.has_min_role(uuid, public.org_role)` both additionally require it.
 - Produces: `db.asUser(userId, fn, { aal })` where `aal` defaults to `'aal2'`, so every existing test keeps passing unchanged.
 
@@ -180,10 +186,12 @@ git commit -m "feat: require a verified second factor for all tenant data"
 ## Task 4: Factor reset logic
 
 **Files:**
+
 - Create: `supabase/functions/_shared/mfa-reset.ts`
 - Test: `supabase/functions/_shared/mfa-reset.test.ts`
 
 **Interfaces:**
+
 - Consumes: `app.mfa_consume_recovery_code`, `app.record_security_event`.
 - Produces: `resetOwnFactor(deps, { userId, recoveryCode }): Promise<ResetOutcome>` and `resetMemberFactor(deps, { actorUserId, subjectUserId, organizationId }): Promise<ResetOutcome>`, where `ResetOutcome = { ok: true; factorsRemoved: number } | { ok: false; reason: 'invalid_code' | 'not_permitted' | 'no_factor' }`. `deps` is an injected interface over the admin client and the database, following the dependency-injection shape of `supabase/functions/_shared/closure-notice.ts`.
 
@@ -215,10 +223,12 @@ git commit -m "feat: MFA factor reset logic"
 ## Task 5: Factor reset endpoint
 
 **Files:**
+
 - Create: `supabase/functions/mfa-reset/index.ts`
 - Modify: `supabase/config.toml` (add `[functions.mfa-reset] verify_jwt = true`)
 
 **Interfaces:**
+
 - Consumes: `resetOwnFactor`, `resetMemberFactor` from Task 4.
 - Produces: `POST /mfa-reset` taking `{ mode: 'self', recoveryCode }` or `{ mode: 'member', subjectUserId, organizationId }`.
 
@@ -243,11 +253,13 @@ git commit -m "feat: mfa-reset endpoint"
 ## Task 6: Client MFA wrapper
 
 **Files:**
+
 - Create: `src/features/auth/mfa.ts`
 - Create: `src/features/auth/useSecondFactor.ts`
 - Test: `src/features/auth/mfa.test.ts`
 
 **Interfaces:**
+
 - Produces: `listFactorState(): Promise<FactorState>` where `FactorState = { status: 'none' | 'unverified' | 'verified'; factorId: string | null }`; `beginEnrolment(): Promise<{ factorId: string; qrCodeSvg: string; secret: string }>`; `completeEnrolment(factorId: string, code: string): Promise<void>`; `challenge(factorId: string, code: string): Promise<void>`; `assuranceLevel(): Promise<'aal1' | 'aal2'>`.
 - Produces: `useSecondFactor(): { state: FactorState | null; isLoading: boolean; refresh: () => void }`.
 
@@ -277,15 +289,18 @@ git commit -m "feat: client MFA wrapper"
 ## Task 7: Enrolment and challenge screens
 
 **Files:**
+
 - Create: `src/pages/auth/EnrollFactorPage.tsx`
 - Create: `src/pages/auth/ChallengeFactorPage.tsx`
-- Test: `src/pages/auth/EnrollFactorPage.test.tsx`, `src/pages/auth/ChallengeFactorPage.test.tsx`
-- Modify: `src/app/routes/paths.ts` (add `enrollFactor: '/sign-in/set-up'`, `challengeFactor: '/sign-in/verify'`)
+- Create: `src/pages/auth/RecoverFactorPage.tsx`
+- Test: `src/pages/auth/EnrollFactorPage.test.tsx`, `src/pages/auth/ChallengeFactorPage.test.tsx`, `src/pages/auth/RecoverFactorPage.test.tsx`
+- Modify: `src/app/routes/paths.ts` (add `enrollFactor: '/sign-in/set-up'`, `challengeFactor: '/sign-in/verify'`, `recoverFactor: '/sign-in/recover'`)
 
 **Interfaces:**
+
 - Consumes: everything from Task 6, and `mfa_generate_recovery_codes` via the Supabase client.
 
-- [ ] **Step 1: Write the failing tests.** For enrolment, assert: the QR code and the typed-entry secret both render; a wrong code shows an error and does not advance; a correct code shows the 10 recovery codes with an explicit acknowledgement control before the user can continue; the codes are shown exactly once. For the challenge screen, assert: a wrong code shows an error and allows a retry; a correct code navigates to the route the user was heading for; a "lost your device" control routes to recovery.
+- [ ] **Step 1: Write the failing tests.** For enrolment, assert: the QR code and the typed-entry secret both render; a wrong code shows an error and does not advance; a correct code shows the 10 recovery codes with an explicit acknowledgement control before the user can continue; the codes are shown exactly once. For the challenge screen, assert: a wrong code shows an error and allows a retry; a correct code navigates to the route the user was heading for; a "lost your device" control routes to `paths.recoverFactor`. For the recovery screen, assert: submitting a code calls the Task 5 endpoint with `mode: 'self'`; a rejected code (`invalid_code`) shows an error and does not navigate; an accepted code sends the user to `paths.enrollFactor` to set up a new authenticator; the copy states plainly that the old authenticator stops working.
 
 - [ ] **Step 2: Run them and watch them fail**
 
@@ -305,15 +320,18 @@ git commit -m "feat: MFA enrolment and challenge screens"
 ## Task 8: Force enrolment, and manage it in settings
 
 **Files:**
+
 - Modify: `src/app/routes/guards.tsx` (add `RequireSecondFactor`)
 - Modify: `src/app/routes/AppRouter.tsx:277-284`
 - Modify: `src/pages/SettingsPage.tsx`
-- Test: `src/app/routes/guards.test.tsx`, `src/pages/SettingsPage.test.tsx`
+- Modify: `src/pages/team/TeamPage.tsx` (owner's reset-a-member control)
+- Test: `src/app/routes/guards.test.tsx`, `src/pages/SettingsPage.test.tsx`, and the Team page's existing test file
 
 **Interfaces:**
+
 - Consumes: `useSecondFactor` from Task 6; the routes from Task 7.
 
-- [ ] **Step 1: Write the failing tests.** For the guard, assert: a signed-in user with no verified factor is redirected to `paths.enrollFactor` from every protected route; a user with a verified factor but an `aal1` session is redirected to `paths.challengeFactor`; a user at `aal2` passes through; the enrolment and challenge routes themselves are never redirected into a loop. For settings, assert the security section shows enrolment state, offers to replace the authenticator, and offers to regenerate recovery codes.
+- [ ] **Step 1: Write the failing tests.** For the guard, assert: a signed-in user with no verified factor is redirected to `paths.enrollFactor` from every protected route; a user with a verified factor but an `aal1` session is redirected to `paths.challengeFactor`; a user at `aal2` passes through; the enrolment and challenge routes themselves are never redirected into a loop. For settings, assert the security section shows enrolment state, offers to replace the authenticator, and offers to regenerate recovery codes. For the Team page, assert: an owner sees a reset control against each other member and using it calls the Task 5 endpoint with `mode: 'member'` and that member's id; a `manager` and a `staff` member see no such control; the control states that the member will have to enrol again.
 
 - [ ] **Step 2: Run them and watch them fail**
 
