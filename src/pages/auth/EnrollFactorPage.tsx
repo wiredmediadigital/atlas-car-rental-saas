@@ -12,6 +12,7 @@ import {
   beginEnrolment,
   completeEnrolment,
   listFactorState,
+  recordEnrolment,
 } from '@/features/auth/mfa'
 import { verificationErrorMessage } from '@/features/auth/mfa-messages'
 import { generateRecoveryCodes } from '@/features/auth/mfa-recovery'
@@ -171,6 +172,18 @@ function ScanStep({ start, onVerified }: ScanStepProps) {
     } catch (error) {
       setFormError(verificationErrorMessage(error))
       return
+    }
+    /*
+     * The audit row, written from the one place that knows an enrolment has
+     * happened. It is a record, not a step the user is waiting on: the
+     * authenticator is already enrolled by this line, and stopping here because
+     * a log line failed would leave the account holding a factor and no recovery
+     * codes — the worst of the states this screen can end in.
+     */
+    try {
+      await recordEnrolment()
+    } catch {
+      // Deliberately ignored; see above.
     }
     // Only now: minting codes needs the second-factor session this just created.
     await onVerified()

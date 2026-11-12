@@ -69,6 +69,22 @@ export async function completeEnrolment(factorId: string, code: string): Promise
 }
 
 /**
+ * Writes the `factor_enrolled` row of the security audit trail.
+ *
+ * Separate from completeEnrolment because GoTrue, not this schema, owns the
+ * enrolment itself: nothing in the database observes it happening, so the one
+ * moment that knows has to say so. Needs the aal2 session completeEnrolment has
+ * just created, so call it only after that has returned.
+ *
+ * Deliberately not emitted when recovery codes are regenerated from Settings:
+ * that is not an enrolment.
+ */
+export async function recordEnrolment(): Promise<void> {
+  const { error } = await getSupabaseClient().rpc('mfa_record_enrolment')
+  if (error) throw toAppError(error)
+}
+
+/**
  * Removes a factor the user holds, so that a new one can take its place.
  *
  * This is the replace path in Settings, and it needs the aal2 session the user

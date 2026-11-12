@@ -14,6 +14,7 @@ const mfa = vi.hoisted(() => ({
   listFactorState: vi.fn(),
   beginEnrolment: vi.fn(),
   completeEnrolment: vi.fn(),
+  recordEnrolment: vi.fn(),
   generateRecoveryCodes: vi.fn(),
 }))
 
@@ -21,6 +22,7 @@ vi.mock('@/features/auth/mfa', () => ({
   listFactorState: mfa.listFactorState,
   beginEnrolment: mfa.beginEnrolment,
   completeEnrolment: mfa.completeEnrolment,
+  recordEnrolment: mfa.recordEnrolment,
 }))
 vi.mock('@/features/auth/mfa-recovery', () => ({
   generateRecoveryCodes: mfa.generateRecoveryCodes,
@@ -74,6 +76,7 @@ beforeEach(() => {
     secret: SECRET,
   })
   mfa.completeEnrolment.mockResolvedValue(undefined)
+  mfa.recordEnrolment.mockResolvedValue(undefined)
   mfa.generateRecoveryCodes.mockResolvedValue(CODES)
   refresh.mockReset()
 })
@@ -155,6 +158,29 @@ describe('what enrolment tells the rest of the application', () => {
     await enterCode('123456')
 
     await waitFor(() => expect(refresh).toHaveBeenCalled())
+  })
+
+  it('records the enrolment in the security audit trail once the code is proved', async () => {
+    // This screen is the only place that knows an enrolment happened: GoTrue
+    // owns the factor, and nothing in the database observes it being created.
+    renderPage()
+    await screen.findByRole('img', { name: /qr code/i })
+    expect(mfa.recordEnrolment).not.toHaveBeenCalled()
+
+    await enterCode('123456')
+
+    await waitFor(() => expect(mfa.recordEnrolment).toHaveBeenCalledTimes(1))
+  })
+
+  it('still gives the user their recovery codes when the audit row cannot be written', async () => {
+    // The authenticator is already enrolled by then. Stopping would leave the
+    // account with a factor and nothing to fall back on.
+    mfa.recordEnrolment.mockRejectedValue(new AppError('network', 'Could not reach the server.'))
+    renderPage()
+
+    await enterCode('123456')
+
+    expect(await screen.findByText(CODES[0]!)).toBeVisible()
   })
 })
 

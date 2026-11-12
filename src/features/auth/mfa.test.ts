@@ -8,6 +8,7 @@ import {
   challenge,
   completeEnrolment,
   listFactorState,
+  recordEnrolment,
   removeFactor,
 } from './mfa'
 
@@ -100,6 +101,12 @@ vi.mock('@/lib/supabase/client', () => ({
           return Promise.resolve({ data: { currentLevel: backend.assurance }, error: null })
         },
       },
+    },
+    rpc: (name: string) => {
+      backend.calls.push(`rpc:${name}`)
+      const failure = failureFor('rpc')
+      if (failure) return Promise.resolve(failure)
+      return Promise.resolve({ data: null, error: null })
     },
   }),
 }))
@@ -223,6 +230,20 @@ describe('completeEnrolment and challenge', () => {
   it('converts a completeEnrolment failure with toAppError', async () => {
     backend.failNext = { op: 'verify', error: NETWORK_FAILURE }
     await expect(completeEnrolment('x', '1')).rejects.toMatchObject({ kind: 'network' })
+  })
+})
+
+describe('recordEnrolment', () => {
+  it('asks the database to record the enrolment, and nothing else', async () => {
+    await recordEnrolment()
+
+    expect(backend.calls).toEqual(['rpc:mfa_record_enrolment'])
+  })
+
+  it('throws an app error when the database refuses', async () => {
+    backend.failNext = { op: 'rpc', error: NETWORK_FAILURE }
+
+    await expect(recordEnrolment()).rejects.toBeInstanceOf(AppError)
   })
 })
 

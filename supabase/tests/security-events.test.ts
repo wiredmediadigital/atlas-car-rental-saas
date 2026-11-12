@@ -112,10 +112,43 @@ describe('reading security events', () => {
     expect(rows).toHaveLength(1)
   })
 
-  it('shows a staff member nothing', async () => {
-    await record(staff)
+  it('shows a staff member nothing about anybody else', async () => {
+    await record(owner)
     const rows = await db.asUser(staff, (s) => s.sql(`select id from public.security_events`))
     expect(rows).toHaveLength(0)
+  })
+
+  it('shows a person the events about themselves, even with no organization', async () => {
+    // recovery_code_used and factor_removed are written with no organization at
+    // all: an authenticator belongs to a person, not to one of their agencies.
+    // Before the subject could read them, nobody could.
+    await record(staff, null)
+    const rows = await db.asUser(staff, (s) =>
+      s.sql<{ subject_user_id: string }>(`select subject_user_id from public.security_events`),
+    )
+    expect(rows.map((row) => row.subject_user_id)).toEqual([staff])
+  })
+
+  it('shows the subject their own event in an agency they are only staff in', async () => {
+    await record(staff)
+    const rows = await db.asUser(staff, (s) => s.sql(`select id from public.security_events`))
+    expect(rows).toHaveLength(1)
+  })
+
+  it('still shows them nothing when the subject is somebody else with no organization', async () => {
+    await record(owner, null)
+    const rows = await db.asUser(staff, (s) => s.sql(`select id from public.security_events`))
+    expect(rows).toHaveLength(0)
+  })
+
+  it('reaches the person whose factor was removed even at aal1', async () => {
+    // The session that needs this most is the one that cannot reach aal2: the
+    // user whose second factor has just been taken away.
+    await record(staff, null)
+    const rows = await db.asUser(staff, (s) => s.sql(`select id from public.security_events`), {
+      aal: 'aal1',
+    })
+    expect(rows).toHaveLength(1)
   })
 
   it('does not show an owner the events of another organization', async () => {
@@ -129,6 +162,55 @@ describe('reading security events', () => {
     await record(other.userId, other.organizationId)
     const rows = await db.asUser(owner, (s) => s.sql(`select id from public.security_events`))
     expect(rows).toHaveLength(0)
+  })
+})
+
+describe('recording an enrolment', () => {
+  const ENROL = `select public.mfa_record_enrolment()`
+
+  const enrolmentsFor = (userId: string) =>
+    db.sql<{ organization_id: string | null; actor_user_id: string | null; detail: string }>(
+      `select organization_id, actor_user_id, detail::text as detail
+         from public.security_events
+        where event_type = 'factor_enrolled' and subject_user_id = $1`,
+      [userId],
+    )
+
+  it('records one event about the caller, belonging to no agency', async () => {
+    await db.asUser(staff, (s) => s.sql(ENROL))
+
+    const rows = await enrolmentsFor(staff)
+    expect(rows).toHaveLength(1)
+    expect(rows[0]!.organization_id).toBeNull()
+    expect(rows[0]!.actor_user_id).toBe(staff)
+    expect(rows[0]!.detail).toContain('totp')
+  })
+
+  it('is readable by the person it is about', async () => {
+    await db.asUser(staff, (s) => s.sql(ENROL))
+    const rows = await db.asUser(staff, (s) =>
+      s.sql(`select id from public.security_events where event_type = 'factor_enrolled'`),
+    )
+    expect(rows).toHaveLength(1)
+  })
+
+  it('refuses a session that has not verified a second factor', async () => {
+    await expect(db.asUser(staff, (s) => s.sql(ENROL), { aal: 'aal1' })).rejects.toThrow(
+      /second factor/i,
+    )
+    expect(await enrolmentsFor(staff)).toHaveLength(0)
+  })
+
+  it('refuses a caller with no session at all', async () => {
+    await expect(db.sql(ENROL)).rejects.toThrow(/not authenticated/i)
+  })
+
+  it('is not emitted when recovery codes are merely regenerated', async () => {
+    // Regenerating codes from Settings is not an enrolment. Emitting it there
+    // would make the trail claim an authenticator was set up that was not.
+    await db.asUser(staff, (s) => s.sql(`select public.mfa_generate_recovery_codes()`))
+
+    expect(await enrolmentsFor(staff)).toHaveLength(0)
   })
 })
 
