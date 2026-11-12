@@ -80,11 +80,11 @@ export function TermsPage() {
           items={[
             'Grace period. Deletion happens after the end of the 30-day grace period that starts with the request. Until then any owner or administrator can restore the account in one click. Records stay readable and exportable throughout, so use the time to export what you need.',
             'Restoring. The account becomes writable again if its subscription is still active. If it has been cancelled, restoring brings your records back but leaves the account read-only until the subscription is started again, which you can do from Billing.',
-            'Deleting sooner. There is no self-service way to delete immediately. If you want your data deleted before the 30 days are up, ask us and we will action it.',
+            'Deleting sooner. There is no self-service way to delete immediately. If you want your data deleted before the 30 days are up, ask us and we will action it as soon as we reasonably can.',
             'Your subscription. Closing the account does not itself cancel the subscription, so it keeps running and keeps billing. You cancel it yourself from Manage billing, which stays available while the account is suspended. The account is deleted only after the subscription has ended and the grace period is over.',
             'No refund. We do not refund the remainder of a period you have already paid for, and anything charged before you cancel is not refunded. Cancelling stops the next renewal.',
             'What is deleted. At the end of the grace period your agency’s records and files are permanently deleted, and team members who belong to no other agency lose their sign-in. This cannot be undone.',
-            'What we keep. Billing records are kept, with your agency’s legal name, for the period tax law requires. We also keep a record that the closure happened and when, with counts of what was removed and never their content.',
+            'What we keep. Billing records are kept, with your agency’s legal name, for the period required by the tax law that applies to us. We also keep a record that the closure happened and when, with counts of what was removed and never their content.',
           ]}
         />
         <p>
