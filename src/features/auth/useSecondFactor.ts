@@ -4,7 +4,11 @@ import { useAuth } from './auth-context'
 import { type FactorState, listFactorState } from './mfa'
 
 export interface SecondFactor {
-  /** Null until the first read finishes, and while signed out. */
+  /**
+   * Null means unknown: no read has finished yet, the user is signed out, or
+   * the read failed. Treat it as NOT enrolled. It must never be read as
+   * "verified", and a consumer that gates access on it must fail closed.
+   */
   readonly state: FactorState | null
   readonly isLoading: boolean
   /** Reads the factor state again, e.g. after enrolment completes. */
