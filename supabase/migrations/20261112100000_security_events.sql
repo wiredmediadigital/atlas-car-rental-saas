@@ -98,28 +98,55 @@ grant execute on function app.record_security_event(public.security_event_type, 
   to service_role;
 
 -- -----------------------------------------------------------------------------
--- Account closure: security_events is KEPT
+-- Account closure: security_events is PURGED with the organization
 --
 -- It carries organization_id, so the purge lists must account for it or every
 -- due agency's claim is refused (app.organization_purge_lists_agree). It is
--- kept, like the billing and closure evidence, because it is an audit trail:
--- the purge neither deletes it nor needs to, and the organizations row it
--- points at is only ever tombstoned. subject_user_id has no foreign key, so
--- removing the agency's accounts does not touch it either.
+-- purged rather than kept: organization_id is `on delete set null` and the
+-- select policy is has_min_role(organization_id, 'owner'), so retained rows
+-- would be unreadable by every user while still holding subject_user_id and
+-- detail. Forensic retention past closure, if ever wanted, needs a deliberate
+-- design (a stated retention period, anonymised actor ids).
+--
+-- Rows with a null organization_id (recovery_code_used) are not
+-- organization-scoped and are outside the purge's remit by construction. That
+-- is expected, not an oversight.
+--
+-- organization_purge_tables() is restated whole below with 'security_events'
+-- added; the earlier migration is not edited. The table references only
+-- organizations, so its position in the list does not matter.
 -- -----------------------------------------------------------------------------
-create or replace function app.organization_retained_tables()
+create or replace function app.organization_purge_tables()
 returns text[]
 language sql
 immutable
 set search_path = ''
 as $$
   select array[
-    'billing_checkout_sessions', 'billing_customers', 'billing_events',
-    'billing_subscriptions', 'billing_webhook_events',
-    'account_closure_events', 'account_closure_objects',
+    -- GPS
+    'gps_positions', 'gps_unit_assignments', 'gps_sync_runs', 'gps_units',
+    'gps_provider_credentials', 'gps_provider_connections',
+    -- notifications
+    'notification_preferences', 'notification_states', 'notification_events',
+    -- team
+    'organization_team_events', 'organization_invitations', 'organization_members',
+    -- expenses
+    'expense_attachments', 'expense_change_events', 'expenses',
+    'expense_categories', 'expense_vendors',
+    -- financing
+    'financing_documents', 'financing_change_events', 'financing_payments',
+    'financing_installments', 'financing_agreements', 'lenders',
+    -- rentals and customers
+    'customer_documents', 'rental_condition_photos', 'rental_contracts',
+    'rental_line_items', 'rental_drivers', 'payments', 'rentals', 'customers',
+    -- fleet
+    'vehicle_documents', 'vehicle_images', 'vehicles',
+    -- settings
+    'organization_settings',
+    -- security
     'security_events'
   ];
 $$;
 
-comment on function app.organization_retained_tables() is
-  'Tables carrying organization_id that the account purge keeps on purpose: billing records, closure evidence and the security audit trail.';
+comment on function app.organization_purge_tables() is
+  'Every table the account purge empties, children first. Explicit on purpose: a table added without being listed here (or in organization_retained_tables) stops the purge before it deletes anything.';
