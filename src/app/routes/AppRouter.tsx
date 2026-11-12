@@ -137,6 +137,21 @@ const CustomerDetailPage = lazy(() =>
 const SignInPage = lazy(() =>
   import('@/pages/auth/SignInPage').then((module) => ({ default: module.SignInPage })),
 )
+const EnrollFactorPage = lazy(() =>
+  import('@/pages/auth/EnrollFactorPage').then((module) => ({
+    default: module.EnrollFactorPage,
+  })),
+)
+const ChallengeFactorPage = lazy(() =>
+  import('@/pages/auth/ChallengeFactorPage').then((module) => ({
+    default: module.ChallengeFactorPage,
+  })),
+)
+const RecoverFactorPage = lazy(() =>
+  import('@/pages/auth/RecoverFactorPage').then((module) => ({
+    default: module.RecoverFactorPage,
+  })),
+)
 const SignUpPage = lazy(() =>
   import('@/pages/auth/SignUpPage').then((module) => ({ default: module.SignUpPage })),
 )
@@ -224,6 +239,17 @@ export function AppRouter() {
             <Route path={paths.signIn} element={<SignInPage />} />
             <Route path={paths.signUp} element={<SignUpPage />} />
             <Route path={paths.forgotPassword} element={<ForgotPasswordPage />} />
+          </Route>
+
+          {/*
+           * The second-factor screens. They need a session (the password step has
+           * passed) but deliberately sit outside WithWorkspace: an aal1 session is
+           * refused tenant data, so loading the workspace here would only fail.
+           */}
+          <Route element={<RequireAuth />}>
+            <Route path={paths.enrollFactor} element={<EnrollFactorPage />} />
+            <Route path={paths.challengeFactor} element={<ChallengeFactorPage />} />
+            <Route path={paths.recoverFactor} element={<RecoverFactorPage />} />
           </Route>
 
           {/* Reachable in either state: these establish or complete a session. */}
