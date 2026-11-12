@@ -158,6 +158,12 @@ describe('nothing in the schema can bypass RLS', () => {
      * hashes. It acts only on auth.uid() and returns the plaintext codes once.
      * Its sibling, app.mfa_consume_recovery_code, lives in `app` for service_role.
      *
+     * And mfa_record_enrolment: definer because the only write path into
+     * public.security_events is app.record_security_event, which is granted to
+     * service_role alone — the audit trail must not be writable by the people it
+     * describes. It takes no arguments, acts only on auth.uid(), requires aal2
+     * and returns nothing.
+     *
      * Anything else appearing in this list is a leak.
      */
     expect(definerFunctions.map((row) => row.proname).sort()).toEqual([
@@ -179,6 +185,7 @@ describe('nothing in the schema can bypass RLS', () => {
       'gps_store_credential',
       'leave_organization',
       'mfa_generate_recovery_codes',
+      'mfa_record_enrolment',
       'notification_dismiss',
       'notification_feed',
       'notification_mark_all_read',
