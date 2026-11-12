@@ -22,7 +22,8 @@
  * service_role only, and an aal1 session is refused tenant data by RLS.
  *
  * Deliberately no application-level rate limiting (recorded, accepted risk).
- * NOTHING HERE LOGS OR RETURNS A RECOVERY CODE, TOKEN OR SECRET.
+ * NOTHING HERE LOGS OR RETURNS A RECOVERY CODE, TOKEN OR SECRET. Failures log only
+ * the fixed error code of the dependency that failed.
  */
 
 import { createClient, type SupabaseClient } from 'jsr:@supabase/supabase-js@2'
@@ -34,14 +35,13 @@ import {
   type ResetDeps,
   type ResetOutcome,
 } from '../_shared/mfa-reset.ts'
+import { hasRequiredAal, parseResetRequest } from '../_shared/mfa-reset-request.ts'
 
 const CORS_HEADERS: Record<string, string> = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 }
-
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 const STATUS_BY_REASON = {
   invalid_code: 400,
@@ -63,17 +63,6 @@ function failure(category: string, message: string, status: number): Response {
 function outcomeResponse(outcome: ResetOutcome): Response {
   if (outcome.ok) return json({ ok: true, factorsRemoved: outcome.factorsRemoved })
   return json({ ok: false, reason: outcome.reason }, STATUS_BY_REASON[outcome.reason])
-}
-
-/** The aal claim of a JWT that auth.getUser() has already verified. */
-function verifiedAal(authorization: string): string {
-  const token = authorization.replace(/^Bearer\s+/i, '')
-  const payload = token.split('.')[1] ?? ''
-  const base64 = payload.replace(/-/g, '+').replace(/_/g, '/')
-  const claims = JSON.parse(atob(base64.padEnd(Math.ceil(base64.length / 4) * 4, '='))) as {
-    aal?: unknown
-  }
-  return typeof claims.aal === 'string' ? claims.aal : ''
 }
 
 function realDeps(service: SupabaseClient): ResetDeps {
@@ -122,27 +111,16 @@ Deno.serve(async (request: Request): Promise<Response> => {
   if (request.method === 'OPTIONS') return new Response('ok', { headers: CORS_HEADERS })
   if (request.method !== 'POST') return failure('method_not_allowed', 'Use POST.', 405)
 
-  let body: Record<string, unknown>
+  let body: unknown
   try {
-    body = (await request.json()) as Record<string, unknown>
+    body = await request.json()
   } catch {
     return failure('malformed_request', 'That request could not be read.', 400)
   }
 
-  const mode = body.mode
-  const recoveryCode = typeof body.recoveryCode === 'string' ? body.recoveryCode : ''
-  const subjectUserId = typeof body.subjectUserId === 'string' ? body.subjectUserId : ''
-  const organizationId = typeof body.organizationId === 'string' ? body.organizationId : ''
-
-  if (mode === 'self') {
-    if (recoveryCode === '') return failure('malformed_request', 'No recovery code was given.', 400)
-  } else if (mode === 'member') {
-    if (!UUID.test(subjectUserId) || !UUID.test(organizationId)) {
-      return failure('malformed_request', 'A member and an agency must be named.', 400)
-    }
-  } else {
-    return failure('malformed_request', 'Unknown mode.', 400)
-  }
+  const parsed = parseResetRequest(body)
+  if (!parsed.ok) return failure('malformed_request', parsed.message, 400)
+  const reset = parsed.request
 
   const authorization = request.headers.get('Authorization') ?? ''
   if (authorization === '') return failure('auth_error', 'Sign in first.', 401)
@@ -162,8 +140,8 @@ Deno.serve(async (request: Request): Promise<Response> => {
   if (authError || !auth?.user) return failure('auth_error', 'Sign in first.', 401)
 
   try {
-    // Fail closed: an unreadable or missing aal claim is not aal2.
-    if (mode === 'member' && verifiedAal(authorization) !== 'aal2') {
+    // Fail closed: an unreadable or missing aal claim is not aal2 (it throws).
+    if (!hasRequiredAal(reset.mode, authorization)) {
       return failure('second_factor_required', 'Verify your second factor first.', 403)
     }
 
@@ -173,16 +151,18 @@ Deno.serve(async (request: Request): Promise<Response> => {
     const deps = realDeps(service)
 
     const outcome =
-      mode === 'self'
-        ? await resetOwnFactor(deps, { userId: auth.user.id, recoveryCode })
+      reset.mode === 'self'
+        ? await resetOwnFactor(deps, { userId: auth.user.id, recoveryCode: reset.recoveryCode })
         : await resetMemberFactor(deps, {
             actorUserId: auth.user.id,
-            subjectUserId,
-            organizationId,
+            subjectUserId: reset.subjectUserId,
+            organizationId: reset.organizationId,
           })
     return outcomeResponse(outcome)
-  } catch {
-    // Nothing from the request or the error is echoed or logged.
+  } catch (error) {
+    // Every error here carries a fixed, secret-free code (see realDeps and
+    // readAalClaim), so the message is safe to log. The response says nothing.
+    console.error('mfa-reset failed:', error instanceof Error ? error.message : 'unknown_error')
     return failure('server_error', 'The reset could not be completed.', 500)
   }
 })
