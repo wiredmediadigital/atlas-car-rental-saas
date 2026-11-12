@@ -66,13 +66,20 @@ export class TestDatabase {
   /**
    * Runs `fn` as the `authenticated` Postgres role with `auth.uid()` resolving
    * to `userId` — the same position a browser request occupies. RLS applies.
+   *
+   * `claims.aal` is the assurance level GoTrue stamps on the session. It
+   * defaults to `'aal2'` — a session that has passed its second factor — so a
+   * test that is not about assurance reads like the product's ordinary state.
+   * Pass `null` for a session carrying no `aal` claim at all: the shape of a
+   * token minted before MFA existed.
    */
   async asUser<T>(
     userId: string,
     fn: (db: TestDatabase) => Promise<T>,
-    claims: { aal?: 'aal1' | 'aal2' } = {},
+    claims: { aal?: 'aal1' | 'aal2' | null } = {},
   ): Promise<T> {
-    const jwt = claims.aal ? `set request.jwt.claims = '{"aal":"${claims.aal}"}';` : ''
+    const aal = claims.aal === undefined ? 'aal2' : claims.aal
+    const jwt = aal ? `set request.jwt.claims = '{"aal":"${aal}"}';` : ''
     await this.db.exec(`set request.jwt.claim.sub = '${userId}'; ${jwt} set role authenticated;`)
     try {
       return await fn(this)
@@ -91,7 +98,11 @@ export class TestDatabase {
    * functions would land exactly here.
    */
   async asServiceRole<T>(userId: string, fn: (db: TestDatabase) => Promise<T>): Promise<T> {
-    await this.db.exec(`set request.jwt.claim.sub = '${userId}'; set role service_role;`)
+    // No `aal` claim, deliberately: a service key is not a user session and the
+    // JWT it carries has never had one.
+    await this.db.exec(
+      `set request.jwt.claim.sub = '${userId}'; reset request.jwt.claims; set role service_role;`,
+    )
     try {
       return await fn(this)
     } finally {
@@ -101,7 +112,7 @@ export class TestDatabase {
 
   /** Runs `fn` as the unauthenticated `anon` role. */
   async asAnon<T>(fn: (db: TestDatabase) => Promise<T>): Promise<T> {
-    await this.db.exec(`reset request.jwt.claim.sub; set role anon;`)
+    await this.db.exec(`reset request.jwt.claim.sub; reset request.jwt.claims; set role anon;`)
     try {
       return await fn(this)
     } finally {

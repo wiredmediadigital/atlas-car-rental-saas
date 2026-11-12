@@ -382,9 +382,12 @@ auth_token = "env(SUPABASE_AUTH_SMS_TWILIO_AUTH_TOKEN)"
 max_enrolled_factors = 10
 
 # Control MFA via App Authenticator (TOTP)
+# Both must be true before 20261112100200_require_second_factor.sql is applied to
+# a project: that migration makes every session below aal2 blind to tenant data,
+# and with enrolment off there would be no way to reach aal2.
 [auth.mfa.totp]
-enroll_enabled = false
-verify_enabled = false
+enroll_enabled = true
+verify_enabled = true
 
 # Configure MFA via Phone Messaging
 [auth.mfa.phone]

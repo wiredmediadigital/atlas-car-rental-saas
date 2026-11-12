@@ -109,7 +109,9 @@ describe('assurance level required to generate codes', () => {
 
   it('refuses a session with no aal claim and leaves the existing codes intact', async () => {
     await generate(alice)
-    await expect(db.asUser(alice, (s) => s.sql(generateSql))).rejects.toThrow(/second factor/i)
+    await expect(db.asUser(alice, (s) => s.sql(generateSql), { aal: null })).rejects.toThrow(
+      /second factor/i,
+    )
     expect(await unusedCount(alice)).toBe(10)
   })
 
