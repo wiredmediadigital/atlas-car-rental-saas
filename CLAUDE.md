@@ -38,8 +38,10 @@ site, read-only.
   leaves every user of every agency unable to enrol and unable to read anything, with no
   way back from inside Pevvy. `npm run setup:check` blocks on this; it reads
   `SUPABASE_TOTP_ENABLED_FOR=<ref>` in `.env.local`, which records the user confirming it.
-  Never set that value yourself — only the user can say what is switched on in their
-  dashboard.
+  You write that line, but only after the user has answered a question about TOTP
+  specifically and said they have switched it on in their dashboard. Never infer it, assume
+  it, or carry it over from another approval — a yes to installing, publishing or anything
+  else is not that answer.
 - **Confirm the Supabase project before every remote command.** `supabase/.temp/project-ref`
   must equal the project in `.env.local` and the one the user confirmed. `npm run setup:check`
   fails when they differ — stop and ask.
