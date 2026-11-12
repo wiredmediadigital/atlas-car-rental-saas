@@ -53,6 +53,12 @@ export const paths = {
    */
   privacy: '/privacy',
   terms: '/terms',
+  /**
+   * The processor terms. Its own address because an agency's lawyer asks for
+   * this document by name, and sending them a page anchor inside the terms
+   * reads as though we do not have one.
+   */
+  dataProcessing: '/data-processing',
 
   signIn: '/sign-in',
   /** Two-factor set-up: scan a code, then save the recovery codes. */

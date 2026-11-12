@@ -6,6 +6,7 @@ import { AuthContext, type AuthContextValue } from '@/features/auth/auth-context
 
 import type * as LegalConfig from './legal-config'
 import { PrivacyPolicyPage } from './PrivacyPolicyPage'
+import { DataProcessingPage } from './DataProcessingPage'
 import { TermsPage } from './TermsPage'
 
 // Keeps the real implementation but makes the module spy-able, so the
@@ -99,7 +100,7 @@ describe('Finding them', () => {
    * A policy nobody can reach is the same as no policy. The footer is the
    * conventional place to look, and a payment provider's review looks there.
    */
-  it('links to both documents from the footer', () => {
+  it('links to all three documents from the footer', () => {
     renderPage(<PrivacyPolicyPage />)
     const footer = screen.getByRole('contentinfo')
     expect(within(footer).getByRole('link', { name: /privacy/i })).toHaveAttribute(
@@ -107,6 +108,10 @@ describe('Finding them', () => {
       '/privacy',
     )
     expect(within(footer).getByRole('link', { name: /terms/i })).toHaveAttribute('href', '/terms')
+    expect(within(footer).getByRole('link', { name: /data processing/i })).toHaveAttribute(
+      'href',
+      '/data-processing',
+    )
   })
 })
 
@@ -201,5 +206,133 @@ describe('The jurisdiction gap', () => {
       expect(container.textContent ?? '').not.toMatch(/\[[A-Z_ ]{3,}\]/)
       unmount()
     }
+  })
+})
+
+/*
+ * The clauses below are commitments, not prose. Each one either caps what a
+ * reader can claim from us, or tells them something they would otherwise
+ * assume we had handled. A later edit that softens one by accident should
+ * fail here rather than ship quietly.
+ */
+describe('Commitments the terms make', () => {
+  function termsText(): string {
+    const { container } = renderPage(<TermsPage />)
+    return container.textContent ?? ''
+  }
+
+  it('caps our total liability at what the agency actually paid', () => {
+    const text = termsText()
+    expect(text).toMatch(/total liability/i)
+    expect(text).toMatch(/twelve months/i)
+  })
+
+  it('keeps the liabilities that cannot lawfully be capped outside the cap', () => {
+    expect(termsText()).toMatch(/personal injury[\s\S]*fraud|fraud[\s\S]*personal injury/i)
+  })
+
+  /*
+   * Tracking a vehicle is tracking whoever is driving it. An agency that
+   * switches GPS on could reasonably assume we had dealt with the legal side
+   * of that; these say plainly that we have not, and that the data is not
+   * dependable enough to accuse somebody with.
+   */
+  it('puts telling drivers about GPS on the agency, not on us', () => {
+    const text = termsText()
+    expect(text).toMatch(/location data about the person driving/i)
+    expect(text).toMatch(/lawful basis/i)
+  })
+
+  it('warns that location data is sometimes wrong or missing', () => {
+    expect(termsText()).toMatch(/satellite signal|mobile coverage/i)
+  })
+
+  it('carves our own failures out of the indemnity', () => {
+    expect(termsText()).toMatch(/does not apply where the claim is about our own failure/i)
+  })
+
+  it('requires a second factor of everyone, and says why', () => {
+    const text = termsText()
+    expect(text).toMatch(/two-factor authentication/i)
+    expect(text).toMatch(/required, not optional/i)
+  })
+
+  it('promises records survive non-payment', () => {
+    expect(termsText()).toMatch(/not deleted for non-payment/i)
+  })
+})
+
+describe('Commitments the privacy policy makes', () => {
+  it('promises to tell agencies about a breach without undue delay', () => {
+    const { container } = renderPage(<PrivacyPolicyPage />)
+    expect(container.textContent ?? '').toMatch(/without undue\s+delay/i)
+  })
+
+  it('says the second-factor requirement is enforced by the database', () => {
+    const { container } = renderPage(<PrivacyPolicyPage />)
+    expect(container.textContent ?? '').toMatch(/enforced by the database/i)
+  })
+})
+
+/*
+ * The processor terms. An agency's own lawyer reads this one against a
+ * checklist, so the tests are that checklist: each assertion stands for an
+ * obligation that has to be in a processor contract for it to be worth
+ * signing. A clause lost in an edit should fail here, not in a procurement
+ * review.
+ */
+describe('Data processing terms', () => {
+  function dpaText(): string {
+    const { container } = renderPage(<DataProcessingPage />)
+    return container.textContent ?? ''
+  }
+
+  it('is readable by someone who is not signed in', () => {
+    renderPage(<DataProcessingPage />)
+    expect(screen.getByRole('heading', { level: 1, name: /data processing/i })).toBeInTheDocument()
+  })
+
+  it('names which side is the controller and which the processor', () => {
+    const text = dpaText()
+    expect(text).toMatch(/your agency the\s+controller|agency the controller/i)
+    expect(text).toMatch(/makes us your\s+processor|us your processor/i)
+  })
+
+  it('binds us to act only on the agency’s instructions', () => {
+    expect(dpaText()).toMatch(/only on your instructions|only as needed to provide the product/i)
+  })
+
+  it('rules out reading, selling or training on the records', () => {
+    expect(dpaText()).toMatch(/do not read your records[^.]*use them to train/i)
+  })
+
+  it('commits to telling the agency about a breach without undue delay', () => {
+    expect(dpaText()).toMatch(/without undue delay after becoming aware/i)
+  })
+
+  it('promises export and deletion, and names the grace period', () => {
+    const text = dpaText()
+    expect(text).toMatch(/export your records at any time/i)
+    expect(text).toMatch(/30-day grace period/i)
+  })
+
+  it('gives the agency a say over new sub-processors', () => {
+    expect(dpaText()).toMatch(/before it starts processing your records, and you may object/i)
+  })
+
+  it('offers an audit right', () => {
+    expect(dpaText()).toMatch(/you may audit us/i)
+  })
+
+  it('sends a renter’s own request back to the agency, not to us', () => {
+    expect(dpaText()).toMatch(/we will not answer it ourselves/i)
+  })
+
+  /*
+   * The ordering that makes the document work: a DPA that loses to the terms
+   * of service on a data question is decoration.
+   */
+  it('says these terms win over the terms of service on personal data', () => {
+    expect(dpaText()).toMatch(/conflict about personal data, these win/i)
   })
 })

@@ -40,7 +40,8 @@ export function TermsPage() {
         <LegalList
           items={[
             'You are responsible for who you invite and what role you give them.',
-            'Keep sign-in credentials secure, and tell us promptly if you believe an account has been compromised.',
+            'Every person who uses the service must set up two-factor authentication. This is required, not optional, because the records held here include your renters’ identity and driving documents.',
+            'Keep sign-in credentials and recovery codes secure, and tell us promptly if you believe an account has been compromised.',
             'Every agency must keep at least one active owner.',
           ]}
         />
@@ -53,6 +54,7 @@ export function TermsPage() {
             'Subscriptions renew automatically for the period you chose, at the price shown when you subscribed.',
             'Payments are taken through Stripe. We do not see or store your card details.',
             'If a price changes, the new price applies from your next renewal, and we will tell you before it does.',
+            'If a payment fails, we will tell you and try again. If it stays unpaid, the account becomes read-only until it is settled — your records stay intact and exportable, and are not deleted for non-payment.',
           ]}
         />
       </LegalSection>
@@ -120,6 +122,20 @@ export function TermsPage() {
         </p>
       </LegalSection>
 
+      <LegalSection heading="Vehicle tracking">
+        <p>
+          If you connect a GPS provider, {product} will show you where your vehicles are and where
+          they have been. That is location data about the person driving, not only about the car.
+        </p>
+        <LegalList
+          items={[
+            'Telling drivers is your job. You decide to track, so you are responsible for having a lawful basis and for telling renters and staff, in your own rental agreement, that the vehicle is tracked and what you do with the data.',
+            'We only pass it through. The data comes from your provider’s hardware and network. We store and display it on your instructions; we do not decide what is tracked or for how long.',
+            'It will sometimes be wrong or missing. Location depends on satellite signal, mobile coverage and a working device, none of which we control. Do not rely on it alone for anything that matters — recovering a vehicle, accusing someone, or evidence in a dispute.',
+          ]}
+        />
+      </LegalSection>
+
       <LegalSection heading="Availability">
         <p>
           We work to keep the service available, but we do not promise it will be uninterrupted or
@@ -130,9 +146,31 @@ export function TermsPage() {
       <LegalSection heading="Liability">
         <p>
           To the extent the law allows, we are not liable for indirect or consequential loss, or for
-          lost profits, revenue or data. Nothing here limits liability that cannot lawfully be
-          limited. {product} is a record-keeping tool: decisions about who to rent a vehicle to, and
-          on what terms, remain the agency&rsquo;s.
+          lost profits, revenue or data. {product} is a record-keeping tool: decisions about who to
+          rent a vehicle to, and on what terms, remain the agency&rsquo;s.
+        </p>
+        <p>
+          Where we are liable, our total liability to you for everything arising under this
+          agreement is limited to what you paid us in the twelve months before the claim arose. We
+          set a limit because the subscription is small relative to the value of the business it
+          supports, and we price it on that basis.
+        </p>
+        <p>
+          Nothing here limits liability that cannot lawfully be limited &mdash; including death or
+          personal injury caused by negligence, and fraud.
+        </p>
+      </LegalSection>
+
+      <LegalSection heading="Claims brought against us because of your use">
+        <p>
+          If someone brings a claim against us because of how your agency used {product} &mdash; the
+          records you chose to hold, how you obtained them, what you did with them, or a breach of
+          these terms &mdash; you will cover our reasonable costs and any damages, provided we tell
+          you about the claim promptly and let you take part in handling it.
+        </p>
+        <p>
+          This does not apply where the claim is about our own failure, such as a fault in the
+          service or a security failure on our side.
         </p>
       </LegalSection>
 

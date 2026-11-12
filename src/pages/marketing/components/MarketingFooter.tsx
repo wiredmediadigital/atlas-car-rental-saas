@@ -56,6 +56,12 @@ export function MarketingFooter() {
             >
               Terms
             </Link>
+            <Link
+              to={paths.dataProcessing}
+              className="text-ink-muted hover:text-ink text-[0.8125rem] font-medium transition-colors"
+            >
+              Data processing
+            </Link>
           </nav>
         </div>
 

@@ -41,7 +41,7 @@ export function LEGAL(): LegalDetails {
     entityName: 'Adera Labs Inc',
     productName: getAppName(),
     contactEmail: SUPPORT_EMAIL,
-    lastUpdated: '8 November 2026',
+    lastUpdated: '12 November 2026',
     governingLaw: 'the State of Delaware',
   }
 }

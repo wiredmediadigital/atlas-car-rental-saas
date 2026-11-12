@@ -125,9 +125,16 @@ export function PrivacyPolicyPage() {
             'Every record is scoped to one agency at the database level, so one agency cannot read another’s data even if a request asks for it.',
             'Uploaded documents are stored privately. They are opened through links that expire within minutes, so a copied address stops working rather than becoming a passport page on the open internet.',
             'Access within an agency is limited by role, and the owner decides who holds which role.',
+            'Every person who signs in must use two-factor authentication. A password alone reaches nothing — the requirement is enforced by the database, not only by the screens, so it cannot be stepped around.',
+            'Changes to someone’s second factor are recorded: who did it, to whom, and when.',
             'Traffic is encrypted in transit.',
           ]}
         />
+        <p>
+          If personal data held here is exposed, we will tell the affected agencies without undue
+          delay, with what we know and what we are doing about it, so they can meet their own
+          obligations to the people whose data it is.
+        </p>
       </LegalSection>
 
       <LegalSection heading="How long it is kept">

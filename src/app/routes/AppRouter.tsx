@@ -219,6 +219,12 @@ const TermsPage = lazy(() =>
   })),
 )
 
+const DataProcessingPage = lazy(() =>
+  import('@/pages/legal/DataProcessingPage').then((module) => ({
+    default: module.DataProcessingPage,
+  })),
+)
+
 const HelpArticlePage = lazy(() =>
   import('@/pages/help/HelpArticlePage').then((module) => ({
     default: module.HelpArticlePage,
@@ -298,6 +304,7 @@ export function AppRouter() {
               them is fetched, so a missing session has nothing to refuse. */}
           <Route path={paths.privacy} element={<PrivacyPolicyPage />} />
           <Route path={paths.terms} element={<TermsPage />} />
+          <Route path={paths.dataProcessing} element={<DataProcessingPage />} />
 
           {/* Authenticated — except `/`, which a signed-out visitor sees the
               public marketing page for instead of being sent to sign in. */}
