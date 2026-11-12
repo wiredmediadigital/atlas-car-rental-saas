@@ -47,6 +47,16 @@ describe('parseResetRequest', () => {
     expect(parseResetRequest({ mode: 'self', recoveryCode: code }).ok).toBe(false)
   })
 
+  it('refuses a code too long to be one, before any hashing happens', () => {
+    // An unbounded string would otherwise run the normalising regexes and up to
+    // ten bcrypt comparisons inside a billed invocation.
+    expect(parseResetRequest({ mode: 'self', recoveryCode: 'A'.repeat(65) }).ok).toBe(false)
+  })
+
+  it('still accepts a code padded with the separators a user pastes', () => {
+    expect(parseResetRequest({ mode: 'self', recoveryCode: 'A'.repeat(64) }).ok).toBe(true)
+  })
+
   it('accepts a member request', () => {
     expect(
       parseResetRequest({ mode: 'member', subjectUserId: UUID_A, organizationId: UUID_B }),

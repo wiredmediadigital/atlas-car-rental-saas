@@ -44,6 +44,10 @@ export async function listFactorState(): Promise<FactorState> {
  * ceiling until enrolment fails outright. An unverified factor can be removed
  * by an aal1 session, so this works before the user has passed any challenge.
  * Verified factors are never touched here.
+ *
+ * Only TOTP factors are cleared. Nothing else is enabled today, but the day a
+ * phone factor is, opening this screen would silently destroy a half-finished
+ * enrolment of a kind this screen knows nothing about.
  */
 export async function beginEnrolment(): Promise<EnrolmentStart> {
   const { mfa } = getSupabaseClient().auth
@@ -52,6 +56,7 @@ export async function beginEnrolment(): Promise<EnrolmentStart> {
   if (listed.error) throw toAppError(listed.error)
 
   for (const factor of listed.data.all) {
+    if (factor.factor_type !== 'totp') continue
     if (factor.status !== 'unverified') continue
     const { error } = await mfa.unenroll({ factorId: factor.id })
     if (error) throw toAppError(error)

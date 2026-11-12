@@ -17,7 +17,7 @@ const NETWORK_FAILURE = { message: 'Failed to fetch' }
 
 interface FakeFactor {
   id: string
-  factor_type: 'totp'
+  factor_type: 'totp' | 'phone'
   status: 'verified' | 'unverified'
 }
 
@@ -115,6 +115,11 @@ function totp(id: string, status: FakeFactor['status']): FakeFactor {
   return { id, factor_type: 'totp', status }
 }
 
+/** A factor of a kind this screen does not own. Not enabled today; one day. */
+function phone(id: string, status: FakeFactor['status']): FakeFactor {
+  return { id, factor_type: 'phone', status }
+}
+
 beforeEach(() => {
   backend.factors = []
   backend.calls = []
@@ -184,6 +189,19 @@ describe('beginEnrolment', () => {
     )
     await expect(beginEnrolment()).resolves.toMatchObject({ factorId: 'factor-1' })
     expect(backend.factors).toHaveLength(1)
+  })
+
+  it('leaves an unfinished factor of another kind alone', async () => {
+    // Phone factors are not enabled, so this changes nothing today. The day they
+    // are, opening this screen would otherwise destroy a half-finished
+    // enrolment it knows nothing about.
+    backend.factors = [phone('half-done', 'unverified'), totp('abandoned', 'unverified')]
+
+    await beginEnrolment()
+
+    expect(backend.calls).not.toContain('unenroll:half-done')
+    expect(backend.factors.map((f) => f.id)).toContain('half-done')
+    expect(backend.calls).toContain('unenroll:abandoned')
   })
 
   it('never removes a verified factor', async () => {

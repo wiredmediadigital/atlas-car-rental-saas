@@ -8,6 +8,16 @@
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
+/**
+ * The longest thing that could still be a recovery code.
+ *
+ * A code is ten characters; the cap leaves room for the separators, spaces and
+ * case a user pastes around them. Without it an arbitrarily long string reaches
+ * normaliseRecoveryCode's regex chain and then up to ten bcrypt comparisons,
+ * all inside an invocation somebody is billed for.
+ */
+const MAX_RECOVERY_CODE_LENGTH = 64
+
 export type ResetMode = 'self' | 'member'
 
 export type ResetRequest =
@@ -33,6 +43,11 @@ export function parseResetRequest(body: unknown): ParsedResetRequest {
     const recoveryCode = fields.recoveryCode
     if (typeof recoveryCode !== 'string' || recoveryCode === '') {
       return { ok: false, message: 'No recovery code was given.' }
+    }
+    // Before normalising, so the length that is capped is the length that was
+    // sent rather than what is left after the separators are stripped.
+    if (recoveryCode.length > MAX_RECOVERY_CODE_LENGTH) {
+      return { ok: false, message: 'That is not a recovery code.' }
     }
     return { ok: true, request: { mode: 'self', recoveryCode } }
   }

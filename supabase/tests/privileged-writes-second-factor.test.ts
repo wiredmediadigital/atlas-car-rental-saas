@@ -214,6 +214,19 @@ describe('public.organization_request_closure', () => {
     expect(await closureRequestedAt(a.organizationId)).toBeNull()
     expect(await notificationEventCount(a.organizationId)).toBe(0)
   })
+
+  it('is not granted to service_role, whose JWT can never carry an aal claim', async () => {
+    // The grant was kept when the second-factor check was added, and described a
+    // capability that cannot exist: a service key is not a user session, so the
+    // check refuses it every time. A future server-side closure path needs its
+    // own decision about how a machine caller authorises this, not a grant that
+    // points at the wrong system when it fails.
+    const [row] = await db.sql<{ granted: boolean; authenticated: boolean }>(
+      `select has_function_privilege('service_role', 'public.organization_request_closure(uuid)', 'EXECUTE') as granted,
+              has_function_privilege('authenticated', 'public.organization_request_closure(uuid)', 'EXECUTE') as authenticated`,
+    )
+    expect(row).toEqual({ granted: false, authenticated: true })
+  })
 })
 
 describe('public.leave_organization', () => {
