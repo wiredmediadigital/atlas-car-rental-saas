@@ -21,6 +21,7 @@ import {
   evaluateSite,
   isOriginalAtlasRemote,
   isReady,
+  mergeEnvFileContents,
   parseEnvFile,
   pickBrowserKey,
   projectRefFromUrl,
@@ -349,6 +350,58 @@ describe('writing .env.local', () => {
       VITE_SUPABASE_URL: `https://${REF}.supabase.co`,
       VITE_SUPABASE_PUBLISHABLE_KEY: 'sb_publishable_new',
     })
+  })
+
+  it('keeps the TOTP confirmation when setup:env rewrites an existing file', () => {
+    const existing = `${TOTP_CONFIRMATION_VARIABLE}=${REF}\n`
+    const merged = mergeEnvFileContents(existing, REF, 'sb_publishable_new')
+    expect(parseEnvFile(merged)).toEqual({
+      [TOTP_CONFIRMATION_VARIABLE]: REF,
+      VITE_SUPABASE_URL: `https://${REF}.supabase.co`,
+      VITE_SUPABASE_PUBLISHABLE_KEY: 'sb_publishable_new',
+    })
+  })
+
+  it('updates the keys it owns in place and leaves every other line untouched', () => {
+    const existing = [
+      '# my notes',
+      'VITE_SUPABASE_URL=https://oldoldoldoldoldoldo.supabase.co',
+      'VITE_MAP_TILES="https://tiles.example/{z}/{x}/{y}"',
+      `${TOTP_CONFIRMATION_VARIABLE}=${REF}`,
+      'VITE_SUPABASE_PUBLISHABLE_KEY=sb_publishable_old',
+      'VITE_SUPABASE_PUBLISHABLE_KEY=sb_publishable_duplicate',
+      '',
+    ].join('\n')
+    expect(mergeEnvFileContents(existing, REF, 'sb_publishable_new')).toBe(
+      [
+        '# my notes',
+        `VITE_SUPABASE_URL=https://${REF}.supabase.co`,
+        'VITE_MAP_TILES="https://tiles.example/{z}/{x}/{y}"',
+        `${TOTP_CONFIRMATION_VARIABLE}=${REF}`,
+        'VITE_SUPABASE_PUBLISHABLE_KEY=sb_publishable_new',
+        '',
+      ].join('\n'),
+    )
+  })
+
+  it('appends the managed keys when the file has none of them', () => {
+    const merged = mergeEnvFileContents('OTHER=1', REF, 'sb_publishable_new')
+    expect(parseEnvFile(merged)).toEqual({
+      OTHER: '1',
+      VITE_SUPABASE_URL: `https://${REF}.supabase.co`,
+      VITE_SUPABASE_PUBLISHABLE_KEY: 'sb_publishable_new',
+    })
+  })
+
+  it('writes a fresh file when there is nothing to preserve', () => {
+    expect(mergeEnvFileContents('', REF, 'k')).toBe(envFileContents(REF, 'k'))
+    expect(mergeEnvFileContents(undefined, REF, 'k')).toBe(envFileContents(REF, 'k'))
+  })
+
+  it('keeps CRLF line endings', () => {
+    const merged = mergeEnvFileContents(`A=1\r\n${TOTP_CONFIRMATION_VARIABLE}=${REF}\r\n`, REF, 'k')
+    expect(merged).not.toMatch(/[^\r]\n/)
+    expect(parseEnvFile(merged)[TOTP_CONFIRMATION_VARIABLE]).toBe(REF)
   })
 })
 

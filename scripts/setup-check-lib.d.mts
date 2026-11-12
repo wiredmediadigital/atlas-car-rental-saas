@@ -57,6 +57,12 @@ export declare function pickBrowserKey(
   apiKeys: unknown,
 ): { kind: 'publishable' | 'legacy-anon'; value: string } | null
 export declare function envFileContents(projectRef: string, key: string): string
+export declare const MANAGED_ENV_KEYS: readonly string[]
+export declare function mergeEnvFileContents(
+  existing: string | null | undefined,
+  projectRef: string,
+  key: string,
+): string
 
 export declare const SITE_ROUTES: readonly string[]
 

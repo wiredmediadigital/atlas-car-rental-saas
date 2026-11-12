@@ -136,7 +136,9 @@ and files there are the owner's own.
    without its pricing section, silently.
 8. `npm run setup:env -- <ref>` writes `.env.local` with the browser-safe values (it prints only
    the kind of key). Never run `supabase projects api-keys` yourself — its output holds secret
-   keys. If `.env.local` already exists, ask before adding `--force`.
+   keys. It updates an existing `.env.local` in place and keeps every other key in it, including
+   the TOTP confirmation. Only if the file already holds a different Supabase URL or key does it
+   refuse; ask before adding `--force`, which replaces just those two values.
 
 ## C. Internal checks — automatic, nothing remote, nothing for the user
 

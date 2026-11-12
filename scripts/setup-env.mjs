@@ -7,12 +7,15 @@
  * response also contains the project's secret keys, and those must not reach a
  * terminal, a log or a chat transcript.
  *
- * Refuses to overwrite an existing .env.local unless `--force` is given.
+ * An existing .env.local is updated, not replaced: only the two values this script
+ * owns are written, and every other key (such as SUPABASE_TOTP_ENABLED_FOR, which
+ * the setup records before this runs) survives with its value. It refuses to
+ * change a value that is already there and differs unless `--force` is given.
  */
 import { execFileSync } from 'node:child_process'
-import { existsSync, writeFileSync } from 'node:fs'
+import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 
-import { envFileContents, pickBrowserKey } from './setup-check-lib.mjs'
+import { mergeEnvFileContents, parseEnvFile, pickBrowserKey } from './setup-check-lib.mjs'
 
 const projectRef = process.argv.slice(2).find((argument) => !argument.startsWith('--'))
 const force = process.argv.includes('--force')
@@ -27,9 +30,7 @@ if (!projectRef || !/^[a-z0-9]{20}$/.test(projectRef)) {
     'Usage: npm run setup:env -- <project-ref>   (the 20-character ref of your Supabase project)',
   )
 }
-if (existsSync('.env.local') && !force) {
-  fail('.env.local already exists. Re-run with --force to replace it.')
-}
+const existing = existsSync('.env.local') ? readFileSync('.env.local', 'utf8') : ''
 
 let output
 try {
@@ -61,7 +62,23 @@ try {
 const chosen = pickBrowserKey(Array.isArray(keys) ? keys : keys?.keys)
 if (!chosen) fail('No publishable or anon key was found for that project.')
 
-writeFileSync('.env.local', envFileContents(projectRef, chosen.value), { mode: 0o600 })
+const current = parseEnvFile(existing)
+const expected = {
+  VITE_SUPABASE_URL: `https://${projectRef}.supabase.co`,
+  VITE_SUPABASE_PUBLISHABLE_KEY: chosen.value,
+}
+const wouldChange = Object.keys(expected).filter(
+  (name) => current[name] !== undefined && current[name] !== expected[name],
+)
+if (wouldChange.length > 0 && !force) {
+  fail(
+    `.env.local already holds different values for ${wouldChange.join(', ')}. Re-run with --force to replace them; other keys are kept.`,
+  )
+}
+
+writeFileSync('.env.local', mergeEnvFileContents(existing, projectRef, chosen.value), {
+  mode: 0o600,
+})
 console.log(
   `Wrote .env.local for project ${projectRef} using its ${chosen.kind === 'publishable' ? 'publishable' : 'legacy anon'} key.`,
 )

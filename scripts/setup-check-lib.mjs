@@ -333,6 +333,47 @@ export function envFileContents(projectRef, key) {
   ].join('\n')
 }
 
+/** The keys `setup:env` owns. Every other key in .env.local belongs to someone else. */
+export const MANAGED_ENV_KEYS = ['VITE_SUPABASE_URL', 'VITE_SUPABASE_PUBLISHABLE_KEY']
+
+/**
+ * Rewrites an existing .env.local for `setup:env` without losing anything it does
+ * not own.
+ *
+ * The two managed keys are updated where they already stand (or appended when
+ * missing); every other line, comment and key such as SUPABASE_TOTP_ENABLED_FOR
+ * survives untouched. An empty or missing file gets the same contents as
+ * `envFileContents`.
+ */
+export function mergeEnvFileContents(existing, projectRef, key) {
+  const text = String(existing ?? '')
+  if (text.trim() === '') return envFileContents(projectRef, key)
+
+  const newline = text.includes('\r\n') ? '\r\n' : '\n'
+  const wanted = {
+    VITE_SUPABASE_URL: `https://${projectRef}.supabase.co`,
+    VITE_SUPABASE_PUBLISHABLE_KEY: key,
+  }
+  const written = new Set()
+  const lines = []
+  for (const line of text.split(/\r?\n/)) {
+    const name = /^\s*(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*=/.exec(line)?.[1]
+    if (!name || !MANAGED_ENV_KEYS.includes(name)) {
+      lines.push(line)
+      continue
+    }
+    // A repeated managed key is dropped: the first one carries the new value.
+    if (written.has(name)) continue
+    written.add(name)
+    lines.push(`${name}=${wanted[name]}`)
+  }
+  while (lines.length > 0 && lines[lines.length - 1] === '') lines.pop()
+  for (const name of MANAGED_ENV_KEYS) {
+    if (!written.has(name)) lines.push(`${name}=${wanted[name]}`)
+  }
+  return [...lines, ''].join(newline)
+}
+
 /** True when nothing failed. */
 export function isReady(results) {
   return results.every((result) => result.status !== 'fail')
