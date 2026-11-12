@@ -36,6 +36,8 @@ export type SecurityEventType = 'factor_removed' | 'factor_reset_by_owner'
 export interface SecurityEventInput {
   readonly eventType: SecurityEventType
   readonly subjectUserId: string
+  /** Who performed the reset; stored in security_events.actor_user_id. */
+  readonly actorUserId: string
   readonly organizationId: string | null
   readonly detail: Readonly<Record<string, string | number>>
 }
@@ -125,6 +127,7 @@ export async function resetOwnFactor(
     deps.recordSecurityEvent({
       eventType: 'factor_removed',
       subjectUserId: input.userId,
+      actorUserId: input.userId,
       organizationId: null,
       detail: { actor_user_id: input.userId, method: 'recovery_code', factors_removed: removed },
     }),
@@ -163,6 +166,7 @@ export async function resetMemberFactor(
     deps.recordSecurityEvent({
       eventType: 'factor_reset_by_owner',
       subjectUserId: input.subjectUserId,
+      actorUserId: input.actorUserId,
       organizationId: input.organizationId,
       detail: { actor_user_id: input.actorUserId, factors_removed: removed },
     }),

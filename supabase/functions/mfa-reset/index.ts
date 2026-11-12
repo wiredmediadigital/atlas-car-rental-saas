@@ -111,6 +111,7 @@ function realDeps(service: SupabaseClient): ResetDeps {
         p_subject_user_id: event.subjectUserId,
         p_organization_id: event.organizationId,
         p_detail: event.detail,
+        p_actor_user_id: event.actorUserId,
       })
       if (error) throw new Error('record_security_event_failed')
     },

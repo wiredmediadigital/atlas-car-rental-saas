@@ -71,6 +71,35 @@ describe('recording a security event', () => {
     expect(id[0]!.organization_id).toBeNull()
   })
 
+  it('stores an explicit actor in the column, as a service-role caller must', async () => {
+    const [row] = await db.sql<{ id: string }>(
+      `select app.record_security_event('factor_reset_by_owner', $1, $2, '{}'::jsonb, $3) as id`,
+      [staff, organizationId, owner],
+    )
+    const rows = await db.sql<{ actor_user_id: string | null }>(
+      `select actor_user_id from public.security_events where id = $1`,
+      [row!.id],
+    )
+    expect(rows[0]!.actor_user_id).toBe(owner)
+  })
+
+  it('falls back to auth.uid() when the actor is omitted', async () => {
+    const id = await db.asServiceRole(owner, () => record(staff))
+    const rows = await db.sql<{ actor_user_id: string | null }>(
+      `select actor_user_id from public.security_events where id = $1`,
+      [id],
+    )
+    expect(rows[0]!.actor_user_id).toBe(owner)
+  })
+
+  it('leaves the actor null when it is omitted and there is no session', async () => {
+    const rows = await db.sql<{ actor_user_id: string | null }>(
+      `select actor_user_id from public.security_events where id = $1`,
+      [await record(staff)],
+    )
+    expect(rows[0]!.actor_user_id).toBeNull()
+  })
+
   it('is not callable by authenticated users directly', async () => {
     await expect(db.asUser(staff, () => record(staff))).rejects.toThrow(PERMISSION_DENIED)
   })

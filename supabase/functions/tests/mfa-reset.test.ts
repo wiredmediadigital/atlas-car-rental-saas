@@ -95,6 +95,7 @@ describe('resetOwnFactor', () => {
       {
         eventType: 'factor_removed',
         subjectUserId: SUBJECT,
+        actorUserId: SUBJECT,
         organizationId: null,
         detail: { actor_user_id: SUBJECT, method: 'recovery_code', factors_removed: 2 },
       },
@@ -171,6 +172,7 @@ describe('resetMemberFactor', () => {
       {
         eventType: 'factor_reset_by_owner',
         subjectUserId: SUBJECT,
+        actorUserId: ACTOR,
         organizationId: ORG,
         detail: { actor_user_id: ACTOR, factors_removed: 2 },
       },
