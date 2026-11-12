@@ -308,4 +308,15 @@ describe('EnrollFactorPage: the way out', () => {
 
     expect(signOut).toHaveBeenCalledTimes(1)
   })
+
+  it('does not offer it on the recovery codes step, where leaving is the hazard', async () => {
+    // By then the user is enrolled and Continue is right there, so there is no
+    // lockout to escape — only a one-click path to a working second factor and
+    // no recovery codes, underneath the alert telling them not to leave.
+    renderPage()
+    await enterCode('123456')
+    expect(await screen.findByText(CODES[0]!)).toBeVisible()
+
+    expect(screen.queryByRole('button', { name: /sign out/i })).toBeNull()
+  })
 })

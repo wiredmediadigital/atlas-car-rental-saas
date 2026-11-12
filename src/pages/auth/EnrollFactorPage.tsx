@@ -264,12 +264,15 @@ function CodesStep({ codes, onDone }: CodesStepProps) {
     }
   }
 
+  /*
+   * Deliberately no SignOutLink here, unlike every other screen in this flow.
+   * The user is already enrolled and Continue is right there, so there is no
+   * lockout to escape — what there is, is one click to a working second factor
+   * and no recovery codes, directly underneath the alert telling them not to
+   * leave. A way out belongs on the screens somebody cannot get past.
+   */
   return (
-    <AuthLayout
-      title="Save your recovery codes"
-      description="These codes are shown only once."
-      footer={<SignOutLink />}
-    >
+    <AuthLayout title="Save your recovery codes" description="These codes are shown only once.">
       <div className="space-y-4">
         <Alert tone="caution" title="Save them before you go on">
           If you lose your phone, these are the only way back into your account. Each one works a
