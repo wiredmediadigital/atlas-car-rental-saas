@@ -183,6 +183,55 @@ git commit -m "feat: require a verified second factor for all tenant data"
 
 ---
 
+## Task 3b: Require a second factor for privileged writes
+
+Added during execution. Task 3 gates the three helpers every RLS policy routes through, which stops an `aal1` session _reading_ tenant data. It does not stop it _writing_: five `security definer` RPCs authorize on `app.current_role_in` alone, which is deliberately ungated (Task 3 had to move `app.enforce_vehicle_limit` onto it to repair a fail-open). So a password-only attacker can still take over the account. This closes that.
+
+**Files:**
+
+- Create: `supabase/migrations/20261112100300_privileged_writes_require_second_factor.sql`
+- Test: `supabase/tests/privileged-writes-second-factor.test.ts`
+
+**Interfaces:**
+
+- Consumes: `app.has_second_factor()` from Task 3.
+- Produces: nothing new. Five existing functions gain a predicate.
+
+**The five functions**, each of which currently decides on `app.current_role_in` with no assurance check:
+
+| Function                                 | What an `aal1` caller can do today    |
+| ---------------------------------------- | ------------------------------------- |
+| `public.transfer_organization_ownership` | hand the agency to themselves         |
+| `public.remove_team_member`              | remove the real owner                 |
+| `public.change_team_member_role`         | promote themselves                    |
+| `public.create_team_invitation`          | invite themselves as a second account |
+| `public.organization_request_closure`    | start closing the agency              |
+
+Note the asymmetry the reviewer found: `public.organization_restore` guards with `app.has_min_role`, which Task 3 gated. So today an `aal1` session can request closure and then cannot undo it. Fixing all five restores symmetry.
+
+- [ ] **Step 1: Write the failing test** in `supabase/tests/privileged-writes-second-factor.test.ts`. For each of the five functions, assert: an owner (or the minimum role that function requires) at `aal2` still succeeds; the same caller at `aal1` is refused with `42501`; the same caller with no `aal` claim is refused with `42501`; and **the refusal left no trace** — no membership changed, no invitation row, no closure state set. Use `db.asUser(userId, fn, { aal })` and `{ aal: null }` for the claimless case.
+
+- [ ] **Step 2: Run the test and watch it fail**
+
+Run: `npx vitest run supabase/tests/privileged-writes-second-factor.test.ts`
+Expected: FAIL — the `aal1` and claimless calls succeed, because nothing refuses them yet.
+
+- [ ] **Step 3: Write the migration.** `create or replace` each of the five with `app.has_second_factor()` added to its existing authorization check, raising `42501` with the same message shape that function already uses for a role refusal. Bodies otherwise byte-identical. Do **not** gate `app.current_role_in` itself — `app.enforce_vehicle_limit` and `app.guard_membership_changes` both depend on it being ungated, and gating it re-breaks the fail-open Task 3 just repaired.
+
+- [ ] **Step 4: Run the test, then the full database suite**
+
+Run: `npx vitest run supabase/tests/`
+Expected: PASS, all files. These five are reachable from the Team and Settings screens, so a mistake here shows up across the existing team and closure suites.
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add supabase/migrations/20261112100300_privileged_writes_require_second_factor.sql supabase/tests/privileged-writes-second-factor.test.ts
+git commit -m "feat: require a second factor for privileged writes"
+```
+
+---
+
 ## Task 4: Factor reset logic
 
 **Files:**
