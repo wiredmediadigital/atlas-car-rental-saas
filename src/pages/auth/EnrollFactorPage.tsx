@@ -110,7 +110,8 @@ export function EnrollFactorPage() {
         >
           <Alert tone="critical">
             Your authenticator is set up, but we could not create your recovery codes.{' '}
-            {phase.message}
+            {phase.message} Do not close or reload this page until you have your codes: if you leave
+            now, you will have no recovery codes and nothing to fall back on if you lose your phone.
           </Alert>
           <Button
             variant="primary"
@@ -242,10 +243,13 @@ function CodesStep({ codes, onDone }: CodesStepProps) {
           If you lose your phone, these are the only way back into your account. Each one works a
           single time. Recovery codes cannot be shown again once you leave this page, so keep them
           somewhere safe that is not on that phone, such as a password manager or a printout. Do not
-          reload this page.
+          leave this page until you have saved them.
         </Alert>
 
-        <ul className="bg-surface-inset grid grid-cols-2 gap-x-4 gap-y-1.5 rounded-lg px-4 py-3 font-mono text-[0.875rem] tracking-wider">
+        <ul
+          aria-label="Recovery codes"
+          className="bg-surface-inset grid grid-cols-2 gap-x-4 gap-y-1.5 rounded-lg px-4 py-3 font-mono text-[0.875rem] tracking-wider"
+        >
           {codes.map((code) => (
             <li key={code}>{code}</li>
           ))}

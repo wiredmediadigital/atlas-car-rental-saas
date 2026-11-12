@@ -1,7 +1,14 @@
 import { getSupabaseClient } from '@/lib/supabase/client'
 import { toAppError } from '@/lib/supabase/errors'
 
-export type ResetFailureReason = 'invalid_code' | 'not_permitted' | 'no_factor' | 'unavailable'
+/**
+ * `unreachable` is a dropped connection; `unavailable` is anything else that
+ * went wrong, including a 5xx. They are kept apart because the server spends the
+ * recovery code before it removes the factor, so after a 5xx the same code may
+ * no longer work and the user needs telling that.
+ */
+export type ResetFailureReason =
+  'invalid_code' | 'not_permitted' | 'no_factor' | 'unavailable' | 'unreachable'
 
 const KNOWN_REASONS: readonly ResetFailureReason[] = ['invalid_code', 'not_permitted', 'no_factor']
 
@@ -49,6 +56,8 @@ export async function resetOwnFactor(recoveryCode: string): Promise<void> {
 
 /** supabase-js leaves a non-2xx body unread on `error.context`; the reason lives there. */
 async function readReason(error: unknown): Promise<ResetFailureReason> {
+  if ((error as { name?: unknown }).name === 'FunctionsFetchError') return 'unreachable'
+
   const context: unknown = (error as { context?: unknown }).context
   if (!(context instanceof Response)) return 'unavailable'
 

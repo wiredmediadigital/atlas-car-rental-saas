@@ -107,15 +107,6 @@ export function ChallengeFactorPage() {
     <AuthLayout
       title="Verify your sign-in"
       description="Open your authenticator app and type the code it is showing now."
-      footer={
-        <Link
-          to={paths.recoverFactor}
-          state={routeState}
-          className="text-brand-700 font-medium hover:underline"
-        >
-          Lost your device? Use a recovery code
-        </Link>
-      }
     >
       <form onSubmit={(event) => void onSubmit(event)} className="space-y-4" noValidate>
         {formError ? <Alert tone="critical">{formError}</Alert> : null}
@@ -129,6 +120,16 @@ export function ChallengeFactorPage() {
             {...register('code')}
           />
         </Field>
+
+        <p className="text-[0.875rem]">
+          <Link
+            to={paths.recoverFactor}
+            state={routeState}
+            className="text-brand-700 font-medium hover:underline"
+          >
+            Lost your device? Use a recovery code
+          </Link>
+        </p>
 
         <Button type="submit" variant="primary" size="lg" fullWidth isLoading={isSubmitting}>
           Verify

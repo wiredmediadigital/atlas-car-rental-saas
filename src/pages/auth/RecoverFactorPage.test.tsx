@@ -124,15 +124,37 @@ describe('RecoverFactorPage', () => {
     )
   })
 
-  it('reports an unreachable service without blaming the code', async () => {
+  it.each(['unavailable', 'unreachable'] as const)(
+    'on a %s failure, does not blame the code and tells the user to try a different one',
+    async (reason) => {
+      refusedWith(reason)
+      renderPage()
+
+      await submitCode('ABCDEFGHJK')
+
+      const alert = await screen.findByRole('alert')
+      expect(alert).not.toHaveTextContent(/was not accepted/i)
+      expect(alert).toHaveTextContent(/may already have been used/i)
+      expect(alert).toHaveTextContent(/try a different recovery code/i)
+    },
+  )
+
+  it('says a dropped connection is a connection problem', async () => {
+    refusedWith('unreachable')
+    renderPage()
+
+    await submitCode('ABCDEFGHJK')
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(/could not reach the server/i)
+  })
+
+  it('says a server failure means the reset could not be completed', async () => {
     refusedWith('unavailable')
     renderPage()
 
     await submitCode('ABCDEFGHJK')
 
-    const alert = await screen.findByRole('alert')
-    expect(alert).toHaveTextContent(/could not be completed/i)
-    expect(alert).not.toHaveTextContent(/was not accepted/i)
+    expect(await screen.findByRole('alert')).toHaveTextContent(/could not be completed/i)
   })
 
   it('lets someone who found their device go back to verification', async () => {

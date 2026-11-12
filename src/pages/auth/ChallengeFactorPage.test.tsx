@@ -101,7 +101,10 @@ describe('ChallengeFactorPage', () => {
     renderPage('/vehicles')
     const user = userEvent.setup()
 
-    await user.click(await screen.findByRole('link', { name: /lost your device/i }))
+    const link = await screen.findByRole('link', { name: /lost your device/i })
+    // Beside the field and button, where a locked-out person is looking, not in the footer.
+    expect(link.closest('form')).not.toBeNull()
+    await user.click(link)
 
     expect(await screen.findByText('recovery screen')).toBeVisible()
   })

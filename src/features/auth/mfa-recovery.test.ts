@@ -79,13 +79,13 @@ describe('resetOwnFactor', () => {
     expect(failure).toMatchObject({ reason: 'unavailable' })
   })
 
-  it('reports a network failure as unavailable', async () => {
+  it('reports a dropped connection as unreachable, distinct from a server failure', async () => {
     client.invoke.mockResolvedValue({
       data: null,
       error: { name: 'FunctionsFetchError', message: 'Failed to fetch' },
     })
 
-    await expect(resetOwnFactor('ABCDEFGHJK')).rejects.toMatchObject({ reason: 'unavailable' })
+    await expect(resetOwnFactor('ABCDEFGHJK')).rejects.toMatchObject({ reason: 'unreachable' })
   })
 
   it('does not put the recovery code in the error it throws', async () => {

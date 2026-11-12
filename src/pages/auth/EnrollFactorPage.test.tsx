@@ -135,6 +135,8 @@ describe('EnrollFactorPage recovery codes step', () => {
 
     expect(await screen.findByRole('heading', { name: /save your recovery codes/i })).toBeVisible()
     expect(screen.getAllByRole('listitem')).toHaveLength(10)
+    expect(screen.getByRole('list', { name: 'Recovery codes' })).toBeVisible()
+    expect(screen.getByText(/do not leave this page until you have saved them/i)).toBeVisible()
     for (const code of CODES) expect(screen.getByText(code)).toBeVisible()
     expect(screen.getByText(/shown only once/i)).toBeVisible()
     expect(screen.getByText(/cannot be shown again/i)).toBeVisible()
@@ -180,7 +182,9 @@ describe('EnrollFactorPage recovery codes step', () => {
     renderPage()
     const user = await enterCode('123456')
 
-    expect(await screen.findByRole('alert')).toHaveTextContent(/authenticator is set up/i)
+    const alert = await screen.findByRole('alert')
+    expect(alert).toHaveTextContent(/authenticator is set up/i)
+    expect(alert).toHaveTextContent(/do not close or reload this page until you have your codes/i)
     await user.click(screen.getByRole('button', { name: /get my recovery codes/i }))
 
     expect(await screen.findByText(CODES[0]!)).toBeVisible()

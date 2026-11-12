@@ -19,7 +19,13 @@ const FAILURE_MESSAGES: Record<ResetFailureReason, string> = {
   not_permitted:
     'This request was refused for your current session. Sign in again, then try once more.',
   no_factor: 'Your account has no authenticator to remove.',
-  unavailable: 'The reset could not be completed. Check your connection and try again.',
+  // Both say the same thing about the code: the server spends it before it
+  // removes the authenticator, so after a failure it may no longer work, and
+  // telling the user to retry the same one sends them to a guaranteed refusal.
+  unavailable:
+    'The reset could not be completed. That recovery code may already have been used, so try a different recovery code.',
+  unreachable:
+    'We could not reach the server. Check your connection and try again. If it keeps failing, that recovery code may already have been used, so try a different recovery code.',
 }
 
 function failureReason(error: unknown): ResetFailureReason {
