@@ -234,6 +234,13 @@ This is a dashboard setting, not a repository one. `supabase/config.toml` has
 anyone who runs `supabase config push` themselves — but that file configures nothing on a
 hosted project until it is pushed, and Pevvy's setup never pushes config on your behalf.
 
+### When somebody is locked out anyway
+
+A user who has lost both their authenticator and their recovery codes, with no other
+active owner of their agency to reset them, cannot be helped from inside the product.
+The operator of the Supabase project unblocks them by hand, against their own project:
+[`docs/security/second-factor-recovery.md`](docs/security/second-factor-recovery.md).
+
 ---
 
 ## Architecture
