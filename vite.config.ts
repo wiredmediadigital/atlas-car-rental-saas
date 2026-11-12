@@ -7,6 +7,7 @@ import tailwindcss from '@tailwindcss/vite'
 import react from '@vitejs/plugin-react'
 import { defineConfig, loadEnv, type Plugin } from 'vite'
 
+import { TEST_EXCLUDE, TEST_INCLUDE } from './scripts/test-include.mjs'
 import { PRODUCT_BRAND } from './src/lib/config/brand.ts'
 
 /**
@@ -88,11 +89,9 @@ export default defineConfig(({ mode }) => {
       globals: true,
       setupFiles: ['./src/test/setup.ts'],
       css: false,
-      include: [
-        'src/**/*.{test,spec}.{ts,tsx}',
-        'supabase/tests/**/*.test.ts',
-        'supabase/functions/tests/**/*.test.ts',
-      ],
+      // Shared with scripts/check-test-files-ran.mjs, which must agree on what a test file is.
+      include: TEST_INCLUDE,
+      exclude: TEST_EXCLUDE,
       // Schema tests boot a real PostgreSQL (WASM) instance and apply every migration.
       testTimeout: 30_000,
       hookTimeout: 180_000,
