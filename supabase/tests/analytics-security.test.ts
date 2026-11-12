@@ -153,6 +153,11 @@ describe('nothing in the schema can bypass RLS', () => {
      * And the fleet counter, vehicle_limit_status: definer for the same reason, so it
      * raises 42501 for a non-member before it returns anything.
      *
+     * And mfa_generate_recovery_codes: definer because public.mfa_recovery_codes
+     * has RLS on and a deny-all policy, so no browser role can read or write the
+     * hashes. It acts only on auth.uid() and returns the plaintext codes once.
+     * Its sibling, app.mfa_consume_recovery_code, lives in `app` for service_role.
+     *
      * Anything else appearing in this list is a leak.
      */
     expect(definerFunctions.map((row) => row.proname).sort()).toEqual([
@@ -173,6 +178,7 @@ describe('nothing in the schema can bypass RLS', () => {
       'gps_read_credential',
       'gps_store_credential',
       'leave_organization',
+      'mfa_generate_recovery_codes',
       'notification_dismiss',
       'notification_feed',
       'notification_mark_all_read',

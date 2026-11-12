@@ -705,7 +705,9 @@ describe('the gate, structurally', () => {
      * 20261103100200 CAN NEVER BE EDITED, so the reasons for anything added
      * since are written in the header of the migration that added it: the two
      * closure actions in 20261108100100, and the re-derivation of the whole
-     * "ways out" group against closure in 20261110100500. An entry whose reason
+     * "ways out" group against closure in 20261110100500, and mfa_generate_recovery_codes in 20261112100100 (sign-in
+     * security belongs to a person, not an agency, so billing state must never block it).
+     * An entry whose reason
      * is in neither place has no reason, which is the thing this test exists to
      * make visible.
      */
@@ -726,6 +728,7 @@ describe('the gate, structurally', () => {
       'create_organization',
       'organization_request_closure',
       'organization_restore',
+      'mfa_generate_recovery_codes',
     ]
     const rows = await db.sql<{ proname: string }>(
       `
