@@ -7,6 +7,7 @@ import { paths } from '@/app/routes/paths'
 import { FullPageLoader } from '@/components/feedback/FullPageLoader'
 import { Alert, Button, Field, Input } from '@/components/ui'
 import { AuthLayout } from '@/features/auth/components/AuthLayout'
+import { SignOutLink } from '@/features/auth/components/SignOutLink'
 import {
   type EnrolmentStart,
   beginEnrolment,
@@ -105,6 +106,7 @@ export function EnrollFactorPage() {
         <AuthLayout
           title="Set up two-factor authentication"
           description="We could not start the set-up."
+          footer={<SignOutLink />}
         >
           <Alert tone="critical">{phase.message}</Alert>
           <Button variant="primary" size="lg" fullWidth className="mt-4" onClick={retryPrepare}>
@@ -119,6 +121,7 @@ export function EnrollFactorPage() {
         <AuthLayout
           title="Save your recovery codes"
           description="Your authenticator is set up. One step is left."
+          footer={<SignOutLink />}
         >
           <Alert tone="critical">
             Your authenticator is set up, but we could not create your recovery codes.{' '}
@@ -193,6 +196,7 @@ function ScanStep({ start, onVerified }: ScanStepProps) {
     <AuthLayout
       title="Set up two-factor authentication"
       description="Every account needs it. Use an authenticator app such as Google Authenticator, Microsoft Authenticator, 1Password or Authy."
+      footer={<SignOutLink />}
     >
       <div className="space-y-4">
         <div className="flex justify-center">
@@ -261,7 +265,11 @@ function CodesStep({ codes, onDone }: CodesStepProps) {
   }
 
   return (
-    <AuthLayout title="Save your recovery codes" description="These codes are shown only once.">
+    <AuthLayout
+      title="Save your recovery codes"
+      description="These codes are shown only once."
+      footer={<SignOutLink />}
+    >
       <div className="space-y-4">
         <Alert tone="caution" title="Save them before you go on">
           If you lose your phone, these are the only way back into your account. Each one works a

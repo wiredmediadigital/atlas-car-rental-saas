@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { paths } from '@/app/routes/paths'
 import { ToastProvider } from '@/components/ui'
+import { AuthContext, type AuthContextValue } from '@/features/auth/auth-context'
 import type * as MfaRecovery from '@/features/auth/mfa-recovery'
 import { FactorResetError, type ResetFailureReason } from '@/features/auth/mfa-recovery'
 
@@ -17,17 +18,29 @@ vi.mock('@/features/auth/mfa-recovery', async (importOriginal) => ({
   resetOwnFactor: recovery.resetOwnFactor,
 }))
 
+/** A signed-in session, so the way out of this screen has something to end. */
+const signOut = vi.fn()
+const auth: AuthContextValue = {
+  status: 'authenticated',
+  session: null,
+  user: null,
+  isRecoverySession: false,
+  signOut,
+}
+
 function renderPage() {
   return render(
-    <ToastProvider>
-      <MemoryRouter initialEntries={[paths.recoverFactor]}>
-        <Routes>
-          <Route path={paths.recoverFactor} element={<RecoverFactorPage />} />
-          <Route path={paths.enrollFactor} element={<p>enrolment screen</p>} />
-          <Route path={paths.challengeFactor} element={<p>challenge screen</p>} />
-        </Routes>
-      </MemoryRouter>
-    </ToastProvider>,
+    <AuthContext.Provider value={auth}>
+      <ToastProvider>
+        <MemoryRouter initialEntries={[paths.recoverFactor]}>
+          <Routes>
+            <Route path={paths.recoverFactor} element={<RecoverFactorPage />} />
+            <Route path={paths.enrollFactor} element={<p>enrolment screen</p>} />
+            <Route path={paths.challengeFactor} element={<p>challenge screen</p>} />
+          </Routes>
+        </MemoryRouter>
+      </ToastProvider>
+    </AuthContext.Provider>,
   )
 }
 
@@ -44,6 +57,7 @@ function refusedWith(reason: ResetFailureReason) {
 
 beforeEach(() => {
   vi.resetAllMocks()
+  signOut.mockResolvedValue(undefined)
   recovery.resetOwnFactor.mockResolvedValue(undefined)
 })
 
@@ -179,5 +193,26 @@ describe('RecoverFactorPage', () => {
       expect(JSON.stringify(spy.mock.calls)).not.toContain('ABCDEFGHJK')
       spy.mockRestore()
     }
+  })
+})
+
+describe('RecoverFactorPage: the way out', () => {
+  // These are the only screens an unenrolled user can reach, and AuthLayout has
+  // no navigation. Without this control somebody who cannot finish here is held
+  // on the page: /sign-in sends a signed-in user to the application and the
+  // guard sends them straight back.
+  it('offers a way to sign out and use a different account', async () => {
+    renderPage()
+
+    expect(await screen.findByRole('button', { name: /sign out/i })).toBeVisible()
+  })
+
+  it('signs the user out when it is used', async () => {
+    renderPage()
+    const user = userEvent.setup()
+
+    await user.click(await screen.findByRole('button', { name: /sign out/i }))
+
+    expect(signOut).toHaveBeenCalledTimes(1)
   })
 })

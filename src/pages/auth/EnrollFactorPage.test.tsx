@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { paths } from '@/app/routes/paths'
 import { ToastProvider } from '@/components/ui'
+import { AuthContext, type AuthContextValue } from '@/features/auth/auth-context'
 import { SecondFactorContext, type SecondFactorGate } from '@/features/auth/second-factor-context'
 import { AppError } from '@/lib/supabase/errors'
 
@@ -42,21 +43,33 @@ const gate: SecondFactorGate = {
 const CODES = Array.from({ length: 10 }, (_, index) => `CODE00000${index}`)
 const SECRET = 'JBSWY3DPEHPK3PXP'
 
+/** A signed-in session, so the way out of this screen has something to end. */
+const signOut = vi.fn()
+const auth: AuthContextValue = {
+  status: 'authenticated',
+  session: null,
+  user: null,
+  isRecoverySession: false,
+  signOut,
+}
+
 function renderPage(from?: string) {
   const entry = from ? { pathname: paths.enrollFactor, state: { from } } : paths.enrollFactor
   return render(
-    <SecondFactorContext.Provider value={gate}>
-      <ToastProvider>
-        <MemoryRouter initialEntries={[entry]}>
-          <Routes>
-            <Route path={paths.enrollFactor} element={<EnrollFactorPage />} />
-            <Route path={paths.challengeFactor} element={<p>challenge screen</p>} />
-            <Route path={paths.overview} element={<p>overview screen</p>} />
-            <Route path="/rentals" element={<p>rentals screen</p>} />
-          </Routes>
-        </MemoryRouter>
-      </ToastProvider>
-    </SecondFactorContext.Provider>,
+    <AuthContext.Provider value={auth}>
+      <SecondFactorContext.Provider value={gate}>
+        <ToastProvider>
+          <MemoryRouter initialEntries={[entry]}>
+            <Routes>
+              <Route path={paths.enrollFactor} element={<EnrollFactorPage />} />
+              <Route path={paths.challengeFactor} element={<p>challenge screen</p>} />
+              <Route path={paths.overview} element={<p>overview screen</p>} />
+              <Route path="/rentals" element={<p>rentals screen</p>} />
+            </Routes>
+          </MemoryRouter>
+        </ToastProvider>
+      </SecondFactorContext.Provider>
+    </AuthContext.Provider>,
   )
 }
 
@@ -69,6 +82,7 @@ async function enterCode(code: string) {
 
 beforeEach(() => {
   vi.resetAllMocks()
+  signOut.mockResolvedValue(undefined)
   mfa.listFactorState.mockResolvedValue({ status: 'none', factorId: null })
   mfa.beginEnrolment.mockResolvedValue({
     factorId: 'factor-1',
@@ -272,5 +286,26 @@ describe('EnrollFactorPage recovery codes step', () => {
       expect(JSON.stringify(spy.mock.calls)).not.toContain(CODES[0])
       spy.mockRestore()
     }
+  })
+})
+
+describe('EnrollFactorPage: the way out', () => {
+  // These are the only screens an unenrolled user can reach, and AuthLayout has
+  // no navigation. Without this control somebody who cannot finish here is held
+  // on the page: /sign-in sends a signed-in user to the application and the
+  // guard sends them straight back.
+  it('offers a way to sign out and use a different account', async () => {
+    renderPage()
+
+    expect(await screen.findByRole('button', { name: /sign out/i })).toBeVisible()
+  })
+
+  it('signs the user out when it is used', async () => {
+    renderPage()
+    const user = userEvent.setup()
+
+    await user.click(await screen.findByRole('button', { name: /sign out/i }))
+
+    expect(signOut).toHaveBeenCalledTimes(1)
   })
 })

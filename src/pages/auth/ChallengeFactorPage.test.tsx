@@ -4,6 +4,7 @@ import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { paths } from '@/app/routes/paths'
+import { AuthContext, type AuthContextValue } from '@/features/auth/auth-context'
 import { SecondFactorContext, type SecondFactorGate } from '@/features/auth/second-factor-context'
 import { AppError } from '@/lib/supabase/errors'
 
@@ -30,20 +31,32 @@ vi.mock('@/features/auth/mfa', () => ({
   challenge: mfa.challenge,
 }))
 
+/** A signed-in session, so the way out of this screen has something to end. */
+const signOut = vi.fn()
+const auth: AuthContextValue = {
+  status: 'authenticated',
+  session: null,
+  user: null,
+  isRecoverySession: false,
+  signOut,
+}
+
 function renderPage(from?: string) {
   const entry = from ? { pathname: paths.challengeFactor, state: { from } } : paths.challengeFactor
   return render(
-    <SecondFactorContext.Provider value={gate}>
-      <MemoryRouter initialEntries={[entry]}>
-        <Routes>
-          <Route path={paths.challengeFactor} element={<ChallengeFactorPage />} />
-          <Route path={paths.recoverFactor} element={<p>recovery screen</p>} />
-          <Route path={paths.enrollFactor} element={<p>enrolment screen</p>} />
-          <Route path={paths.overview} element={<p>overview screen</p>} />
-          <Route path="/vehicles" element={<p>vehicles screen</p>} />
-        </Routes>
-      </MemoryRouter>
-    </SecondFactorContext.Provider>,
+    <AuthContext.Provider value={auth}>
+      <SecondFactorContext.Provider value={gate}>
+        <MemoryRouter initialEntries={[entry]}>
+          <Routes>
+            <Route path={paths.challengeFactor} element={<ChallengeFactorPage />} />
+            <Route path={paths.recoverFactor} element={<p>recovery screen</p>} />
+            <Route path={paths.enrollFactor} element={<p>enrolment screen</p>} />
+            <Route path={paths.overview} element={<p>overview screen</p>} />
+            <Route path="/vehicles" element={<p>vehicles screen</p>} />
+          </Routes>
+        </MemoryRouter>
+      </SecondFactorContext.Provider>
+    </AuthContext.Provider>,
   )
 }
 
@@ -56,6 +69,7 @@ async function submitCode(code: string) {
 
 beforeEach(() => {
   vi.resetAllMocks()
+  signOut.mockResolvedValue(undefined)
   mfa.listFactorState.mockResolvedValue({ status: 'verified', factorId: 'factor-1' })
   mfa.challenge.mockResolvedValue(undefined)
   refresh.mockReset()
@@ -152,5 +166,26 @@ describe('ChallengeFactorPage', () => {
     await user.click(screen.getByRole('button', { name: /try again/i }))
 
     expect(await screen.findByLabelText(/6-digit code/i)).toBeVisible()
+  })
+})
+
+describe('ChallengeFactorPage: the way out', () => {
+  // These are the only screens an unenrolled user can reach, and AuthLayout has
+  // no navigation. Without this control somebody who cannot finish here is held
+  // on the page: /sign-in sends a signed-in user to the application and the
+  // guard sends them straight back.
+  it('offers a way to sign out and use a different account', async () => {
+    renderPage()
+
+    expect(await screen.findByRole('button', { name: /sign out/i })).toBeVisible()
+  })
+
+  it('signs the user out when it is used', async () => {
+    renderPage()
+    const user = userEvent.setup()
+
+    await user.click(await screen.findByRole('button', { name: /sign out/i }))
+
+    expect(signOut).toHaveBeenCalledTimes(1)
   })
 })

@@ -6,6 +6,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { paths } from '@/app/routes/paths'
 import { Alert, Button, Field, Input, useToast } from '@/components/ui'
 import { AuthLayout } from '@/features/auth/components/AuthLayout'
+import { SignOutLink } from '@/features/auth/components/SignOutLink'
 import {
   FactorResetError,
   type ResetFailureReason,
@@ -74,13 +75,20 @@ export function RecoverFactorPage() {
       title="Lost your device?"
       description="Use one of your recovery codes to start again with a new authenticator."
       footer={
-        <Link
-          to={paths.challengeFactor}
-          state={routeState}
-          className="text-brand-700 font-medium hover:underline"
-        >
-          Found your device? Back to verification
-        </Link>
+        <div className="space-y-1">
+          <p>
+            <Link
+              to={paths.challengeFactor}
+              state={routeState}
+              className="text-brand-700 font-medium hover:underline"
+            >
+              Found your device? Back to verification
+            </Link>
+          </p>
+          <p>
+            <SignOutLink />
+          </p>
+        </div>
       }
     >
       <Alert tone="caution" title="Read this before you continue">

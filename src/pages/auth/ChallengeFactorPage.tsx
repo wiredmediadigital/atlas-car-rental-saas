@@ -7,6 +7,7 @@ import { paths } from '@/app/routes/paths'
 import { FullPageLoader } from '@/components/feedback/FullPageLoader'
 import { Alert, Button, Field, Input } from '@/components/ui'
 import { AuthLayout } from '@/features/auth/components/AuthLayout'
+import { SignOutLink } from '@/features/auth/components/SignOutLink'
 import { challenge, listFactorState } from '@/features/auth/mfa'
 import { verificationErrorMessage } from '@/features/auth/mfa-messages'
 import { type TotpCodeInput, totpCodeSchema } from '@/features/auth/schemas'
@@ -99,6 +100,7 @@ export function ChallengeFactorPage() {
       <AuthLayout
         title="Verify your sign-in"
         description="We could not check how your account is protected."
+        footer={<SignOutLink />}
       >
         <Alert tone="critical">{phase.message}</Alert>
         <Button variant="primary" size="lg" fullWidth className="mt-4" onClick={retry}>
@@ -112,6 +114,7 @@ export function ChallengeFactorPage() {
     <AuthLayout
       title="Verify your sign-in"
       description="Open your authenticator app and type the code it is showing now."
+      footer={<SignOutLink />}
     >
       <form onSubmit={(event) => void onSubmit(event)} className="space-y-4" noValidate>
         {formError ? <Alert tone="critical">{formError}</Alert> : null}
