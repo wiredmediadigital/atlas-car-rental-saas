@@ -384,6 +384,11 @@ export function ResetFactorDialog({
           their password.
         </p>
         <p>
+          It stops that authenticator being used to sign in again. It does not end a session they
+          are already signed in to, which keeps working until it expires — so if the phone was
+          stolen rather than lost, this is one step and not a way to cut that device off.
+        </p>
+        <p>
           The next time they sign in they will have to set up a new authenticator before they can
           reach anything. They are given a fresh set of recovery codes when they do, and any codes
           they still hold stop working at that point.

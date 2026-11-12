@@ -568,6 +568,15 @@ describe('what the rest of the product offers a closing agency', () => {
     expect(ask('rentals.view', 'staff', 'suspended')).toBe('offered')
   })
 
+  it('leaves an owner able to rescue a member locked out during the grace period', () => {
+    // A closing agency is read-only, but its people still have to reach their
+    // own records to take them away. A member who loses their phone inside that
+    // window must not need the operator to get back in.
+    for (const state of ['suspended', 'purging', 'closed'] as const) {
+      expect(ask('team.resetFactor', 'owner', state)).toBe('offered')
+    }
+  })
+
   it('classifies every permission a closing agency keeps, and the list is visible here', () => {
     const kept = (Object.keys(PERMISSIONS) as Permission[]).filter(
       (permission) => !isWithdrawnWhenClosing(permission),
@@ -588,6 +597,7 @@ describe('what the rest of the product offers a closing agency', () => {
       'rentals.view',
       'reports.view',
       'team.history',
+      'team.resetFactor',
       'team.transferOwnership',
       'team.view',
       'vehicleDocuments.view',

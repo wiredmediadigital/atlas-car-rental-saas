@@ -664,6 +664,13 @@ describe('resetting a member’s authenticator', () => {
 
     expect(screen.getByText(/set up a new authenticator/i)).toBeVisible()
     expect(screen.getByText(/stop working/i)).toBeVisible()
+    /*
+     * An owner reaching for this because a phone was STOLEN will assume it cuts
+     * off whoever holds it. It does not: the member's current token still
+     * carries a passed second factor until it expires. Pinned, because copy
+     * that corrects a dangerous assumption must not be able to drift out.
+     */
+    expect(screen.getByText(/does not end a session they are already signed in to/i)).toBeVisible()
 
     await userEvent.setup().click(screen.getByRole('button', { name: /reset two-factor/i }))
     expect(onConfirm).toHaveBeenCalled()
