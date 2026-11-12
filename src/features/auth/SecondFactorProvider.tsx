@@ -30,7 +30,9 @@ interface LevelResult {
  *
  * NEITHER READ IS KEYED ON THE ACCESS TOKEN, deliberately. The token is renewed
  * on a timer; keying on it would blank the application for the length of a
- * round trip roughly once an hour, for an answer that cannot have changed.
+ * round trip roughly once an hour, for an answer that cannot have changed. What
+ * separates one session from the next is the sign-out between them, so that is
+ * where both answers are discarded.
  */
 export function SecondFactorProvider({ children }: { children: ReactNode }) {
   const factor = useSecondFactor()
@@ -42,6 +44,11 @@ export function SecondFactorProvider({ children }: { children: ReactNode }) {
   // the effect, so every setState stays asynchronous — the same shape, and for
   // the same reason, as useSecondFactor.
   const [result, setResult] = useState<LevelResult | null>(null)
+
+  // Discarded on sign-out, during render, for the reasons useSecondFactor spells
+  // out: the user id cannot tell one session from the next when the same person
+  // signs back in, and the next session is aal1 until a factor is proved on it.
+  if (userId === null && result !== null) setResult(null)
 
   useEffect(() => {
     if (userId === null) return

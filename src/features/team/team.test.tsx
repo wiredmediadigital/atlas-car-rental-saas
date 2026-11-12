@@ -637,7 +637,35 @@ describe('resetting a member’s authenticator', () => {
     expect(screen.queryByRole('button', { name: 'Actions for Owner One' })).not.toBeInTheDocument()
   })
 
-  it.each(['admin', 'manager', 'staff'] as const)('offers nothing of the kind to a %s', (role) => {
+  /*
+   * ASSERTING ON A CLOSED MENU PROVES NOTHING. The menu content is a portal
+   * with no forceMount, so no menuitem exists in the DOM for ANY role until the
+   * trigger is pressed. An administrator who was wrongly offered the reset
+   * would sail through a test that only queried for the item. So each role is
+   * asked the question it can actually answer: an administrator has a menu, so
+   * it is opened and read; a manager and a staff member have no menu at all.
+   */
+  it('opens an administrator’s menu and finds no reset among what it offers', async () => {
+    const user = userEvent.setup()
+    render(
+      <TeamMembersTable
+        members={[member({ user_id: 'b', role: 'staff', display_name: 'Staff One' })]}
+        actorRole="admin"
+        {...display}
+        {...handlers}
+      />,
+    )
+
+    await user.click(screen.getAllByRole('button', { name: 'Actions for Staff One' })[0]!)
+
+    // The menu really is open, so the absence below is an absence and not a
+    // closed portal.
+    expect(await screen.findByRole('menuitem', { name: /change role/i })).toBeVisible()
+    expect(screen.getByRole('menuitem', { name: /remove from agency/i })).toBeVisible()
+    expect(screen.queryByRole('menuitem', { name: /reset two-factor/i })).not.toBeInTheDocument()
+  })
+
+  it.each(['manager', 'staff'] as const)('offers a %s no row menu to open at all', (role) => {
     render(
       <TeamMembersTable
         members={[member({ user_id: 'b', role: 'staff', display_name: 'Staff One' })]}
@@ -647,7 +675,7 @@ describe('resetting a member’s authenticator', () => {
       />,
     )
 
-    expect(screen.queryByRole('menuitem', { name: /reset two-factor/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Actions for Staff One' })).not.toBeInTheDocument()
   })
 
   it('says the member will have to enrol again before confirming', async () => {

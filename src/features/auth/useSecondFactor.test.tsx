@@ -163,6 +163,29 @@ describe('useSecondFactor', () => {
     expect(harness.listFactorState).toHaveBeenCalledTimes(2)
   })
 
+  it('does not serve the previous session’s answer after a sign-out and a sign-in as the same user', async () => {
+    /*
+     * The hole the user id alone leaves open. Nothing unmounts this hook across
+     * a sign out — its consumers sit above the router — so keyed on the user id
+     * only, the previous session's answer is still reported, and reported as
+     * SETTLED, while the new session's read is in flight. The new session is
+     * aal1 until a factor is proved on it, so a guard that reads it lets a
+     * user into an application the database is refusing data to.
+     */
+    harness.listFactorState.mockResolvedValue({ status: 'verified', factorId: 'f1' })
+    const { result, setSession } = renderWith(sessionFor('u1'))
+    await waitFor(() => expect(result.current.state?.status).toBe('verified'))
+
+    setSession(null)
+    expect(result.current).toMatchObject({ state: null, isLoading: false })
+
+    harness.listFactorState.mockResolvedValue({ status: 'none', factorId: null })
+    setSession(sessionFor('u1'))
+
+    expect(result.current).toMatchObject({ state: null, isLoading: true })
+    await waitFor(() => expect(result.current.state?.status).toBe('none'))
+  })
+
   it('does not call into supabase-js from inside an auth-state callback', async () => {
     harness.listFactorState.mockResolvedValue({ status: 'verified', factorId: 'f1' })
     const wrapper = ({ children }: { children: ReactNode }) => (

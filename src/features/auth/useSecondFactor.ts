@@ -34,9 +34,32 @@ export function useSecondFactor(): SecondFactor {
   const userId = session?.user.id ?? null
 
   const [reads, setReads] = useState(0)
-  // Which user and which read produced `state`. Deriving from this instead of
-  // resetting state inside the effect keeps every setState asynchronous.
+  // Which user and which read produced `state`. Deriving the answer from this
+  // instead of resetting state inside the effect keeps every setState in the
+  // effect asynchronous.
   const [result, setResult] = useState<FactorResult | null>(null)
+
+  /*
+   * A SIGN-OUT DISCARDS THE ANSWER.
+   *
+   * Keying on the user id is not enough. Nothing unmounts this hook across a
+   * sign out — its consumers sit above the router — so without this the next
+   * session is served the previous one's answer, and reported as settled. After
+   * a sign-out and a sign-in as THE SAME PERSON the user id cannot tell the two
+   * sessions apart at all, and the new one is aal1 until a factor is proved on
+   * it: a guard reading that stale answer admits a user the database is
+   * refusing data to.
+   *
+   * The sign-out is the boundary between two sessions, so it is where the
+   * answer is dropped. Keying on the access token instead would also fire for
+   * the hourly token renewal, which changes nothing and would re-read for it.
+   *
+   * Adjusted during render rather than from an effect. An effect would paint
+   * one frame of the stale answer before clearing it, and a synchronous
+   * setState inside an effect is the cascading-render hazard. React re-runs
+   * this immediately and commits nothing in between.
+   */
+  if (userId === null && result !== null) setResult(null)
 
   useEffect(() => {
     if (userId === null) return
