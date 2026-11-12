@@ -44,7 +44,8 @@ first agency is created on the live site.
 
 1. **Supabase project:** create one and paste its ID (plus `npx supabase login`, only if the CLI is
    not signed in).
-2. **Install approval:** one yes to install Pevvy into that exact project.
+2. **Install approval:** switch on the App Authenticator, then one yes to install Pevvy into that
+   exact project.
 3. **GitHub:** an empty private repository, then one yes to publish to it (plus a Git sign-in or
    name/email only if Git asks).
 4. **Hostinger:** the hPanel steps, then paste the live address.
@@ -91,11 +92,20 @@ and files there are the owner's own.
    Never pick a project yourself, even though you can see every project in their account.
 2. Find the ref in `npx supabase projects list -o json`. Not there → they are signed in to another
    account: say so and stop. Otherwise **user moment 2 — one message:** show the project's name,
-   region and creation date and ask: "Install Pevvy into this project? I'll connect this folder to
-   it, make sure it is empty, create the Pevvy database (every migration in
+   region and creation date, ask them to switch on the App Authenticator, and ask: "In that
+   project, open Authentication → Multi-Factor Authentication and turn on the App Authenticator
+   (TOTP). Pevvy requires two-factor sign-in for every user, so without it nobody — including you
+   — can finish creating their account. Then: install Pevvy into this project? I'll connect this
+   folder to it, make sure it is empty, create the Pevvy database (every migration in
    `supabase/migrations/`) and install its 4 background
    services. If it is not empty, or anything differs from that plan, I'll stop and change
-   nothing." A yes approves exactly that.
+   nothing." A yes approves exactly that, and confirms the App Authenticator is on.
+
+   Record their confirmation as `SUPABASE_TOTP_ENABLED_FOR=<ref>` in `.env.local`, which is what
+   `npm run setup:check` reads. Do not push migrations without it: the enforcement migration makes
+   a second factor mandatory, so applying it to a project where enrolment is switched off leaves
+   every user unable to enrol and unable to reach anything, with no way back from inside Pevvy.
+
 3. Then, without asking again:
    - `npx supabase link --project-ref <ref>` (if it asks for the database password, ask the user
      to run the same command in the terminal panel); confirm `supabase/.temp/project-ref`.
