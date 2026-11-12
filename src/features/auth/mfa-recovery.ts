@@ -1,0 +1,62 @@
+import { getSupabaseClient } from '@/lib/supabase/client'
+import { toAppError } from '@/lib/supabase/errors'
+
+export type ResetFailureReason = 'invalid_code' | 'not_permitted' | 'no_factor' | 'unavailable'
+
+const KNOWN_REASONS: readonly ResetFailureReason[] = ['invalid_code', 'not_permitted', 'no_factor']
+
+/**
+ * The mfa-reset function refused, or could not be reached.
+ *
+ * Carries only a reason. The recovery code that was submitted is deliberately
+ * not kept on it: errors get logged and reported, codes must not.
+ */
+export class FactorResetError extends Error {
+  readonly reason: ResetFailureReason
+
+  constructor(reason: ResetFailureReason) {
+    super(`Authenticator reset failed: ${reason}`)
+    this.name = 'FactorResetError'
+    this.reason = reason
+  }
+}
+
+/**
+ * Mints ten fresh recovery codes for the signed-in user, replacing any unused
+ * ones. The plaintext comes back exactly once and is not stored anywhere that
+ * can return it again. Needs an aal2 session, so call it only after the first
+ * code has been verified.
+ */
+export async function generateRecoveryCodes(): Promise<readonly string[]> {
+  const { data, error } = await getSupabaseClient().rpc('mfa_generate_recovery_codes')
+  if (error) throw toAppError(error)
+  return data
+}
+
+/**
+ * Spends a recovery code to remove the caller's own authenticator. This does not
+ * sign anyone in: the user has no second factor afterwards and must enrol again.
+ */
+export async function resetOwnFactor(recoveryCode: string): Promise<void> {
+  const invocation: { error: unknown } = await getSupabaseClient().functions.invoke('mfa-reset', {
+    body: { mode: 'self', recoveryCode },
+  })
+  const { error } = invocation
+  if (!error) return
+
+  throw new FactorResetError(await readReason(error))
+}
+
+/** supabase-js leaves a non-2xx body unread on `error.context`; the reason lives there. */
+async function readReason(error: unknown): Promise<ResetFailureReason> {
+  const context: unknown = (error as { context?: unknown }).context
+  if (!(context instanceof Response)) return 'unavailable'
+
+  try {
+    const body: unknown = await context.json()
+    const reason = (body as { reason?: unknown } | null)?.reason
+    return KNOWN_REASONS.find((known) => known === reason) ?? 'unavailable'
+  } catch {
+    return 'unavailable'
+  }
+}

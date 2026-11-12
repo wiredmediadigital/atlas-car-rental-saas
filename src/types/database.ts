@@ -3193,6 +3193,10 @@ export interface Database {
         }
         Returns: string[]
       }
+      mfa_generate_recovery_codes: {
+        Args: Record<string, never>
+        Returns: string[]
+      }
     }
     Enums: {
       org_role: OrgRole
