@@ -18,10 +18,13 @@ import {
   containsSecretKey,
   envFileContents,
   evaluate,
+  evaluateFunctions,
   evaluateSite,
   isOriginalAtlasRemote,
   isReady,
+  localFunctionSlugs,
   mergeEnvFileContents,
+  parseDeployedFunctions,
   parseEnvFile,
   pickBrowserKey,
   projectRefFromUrl,
@@ -542,6 +545,89 @@ describe('checking the deployed site', () => {
     expect(
       status(evaluateSite(site({ origin: 'http://localhost:4173', hsts: false })), 'https'),
     ).toBe('ok')
+  })
+})
+
+describe('deployed Edge Functions', () => {
+  const site = (overrides: Partial<SiteFacts> = {}): SiteFacts => ({
+    origin: 'https://my-atlas.hostingersite.com',
+    expectedRef: REF,
+    rootStatus: 200,
+    hsts: true,
+    routes: SITE_ROUTES.map((path) => ({ path, status: 200, html: true })),
+    bundleFiles: 3,
+    refs: [REF],
+    keyFound: true,
+    secretFound: false,
+    ...overrides,
+  })
+  const LOCAL = ['billing', 'mfa-reset', 'pricing']
+  const live = (...slugs: string[]) => slugs.map((slug) => ({ slug, status: 'ACTIVE' }))
+  const check = (deployedFunctions: { slug: string; status: string }[] | null) =>
+    evaluateSite({ ...site(), localFunctions: LOCAL, deployedFunctions }).find(
+      (result) => result.id === 'functions',
+    )!
+
+  it('is ok when every local function is deployed and ACTIVE', () => {
+    expect(check(live(...LOCAL)).status).toBe('ok')
+  })
+
+  it('fails naming a missing function and the command that deploys it', () => {
+    const result = check(live('billing', 'pricing'))
+    expect(result.status).toBe('fail')
+    expect(result.message).toContain('npx supabase functions deploy mfa-reset')
+    expect(result.message).not.toContain('functions deploy billing')
+  })
+
+  it('fails on a function that is deployed but not ACTIVE', () => {
+    const result = check([...live('billing', 'pricing'), { slug: 'mfa-reset', status: 'REMOVED' }])
+    expect(result.status).toBe('fail')
+    expect(result.message).toContain('npx supabase functions deploy mfa-reset')
+  })
+
+  it('only warns when the deployed set could not be determined', () => {
+    const results = evaluateSite({ ...site(), localFunctions: LOCAL, deployedFunctions: null })
+    expect(results.find((r) => r.id === 'functions')?.status).toBe('warn')
+    expect(isReady(results)).toBe(true)
+  })
+
+  it('says nothing about a deployed function with no local directory', () => {
+    expect(check(live(...LOCAL, 'retired-function')).status).toBe('ok')
+  })
+
+  it('fails for a brand new local function that nobody deployed', () => {
+    const results = evaluateFunctions({
+      localFunctions: [...LOCAL, 'ninth-function'],
+      deployedFunctions: live(...LOCAL),
+    })
+    expect(results[0]?.status).toBe('fail')
+    expect(results[0]?.message).toContain('npx supabase functions deploy ninth-function')
+  })
+
+  it('still reports functions when the site itself is unreachable', () => {
+    const results = evaluateSite({
+      ...site({ rootStatus: 404 }),
+      localFunctions: LOCAL,
+      deployedFunctions: live('billing'),
+    })
+    expect(results.find((r) => r.id === 'functions')?.status).toBe('fail')
+  })
+
+  it('lists local functions without _shared and tests', () => {
+    expect(localFunctionSlugs(['tests', 'pricing', '_shared', 'billing'])).toEqual([
+      'billing',
+      'pricing',
+    ])
+  })
+
+  it('reads both the default and the --output json shapes, and rejects anything else', () => {
+    const entry = { slug: 'billing', name: 'billing', status: 'ACTIVE' }
+    const expected = [{ slug: 'billing', status: 'ACTIVE' }]
+    expect(parseDeployedFunctions(JSON.stringify({ functions: [entry] }))).toEqual(expected)
+    expect(parseDeployedFunctions(JSON.stringify([entry]))).toEqual(expected)
+    expect(parseDeployedFunctions('not json')).toBeNull()
+    expect(parseDeployedFunctions('{}')).toBeNull()
+    expect(parseDeployedFunctions('')).toBeNull()
   })
 })
 

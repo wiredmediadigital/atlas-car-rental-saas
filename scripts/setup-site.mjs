@@ -5,14 +5,17 @@
  * public pages only: the home page, sign-up, the four Auth redirect pages and a
  * deep link, then the application script, and says whether the build points at
  * this folder's Supabase project with its publishable key. It changes nothing
- * and never prints a key.
+ * and never prints a key. It also checks that every Edge Function in
+ * supabase/functions/ is deployed and ACTIVE on the linked project (a warning,
+ * not a failure, when that cannot be read).
  *
  *   npm run setup:site -- my-site.hostingersite.com
  *   npm run setup:site -- https://my-site.com --json
  *
  * Exits 1 when something is wrong with the deployment.
  */
-import { existsSync, readFileSync } from 'node:fs'
+import { spawnSync } from 'node:child_process'
+import { existsSync, readdirSync, readFileSync } from 'node:fs'
 
 import {
   SITE_ROUTES,
@@ -20,6 +23,8 @@ import {
   containsSecretKey,
   evaluateSite,
   isReady,
+  localFunctionSlugs,
+  parseDeployedFunctions,
   parseEnvFile,
   projectRefFromUrl,
   siteOrigin,
@@ -48,6 +53,30 @@ async function get(url) {
     return { status: null, headers: new Headers(), body: '' }
   }
 }
+
+/** Edge Functions deployed to the linked project, or null when that cannot be read. */
+function deployedFunctions() {
+  if (!linkedRef) return null
+  try {
+    // A single fixed command string: on Windows npx is a .cmd file and needs a shell.
+    const run = spawnSync('npx supabase functions list', {
+      encoding: 'utf8',
+      timeout: 30_000,
+      shell: true,
+    })
+    return run.status === 0 ? parseDeployedFunctions(run.stdout) : null
+  } catch {
+    return null
+  }
+}
+
+const localFunctions = existsSync('supabase/functions')
+  ? localFunctionSlugs(
+      readdirSync('supabase/functions', { withFileTypes: true })
+        .filter((entry) => entry.isDirectory())
+        .map((entry) => entry.name),
+    )
+  : []
 
 const root = await get(`${origin}/`)
 const assets = root.status === 200 ? bundleAssetUrls(root.body, origin) : []
@@ -80,6 +109,8 @@ const results = evaluateSite({
   refs: supabaseRefsIn(bundle),
   keyFound: expectedKey ? bundle.includes(expectedKey) : null,
   secretFound: containsSecretKey(bundle),
+  localFunctions,
+  deployedFunctions: localFunctions.length > 0 ? deployedFunctions() : null,
 })
 
 if (process.argv.includes('--json')) {

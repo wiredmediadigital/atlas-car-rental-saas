@@ -76,7 +76,25 @@ export interface SiteFacts {
   refs: string[]
   keyFound: boolean | null
   secretFound: boolean
+  /** Edge Function directories in this folder; the check is skipped when absent. */
+  localFunctions?: readonly string[]
+  /** Functions on the linked project, or null when that could not be read. */
+  deployedFunctions?: readonly DeployedFunction[] | null
 }
+
+export interface DeployedFunction {
+  slug: string
+  status: string | undefined
+}
+
+export declare const NON_FUNCTION_DIRECTORIES: readonly string[]
+export declare function localFunctionSlugs(directoryNames: Iterable<string>): string[]
+export declare function parseDeployedFunctions(
+  text: string | null | undefined,
+): DeployedFunction[] | null
+export declare function evaluateFunctions(
+  facts: Pick<SiteFacts, 'localFunctions' | 'deployedFunctions'>,
+): CheckResult[]
 
 export declare function siteOrigin(value: string | undefined): string | null
 export declare function bundleAssetUrls(html: string, origin: string): string[]

@@ -464,9 +464,85 @@ export function containsSecretKey(text) {
  * { id, status, message } shape as `evaluate`.
  *
  * facts: { origin, expectedRef, rootStatus, hsts, routes: [{ path, status, html }],
- *          bundleFiles, refs, keyFound (boolean | null), secretFound }
+ *          bundleFiles, refs, keyFound (boolean | null), secretFound,
+ *          localFunctions (string[]), deployedFunctions ([{ slug, status }] | null) }
+ *
+ * The Edge Function check is independent of the site, so it runs even when the
+ * site itself is unreachable. It is skipped when `localFunctions` is not given.
  */
 export function evaluateSite(facts) {
+  return [...evaluateSiteBuild(facts), ...evaluateFunctions(facts)]
+}
+
+/** Directories under supabase/functions/ that are not deployable functions. */
+export const NON_FUNCTION_DIRECTORIES = ['_shared', 'tests']
+
+/** The slugs of the functions that live in this folder, from the directory names. */
+export function localFunctionSlugs(directoryNames) {
+  return [...directoryNames].filter((name) => !NON_FUNCTION_DIRECTORIES.includes(name)).sort()
+}
+
+/**
+ * Reads `npx supabase functions list` output: `{"functions":[...]}` by default,
+ * a bare array with `--output json`. Returns [{ slug, status }] or null when the
+ * text is not a function list (so the caller can warn rather than fail).
+ */
+export function parseDeployedFunctions(text) {
+  let data
+  try {
+    data = JSON.parse(String(text ?? ''))
+  } catch {
+    return null
+  }
+  const list = Array.isArray(data) ? data : data?.functions
+  if (!Array.isArray(list)) return null
+  return list
+    .map((entry) => ({ slug: entry?.slug ?? entry?.name, status: entry?.status }))
+    .filter((entry) => typeof entry.slug === 'string')
+}
+
+/** Fails when a local Edge Function is not deployed and ACTIVE; warns when that cannot be known. */
+export function evaluateFunctions(facts) {
+  if (!Array.isArray(facts.localFunctions) || facts.localFunctions.length === 0) return []
+  if (!Array.isArray(facts.deployedFunctions)) {
+    return [
+      {
+        id: 'functions',
+        status: 'warn',
+        message:
+          'Could not read the deployed Edge Functions (project not linked, Supabase CLI missing, offline, or the call failed), so they were not checked. Run `npx supabase functions list` to check them yourself.',
+      },
+    ]
+  }
+  const deployed = new Map(facts.deployedFunctions.map((fn) => [fn.slug, fn.status]))
+  const missing = facts.localFunctions.filter((slug) => !deployed.has(slug))
+  const inactive = facts.localFunctions.filter(
+    (slug) => deployed.has(slug) && deployed.get(slug) !== 'ACTIVE',
+  )
+  if (missing.length === 0 && inactive.length === 0) {
+    return [
+      {
+        id: 'functions',
+        status: 'ok',
+        message: `All ${facts.localFunctions.length} Edge Functions are deployed and ACTIVE`,
+      },
+    ]
+  }
+  const problems = [
+    ...missing.map((slug) => `${slug} (not deployed)`),
+    ...inactive.map((slug) => `${slug} (${deployed.get(slug) ?? 'unknown'}, not ACTIVE)`),
+  ]
+  const fix = [...missing, ...inactive].map((slug) => `npx supabase functions deploy ${slug}`)
+  return [
+    {
+      id: 'functions',
+      status: 'fail',
+      message: `Edge Functions not live: ${problems.join(', ')}. Pushing and migrations do not deploy functions. Run: ${fix.join(' ; ')}`,
+    },
+  ]
+}
+
+function evaluateSiteBuild(facts) {
   const results = []
   const add = (id, status, message) => results.push({ id, status, message })
   const local = isLocalHost(new URL(facts.origin).hostname)
