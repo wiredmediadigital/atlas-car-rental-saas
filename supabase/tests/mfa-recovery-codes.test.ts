@@ -19,8 +19,10 @@ const PERMISSION_DENIED = /permission denied/i
 const CODE_PATTERN = /^[0-9A-HJKMNP-TV-Z]{10}$/
 
 async function generate(userId: string): Promise<string[]> {
-  const rows = await db.asUser(userId, (s) =>
-    s.sql<{ code: string }>(`select public.mfa_generate_recovery_codes() as code`),
+  const rows = await db.asUser(
+    userId,
+    (s) => s.sql<{ code: string }>(`select public.mfa_generate_recovery_codes() as code`),
+    { aal: 'aal2' },
   )
   return rows.map((r) => r.code)
 }
@@ -90,6 +92,35 @@ describe('generating recovery codes', () => {
     await expect(
       db.asAnon((s) => s.sql(`select public.mfa_generate_recovery_codes()`)),
     ).rejects.toThrow(PERMISSION_DENIED)
+  })
+})
+
+describe('assurance level required to generate codes', () => {
+  const generateSql = `select public.mfa_generate_recovery_codes()`
+
+  it('refuses an aal1 session and leaves the existing codes intact', async () => {
+    const [code] = await generate(alice)
+    await expect(db.asUser(alice, (s) => s.sql(generateSql), { aal: 'aal1' })).rejects.toThrow(
+      /second factor/i,
+    )
+    expect(await unusedCount(alice)).toBe(10)
+    expect(await consume(alice, code!)).toBe(true)
+  })
+
+  it('refuses a session with no aal claim and leaves the existing codes intact', async () => {
+    await generate(alice)
+    await expect(db.asUser(alice, (s) => s.sql(generateSql))).rejects.toThrow(/second factor/i)
+    expect(await unusedCount(alice)).toBe(10)
+  })
+
+  it('reports the refusal as insufficient privilege (42501)', async () => {
+    await expect(
+      db.asUser(alice, (s) => s.sql(generateSql), { aal: 'aal1' }),
+    ).rejects.toMatchObject({ code: '42501' })
+  })
+
+  it('still succeeds for an aal2 session', async () => {
+    expect(await generate(alice)).toHaveLength(10)
   })
 })
 

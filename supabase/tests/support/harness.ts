@@ -67,12 +67,17 @@ export class TestDatabase {
    * Runs `fn` as the `authenticated` Postgres role with `auth.uid()` resolving
    * to `userId` — the same position a browser request occupies. RLS applies.
    */
-  async asUser<T>(userId: string, fn: (db: TestDatabase) => Promise<T>): Promise<T> {
-    await this.db.exec(`set request.jwt.claim.sub = '${userId}'; set role authenticated;`)
+  async asUser<T>(
+    userId: string,
+    fn: (db: TestDatabase) => Promise<T>,
+    claims: { aal?: 'aal1' | 'aal2' } = {},
+  ): Promise<T> {
+    const jwt = claims.aal ? `set request.jwt.claims = '{"aal":"${claims.aal}"}';` : ''
+    await this.db.exec(`set request.jwt.claim.sub = '${userId}'; ${jwt} set role authenticated;`)
     try {
       return await fn(this)
     } finally {
-      await this.db.exec(`reset role; reset request.jwt.claim.sub;`)
+      await this.db.exec(`reset role; reset request.jwt.claim.sub; reset request.jwt.claims;`)
     }
   }
 

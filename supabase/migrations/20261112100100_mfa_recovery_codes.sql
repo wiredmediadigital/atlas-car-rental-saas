@@ -68,6 +68,16 @@ begin
     raise exception 'not authenticated' using errcode = '42501';
   end if;
 
+  -- Reachable directly over PostgREST, so the second factor is enforced here: a
+  -- session that has only passed the password (aal1), or carries no aal claim,
+  -- could otherwise mint codes and use one to strip the victim's authenticator.
+  -- GoTrue raises the session to aal2 when the first factor is verified, so the
+  -- first-enrolment path already arrives at aal2.
+  if coalesce((select auth.jwt()) ->> 'aal', '') <> 'aal2' then
+    raise exception 'recovery codes require a verified second factor'
+      using errcode = '42501';
+  end if;
+
   delete from public.mfa_recovery_codes
    where user_id = v_user_id and used_at is null;
 
