@@ -24,9 +24,11 @@ import {
   parseEnvFile,
   pickBrowserKey,
   projectRefFromUrl,
+  SECOND_FACTOR_MIGRATION,
   SITE_ROUTES,
   siteOrigin,
   supabaseRefsIn,
+  TOTP_CONFIRMATION_VARIABLE,
   type SetupFacts,
   type SiteFacts,
 } from '../../scripts/setup-check-lib.mjs'
@@ -47,10 +49,12 @@ function facts(overrides: Partial<SetupFacts> = {}): SetupFacts {
     env: {
       VITE_SUPABASE_URL: `https://${REF}.supabase.co`,
       VITE_SUPABASE_PUBLISHABLE_KEY: 'sb_publishable_example',
+      SUPABASE_TOTP_ENABLED_FOR: REF,
     },
     linkedRef: REF,
     migrationCount: 54,
     latestMigration: '20260825100000_fleet_occupancy_follows_lifecycle',
+    hasSecondFactorMigration: true,
     isGitRepository: true,
     envIgnored: true,
     remotes: [
@@ -237,6 +241,75 @@ describe('setup check decisions', () => {
       }),
     )
     expect(JSON.stringify(results)).not.toContain(secret)
+  })
+})
+
+describe('the App Authenticator, which nothing local can see', () => {
+  // Pevvy ships as source each operator applies to their own Supabase project.
+  // SECOND_FACTOR_MIGRATION makes a verified second factor part of every read,
+  // so applying it to a project with TOTP switched off locks every account out
+  // of an agency that can then never be created. This script contacts no
+  // server, so the deployer answers for the project in .env.local.
+  const env = (over: Record<string, string> = {}) => ({
+    VITE_SUPABASE_URL: `https://${REF}.supabase.co`,
+    VITE_SUPABASE_PUBLISHABLE_KEY: 'sb_publishable_example',
+    ...over,
+  })
+
+  const message = (results: ReturnType<typeof evaluate>, id: string) =>
+    results.find((result) => result.id === id)?.message ?? ''
+
+  it('blocks when the migration is there and nobody has confirmed TOTP is on', () => {
+    const results = evaluate(facts({ env: env() }))
+
+    expect(status(results, 'totp')).toBe('fail')
+    expect(isReady(results)).toBe(false)
+  })
+
+  it('names the project, the switch and the variable, so the message is actionable', () => {
+    const text = message(evaluate(facts({ env: env() })), 'totp')
+
+    expect(text).toContain(REF)
+    expect(text).toContain('Multi-Factor Authentication')
+    expect(text).toContain(TOTP_CONFIRMATION_VARIABLE)
+    expect(text).toContain(SECOND_FACTOR_MIGRATION)
+  })
+
+  it('passes once the confirmation names this folder’s project', () => {
+    const results = evaluate(facts({ env: env({ [TOTP_CONFIRMATION_VARIABLE]: REF }) }))
+
+    expect(status(results, 'totp')).toBe('ok')
+    expect(isReady(results)).toBe(true)
+  })
+
+  it('blocks when the confirmation names a different project', () => {
+    // Answered once for the first project, then pointed at a second one. The
+    // answer does not carry over.
+    const other = 'zzzzzzzzzzzzzzzzzzzz'
+    const results = evaluate(facts({ env: env({ [TOTP_CONFIRMATION_VARIABLE]: other }) }))
+
+    expect(status(results, 'totp')).toBe('fail')
+    expect(message(results, 'totp')).toContain(other)
+  })
+
+  it('only warns before any Supabase project is connected', () => {
+    // Nothing can be pushed anywhere yet, so this must not block the first stage
+    // of a setup.
+    const results = evaluate(facts({ env: null, linkedRef: null }))
+
+    expect(status(results, 'totp')).toBe('warn')
+    expect(isReady(results)).toBe(true)
+  })
+
+  it('still asks when only the CLI link names the project', () => {
+    expect(status(evaluate(facts({ env: null })), 'totp')).toBe('fail')
+  })
+
+  it('says nothing in a copy of the repository without that migration', () => {
+    const results = evaluate(facts({ env: env(), hasSecondFactorMigration: false }))
+
+    expect(status(results, 'totp')).toBeUndefined()
+    expect(isReady(results)).toBe(true)
   })
 })
 

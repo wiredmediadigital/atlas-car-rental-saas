@@ -14,7 +14,7 @@
 import { execFileSync } from 'node:child_process'
 import { existsSync, readFileSync, readdirSync } from 'node:fs'
 
-import { evaluate, isReady, parseEnvFile } from './setup-check-lib.mjs'
+import { SECOND_FACTOR_MIGRATION, evaluate, isReady, parseEnvFile } from './setup-check-lib.mjs'
 
 function git(args) {
   try {
@@ -71,6 +71,7 @@ const facts = {
     : null,
   migrationCount: migrations.length,
   latestMigration: migrations.at(-1)?.replace(/\.sql$/, '') ?? null,
+  hasSecondFactorMigration: migrations.includes(`${SECOND_FACTOR_MIGRATION}.sql`),
   isGitRepository,
   envIgnored: isGitRepository ? gitIgnores('.env.local') : null,
   remotes: isGitRepository ? remotes() : [],

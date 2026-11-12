@@ -16,6 +16,29 @@ export const ORIGINAL_ATLAS_REPOSITORY = 'salhiworks/atlas-car-rental-saas'
  */
 export const GIT_PUSH_WARNING_BELOW = '2.30.0'
 
+/**
+ * The migration that makes a verified second factor part of the tenant
+ * predicate. Applied to a project whose App Authenticator (TOTP) is off, nobody
+ * can enrol, every session stays at aal1, and the first agency can never be
+ * created — the guard sends a new account to the set-up screen, and the screen
+ * cannot start an enrolment GoTrue refuses.
+ */
+export const SECOND_FACTOR_MIGRATION = '20261112100200_require_second_factor'
+
+/**
+ * How a deployer records that they have turned the App Authenticator on.
+ *
+ * Nothing this script can read says whether a hosted project has TOTP enabled —
+ * it contacts no server — so the deployer answers for it in .env.local. The
+ * value is the project ref rather than a yes, so that pointing the folder at a
+ * second project asks the question again instead of inheriting the first
+ * project's answer.
+ */
+export const TOTP_CONFIRMATION_VARIABLE = 'SUPABASE_TOTP_ENABLED_FOR'
+
+/** Where the switch lives, named the way the dashboard names it. */
+const TOTP_DASHBOARD_PATH = 'Supabase -> Authentication -> Multi-Factor Authentication'
+
 /** Reads KEY=value lines, ignoring comments and blank lines. */
 export function parseEnvFile(text) {
   const values = {}
@@ -219,6 +242,37 @@ export function evaluate(facts) {
     'ok',
     `${facts.migrationCount} migrations in supabase/migrations (latest ${facts.latestMigration ?? 'none'})`,
   )
+
+  // Second factor -------------------------------------------------------------
+  //
+  // The one check here that is answered by the user rather than read off the
+  // folder. It blocks only once a project is identified, because that is when
+  // the migrations can actually be pushed to it.
+  if (facts.hasSecondFactorMigration) {
+    const targetRef = urlRef ?? facts.linkedRef
+    const confirmedFor = String(env?.[TOTP_CONFIRMATION_VARIABLE] ?? '').trim()
+    if (!targetRef) {
+      add(
+        'totp',
+        'warn',
+        `Before the migrations are applied, turn the App Authenticator (TOTP) on under ${TOTP_DASHBOARD_PATH}. ${SECOND_FACTOR_MIGRATION}.sql requires it.`,
+      )
+    } else if (confirmedFor === targetRef) {
+      add('totp', 'ok', `App Authenticator (TOTP) confirmed on for project ${targetRef}`)
+    } else if (confirmedFor) {
+      add(
+        'totp',
+        'fail',
+        `${TOTP_CONFIRMATION_VARIABLE} names project ${confirmedFor}, but this folder uses ${targetRef}. Turn the App Authenticator (TOTP) on for ${targetRef} under ${TOTP_DASHBOARD_PATH}, then set ${TOTP_CONFIRMATION_VARIABLE}=${targetRef} in .env.local.`,
+      )
+    } else {
+      add(
+        'totp',
+        'fail',
+        `The App Authenticator (TOTP) is not confirmed on for project ${targetRef}. ${SECOND_FACTOR_MIGRATION}.sql makes a verified second factor part of every read, so applied with TOTP off nobody can enrol and no agency can be created. Turn it on under ${TOTP_DASHBOARD_PATH}, then add ${TOTP_CONFIRMATION_VARIABLE}=${targetRef} to .env.local.`,
+      )
+    }
+  }
 
   // Repository ----------------------------------------------------------------
   if (!facts.isGitRepository) {
