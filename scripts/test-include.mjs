@@ -9,3 +9,11 @@ export const TEST_INCLUDE = [
   'supabase/tests/**/*.test.ts',
   'supabase/functions/tests/**/*.test.ts',
 ]
+
+/**
+ * What vitest must not pick up. Shared for the same reason as TEST_INCLUDE: the
+ * check globs with both lists, so a `test.exclude` added to the config alone
+ * would make the check report files vitest deliberately skipped. (This matches
+ * vitest's own default exclude, which setting `exclude` replaces.)
+ */
+export const TEST_EXCLUDE = ['**/node_modules/**', '**/.git/**']

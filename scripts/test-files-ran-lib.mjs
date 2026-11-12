@@ -59,6 +59,9 @@ const NARROWING_FLAGS = [
   '--testNamePattern',
   '-t',
   '--bail',
+  '--root',
+  '--config',
+  '--typecheck',
 ]
 
 /**

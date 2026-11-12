@@ -15,7 +15,8 @@ import {
   normalizeTestPath,
   describeMissingFiles,
 } from '../../scripts/test-files-ran-lib.mjs'
-import { TEST_INCLUDE } from '../../scripts/test-include.mjs'
+import { TEST_EXCLUDE, TEST_INCLUDE } from '../../scripts/test-include.mjs'
+import { runTests } from '../../scripts/run-tests.mjs'
 
 const ROOT = 'E:/proj'
 
@@ -94,5 +95,78 @@ describe('TEST_INCLUDE', () => {
     const resolved =
       typeof config === 'function' ? config({ mode: 'test', command: 'serve' }) : config
     expect(resolved.test?.include).toBe(TEST_INCLUDE)
+  })
+})
+
+describe('TEST_EXCLUDE', () => {
+  it('is the very array vite.config.ts hands to vitest as test.exclude', async () => {
+    const { default: config } = await import('../../vite.config.ts')
+    const resolved =
+      typeof config === 'function' ? config({ mode: 'test', command: 'serve' }) : config
+    expect(resolved.test?.exclude).toBe(TEST_EXCLUDE)
+  })
+})
+
+describe('isNarrowedRun: flags that change which files vitest selects', () => {
+  it.each([['--root=sub'], ['--root', 'sub'], ['--config=other.ts'], ['--typecheck']])(
+    'is true for %s',
+    (...args) => {
+      expect(isNarrowedRun(args)).toBe(true)
+    },
+  )
+})
+
+describe('runTests: what the wrapper does with vitest result', () => {
+  const setup = (spawnResult: { status: number | null; error?: Error }, args: string[] = []) => {
+    const calls = { check: 0, errors: [] as string[] }
+    const code = runTests({
+      args,
+      spawn: () => spawnResult,
+      check: () => {
+        calls.check += 1
+        return 0
+      },
+      reportError: (message: string) => calls.errors.push(message),
+    })
+    return { code, calls }
+  }
+
+  it('propagates vitest non-zero exit code and does not run the check', () => {
+    const { code, calls } = setup({ status: 1 })
+    expect(code).toBe(1)
+    expect(calls.check).toBe(0)
+    expect(setup({ status: 7 }).code).toBe(7)
+  })
+
+  it('runs the check when vitest exits 0 and returns its code', () => {
+    const { code, calls } = setup({ status: 0 })
+    expect(calls.check).toBe(1)
+    expect(code).toBe(0)
+    const failing = runTests({
+      args: [],
+      spawn: () => ({ status: 0 }),
+      check: () => 1,
+      reportError: () => {},
+    })
+    expect(failing).toBe(1)
+  })
+
+  it('skips the check for a narrowed run that passed', () => {
+    const { code, calls } = setup({ status: 0 }, ['src/a.test.ts'])
+    expect(code).toBe(0)
+    expect(calls.check).toBe(0)
+  })
+
+  it('exits non-zero and prints the error when the spawn itself failed', () => {
+    const { code, calls } = setup({ status: null, error: new Error('spawn ENOENT') })
+    expect(code).not.toBe(0)
+    expect(calls.check).toBe(0)
+    expect(calls.errors.join(' ')).toContain('spawn ENOENT')
+  })
+
+  it('exits non-zero when vitest was killed by a signal (no status)', () => {
+    const { code, calls } = setup({ status: null })
+    expect(code).not.toBe(0)
+    expect(calls.check).toBe(0)
   })
 })

@@ -14,7 +14,7 @@ import { fileURLToPath } from 'node:url'
 import { globSync } from 'tinyglobby'
 
 import { describeMissingFiles, findMissingTestFiles, RESULTS_FILE } from './test-files-ran-lib.mjs'
-import { TEST_INCLUDE } from './test-include.mjs'
+import { TEST_EXCLUDE, TEST_INCLUDE } from './test-include.mjs'
 
 const ROOT = resolve(fileURLToPath(new URL('..', import.meta.url)))
 
@@ -22,7 +22,7 @@ const ROOT = resolve(fileURLToPath(new URL('..', import.meta.url)))
 function existingTestFiles() {
   return globSync(TEST_INCLUDE, {
     cwd: ROOT,
-    ignore: ['**/node_modules/**', '**/dist/**', '**/.git/**'],
+    ignore: TEST_EXCLUDE,
   })
 }
 

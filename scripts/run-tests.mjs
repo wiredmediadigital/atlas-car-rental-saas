@@ -19,27 +19,50 @@ import { checkTestFilesRan } from './check-test-files-ran.mjs'
 import { isNarrowedRun, RESULTS_FILE } from './test-files-ran-lib.mjs'
 
 const ROOT = resolve(fileURLToPath(new URL('..', import.meta.url)))
-const extraArgs = process.argv.slice(2)
-const resultsPath = resolve(ROOT, RESULTS_FILE)
 
-// A stale report from an earlier run must never satisfy this one.
-rmSync(resultsPath, { force: true })
-mkdirSync(dirname(resultsPath), { recursive: true })
+/**
+ * Turns vitest's outcome into this script's exit code. `spawn` runs vitest and
+ * returns a spawnSync-style result; `check` is the every-file-ran check. Both
+ * are injected so the property that matters most — a non-zero vitest exit is
+ * never swallowed — can be tested.
+ */
+export function runTests({ args, spawn, check, reportError }) {
+  const run = spawn(args)
+  if (run.error) {
+    reportError(`Test run: could not start vitest (${run.error.message}).`)
+    return 1
+  }
+  if (run.status !== 0) return run.status ?? 1
+  if (isNarrowedRun(args)) return 0
+  return check()
+}
 
-const vitestBin = resolve(ROOT, 'node_modules/vitest/vitest.mjs')
-const run = spawnSync(
-  process.execPath,
-  [
-    vitestBin,
-    'run',
-    '--reporter=default',
-    '--reporter=json',
-    `--outputFile.json=${resultsPath}`,
-    ...extraArgs,
-  ],
-  { cwd: ROOT, stdio: 'inherit' },
-)
+function spawnVitest(args) {
+  const resultsPath = resolve(ROOT, RESULTS_FILE)
+  // A stale report from an earlier run must never satisfy this one.
+  rmSync(resultsPath, { force: true })
+  mkdirSync(dirname(resultsPath), { recursive: true })
+  return spawnSync(
+    process.execPath,
+    [
+      resolve(ROOT, 'node_modules/vitest/vitest.mjs'),
+      'run',
+      '--reporter=default',
+      '--reporter=json',
+      `--outputFile.json=${resultsPath}`,
+      ...args,
+    ],
+    { cwd: ROOT, stdio: 'inherit' },
+  )
+}
 
-if (run.status !== 0) process.exit(run.status ?? 1)
-if (isNarrowedRun(extraArgs)) process.exit(0)
-process.exit(checkTestFilesRan())
+if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  process.exit(
+    runTests({
+      args: process.argv.slice(2),
+      spawn: spawnVitest,
+      check: checkTestFilesRan,
+      reportError: (message) => console.error(message),
+    }),
+  )
+}
