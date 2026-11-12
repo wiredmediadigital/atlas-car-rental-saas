@@ -32,6 +32,10 @@ site, read-only.
   migrations with `npx supabase db push` after a `--dry-run` and the user's approval.
   Do not apply them through the SQL editor or an MCP `apply_migration`: that records a
   different history, and several migrations are not safe to run twice.
+- **Pushing and applying migrations does not deploy Edge Functions.** A change that adds
+  or modifies a function in `supabase/functions/` needs `npx supabase functions deploy <slug>`;
+  a function nobody deployed fails at runtime as "could not reach the server". `npm run
+setup:site` verifies every local function is deployed and ACTIVE.
 - **The App Authenticator must be on before migrations are pushed.** Pevvy requires a
   verified second factor for every user, enforced in the database. Pushing that schema to
   a project where Authentication → Multi-Factor Authentication has TOTP switched off

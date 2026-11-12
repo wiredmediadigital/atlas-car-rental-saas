@@ -136,6 +136,35 @@ loses its purge runner silently.
 
 ---
 
+## The deploy sequence
+
+A release is three separate deploys, and pushing to `main` does only the first.
+The order matters, and it was learned the hard way.
+
+1. **Frontend.** Push to `origin/main`; Hostinger builds in about two minutes.
+   Verify by fetching the live bundle and checking that the chunk actually
+   contains the new code (see below). A missing asset returns HTTP 200 with
+   `index.html` through the SPA rewrite, so comparing local filenames proves
+   nothing.
+2. **Migrations.** `npx supabase db push --dry-run`, then, with the user's
+   approval, `npx supabase db push`. Verify with
+   `npx supabase migration list --linked` showing `local == remote`.
+3. **Edge Functions.** `npx supabase functions deploy <slug>` for anything new
+   or changed. **This is the step that was missed.** `npm run setup:site` now
+   checks it: it fails when a directory under `supabase/functions/` is not
+   deployed and `ACTIVE` on the linked project, and names the command to run.
+
+**Why the frontend goes before the migrations, for the two-factor feature.** The
+enforcement migration makes a verified second factor part of every read. People
+must be able to enrol before it lands, so the frontend that lets them enrol has
+to be live first.
+
+**A branch that adds a new Edge Function is the case that breaks the habit of
+"deploy = push plus migrations".** Two-factor shipped with a new `mfa-reset`
+function that nobody deployed, so using a recovery code failed with "We could
+not reach the server". The function did not exist on the project, and no check
+asked whether it did.
+
 ## Verifying a deploy actually landed
 
 Getting this wrong wasted real time, so the method matters.
