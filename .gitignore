@@ -50,3 +50,6 @@ supabase/.env
 
 # Brainstorming mockups (local only)
 .superpowers/
+
+# vitest JSON report read by scripts/check-test-files-ran.mjs
+.vitest-report/
