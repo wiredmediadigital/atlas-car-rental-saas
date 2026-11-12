@@ -17,13 +17,23 @@
  * ORDER IS LOAD-BEARING. The recovery code, or the owner's role, is verified
  * BEFORE any factor is deleted. A refused reset deletes nothing.
  *
+ * A FACTOR IS PER PERSON, SO A RESET IS FELT IN EVERY AGENCY THEY WORK IN.
+ * resetMemberFactor therefore writes one event PER ORGANIZATION the subject is an
+ * active member of, each row carrying that organization's own id — the only id
+ * its owners can read, since the select policy filters on that column. Recording
+ * only the acting agency's id left every other agency unable to see that its
+ * member's protection had been removed. The events deliberately do NOT name the
+ * other organizations: each agency learns that its own member was reset, not
+ * where else that person works.
+ *
  * NOT ATOMIC, BY CHOICE. The code is spent before the factors are deleted, and the
- * security event is written after them. There is no transaction spanning the
+ * security events are written after them. There is no transaction spanning the
  * GoTrue admin API and Postgres, so a deletion that fails part-way has already
  * spent one of the user's ten codes, and an event can in principle go missing.
  * Both are accepted: deleting before verifying would let any wrong code destroy a
  * factor, and splitting verify from consume would open a code-reuse window.
- * A part-way failure records an event for the factors it did remove.
+ * A part-way failure records an event for the factors it did remove, and a
+ * failure to record that trace never replaces the error that stopped the reset.
  *
  * Nothing here logs, returns or records a recovery code.
  *
@@ -52,6 +62,8 @@ export interface ResetDeps {
   consumeRecoveryCode(userId: string, code: string): Promise<boolean>
   /** The caller's row in public.organization_members, or null. */
   findMembership(organizationId: string, userId: string): Promise<Membership | null>
+  /** Every organization the user is an ACTIVE member of. Order is not relied on. */
+  listActiveOrganizationIds(userId: string): Promise<readonly string[]>
   /** Ids of every MFA factor the user has enrolled. */
   listFactorIds(userId: string): Promise<readonly string[]>
   /** Admin MFA delete of one factor. */
@@ -97,8 +109,16 @@ async function removeAllFactors(
     }
   } catch (error) {
     // Part of the reset happened: leave a trace of what did, then let the caller
-    // see the failure.
-    if (removed > 0) await record(removed)
+    // see the failure. The trace is best-effort — a second failure while writing
+    // it must not become the error that is reported, because the one that
+    // stopped the reset is the one worth seeing.
+    if (removed > 0) {
+      try {
+        await record(removed)
+      } catch {
+        // Deliberately swallowed; `error` below says what actually went wrong.
+      }
+    }
     throw error
   }
   await record(removed)
@@ -162,14 +182,34 @@ export async function resetMemberFactor(
   const factorIds = await deps.listFactorIds(input.subjectUserId)
   if (factorIds.length === 0) return { ok: false, reason: 'no_factor' }
 
-  const factorsRemoved = await removeAllFactors(deps, input.subjectUserId, factorIds, (removed) =>
-    deps.recordSecurityEvent({
-      eventType: 'factor_reset_by_owner',
-      subjectUserId: input.subjectUserId,
-      actorUserId: input.actorUserId,
-      organizationId: input.organizationId,
-      detail: { actor_user_id: input.actorUserId, factors_removed: removed },
-    }),
+  // Every agency that is about to lose this person's protection, the acting one
+  // first. It is included explicitly rather than trusted to come back from the
+  // listing: the owner who asked for this must see their own event whatever the
+  // listing returns.
+  const organizationIds = [
+    ...new Set([
+      input.organizationId,
+      ...(await deps.listActiveOrganizationIds(input.subjectUserId)),
+    ]),
+  ]
+
+  const factorsRemoved = await removeAllFactors(
+    deps,
+    input.subjectUserId,
+    factorIds,
+    async (removed) => {
+      for (const organizationId of organizationIds) {
+        await deps.recordSecurityEvent({
+          eventType: 'factor_reset_by_owner',
+          subjectUserId: input.subjectUserId,
+          actorUserId: input.actorUserId,
+          organizationId,
+          // The same detail in every row. It names no other organization: an
+          // agency sees that its member was reset, not where else they work.
+          detail: { actor_user_id: input.actorUserId, factors_removed: removed },
+        })
+      }
+    },
   )
   return { ok: true, factorsRemoved }
 }

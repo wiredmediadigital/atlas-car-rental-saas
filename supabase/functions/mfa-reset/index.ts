@@ -85,6 +85,18 @@ function realDeps(service: SupabaseClient): ResetDeps {
       if (error) throw new Error('find_membership_failed')
       return (data as Membership | null) ?? null
     },
+    async listActiveOrganizationIds(userId) {
+      // A factor is per person: a reset removes their protection in every agency
+      // they work in, and each of those agencies is entitled to see that it
+      // happened to its own member.
+      const { data, error } = await service
+        .from('organization_members')
+        .select('organization_id')
+        .eq('user_id', userId)
+        .eq('status', 'active')
+      if (error) throw new Error('list_memberships_failed')
+      return ((data ?? []) as { organization_id: string }[]).map((row) => row.organization_id)
+    },
     async listFactorIds(userId) {
       const { data, error } = await service.auth.admin.mfa.listFactors({ userId })
       if (error) throw new Error('list_factors_failed')
