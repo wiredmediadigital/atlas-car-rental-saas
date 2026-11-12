@@ -99,14 +99,15 @@ so this does not recur.
 npx supabase functions deploy <name>
 ```
 
-| Function                 | `verify_jwt` | Authenticates how                                                |
-| ------------------------ | ------------ | ---------------------------------------------------------------- |
-| `billing`                | on           | Platform JWT, then its own owner-only role check                 |
-| `billing-webhook`        | **off**      | Stripe signature; no unsigned fallback                           |
-| `pricing`                | **off**      | Public, read-only, no session to verify                          |
-| `team-invitations`       | **off**      | Its own token check                                              |
-| `account-closure`        | on           | `Authorization: Bearer <ACCOUNT_CLOSURE_RUNNER_SECRET>`          |
-| `account-closure-notice` | **off**      | Either the runner secret, or a user session scoped to one agency |
+| Function                 | `verify_jwt` | Authenticates how                                                                                                            |
+| ------------------------ | ------------ | ---------------------------------------------------------------------------------------------------------------------------- |
+| `billing`                | on           | Platform JWT, then its own owner-only role check                                                                             |
+| `billing-webhook`        | **off**      | Stripe signature; no unsigned fallback                                                                                       |
+| `pricing`                | **off**      | Public, read-only, no session to verify                                                                                      |
+| `team-invitations`       | **off**      | Its own token check                                                                                                          |
+| `account-closure`        | on           | `Authorization: Bearer <ACCOUNT_CLOSURE_RUNNER_SECRET>`                                                                      |
+| `account-closure-notice` | **off**      | Either the runner secret, or a user session scoped to one agency                                                             |
+| `mfa-reset`              | on           | The caller's own session; `mode: 'member'` additionally needs a verified second factor, `mode: 'self'` deliberately does not |
 
 `verify_jwt` comes from `supabase/config.toml` and is applied on deploy, so a
 redeploy preserves it. **Do not run `supabase config push`** — it pushes far
