@@ -25,6 +25,7 @@ export default tseslint.config(
       'supabase/functions/pricing/**',
       'supabase/functions/account-closure/**',
       'supabase/functions/account-closure-notice/**',
+      'supabase/functions/mfa-reset/**',
     ],
   },
   js.configs.recommended,

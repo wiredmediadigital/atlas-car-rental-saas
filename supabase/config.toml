@@ -560,3 +560,10 @@ verify_jwt = false
 # see is 403, and a function missing its own configuration is 500.
 [functions.account-closure-notice]
 verify_jwt = false
+
+# Factor reset. Called by a signed-in user, so verify_jwt stays on: it rejects an
+# unauthenticated request before the function runs and does not interfere with an
+# aal1 caller, whose JWT is valid. mode self (recovery code) must work at aal1;
+# mode member requires aal2, read from the verified JWT inside the function.
+[functions.mfa-reset]
+verify_jwt = true
