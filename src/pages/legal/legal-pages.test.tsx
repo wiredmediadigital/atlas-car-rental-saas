@@ -153,7 +153,7 @@ describe('Terms', () => {
     const text = renderPage(<TermsPage />).container.textContent ?? ''
     expect(text).toMatch(/you cancel it yourself from Manage billing/i)
     expect(text).toMatch(/after the subscription has ended and the grace period is over/i)
-    expect(text).toMatch(/We do not refund the remainder of a period/i)
+    expect(text).toMatch(/does not refund the remainder of a period/i)
     expect(text).not.toMatch(/we cancel it/i)
     expect(text).not.toMatch(/we have (already )?cancelled/i)
     expect(text).not.toMatch(/when we process your request/i)
@@ -378,5 +378,27 @@ describe('Document structure', () => {
     renderPage(<DataProcessingPage />)
     expect(screen.getAllByRole('heading', { level: 3 }).length).toBeGreaterThan(0)
     expect(screen.queryAllByRole('heading', { level: 4 })).toHaveLength(0)
+  })
+})
+
+/*
+ * The refund statements appear twice: once under cancelling, once under
+ * closure. They disagreed — the closure bullet read as absolute while the
+ * cancelling clause carried two exceptions — and an absolute version is the
+ * one a reader relies on and a court reads against the drafter.
+ */
+describe('The two refund statements agree', () => {
+  it('states the exceptions once, and defers to them from the closure bullet', () => {
+    const { container } = renderPage(<TermsPage />)
+    const text = container.textContent ?? ''
+    expect(text).toMatch(/unless the law requires it, or unless we have failed to provide/i)
+    expect(text).toMatch(/exceptions under\s+“?Cancelling”?\s+above still apply/i)
+  })
+
+  it('never states a bare no-refund rule with no exceptions attached', () => {
+    const { container } = renderPage(<TermsPage />)
+    const text = (container.textContent ?? '').replace(/\s+/g, ' ')
+    // The closure bullet must not end at "not refunded." without pointing somewhere.
+    expect(text).not.toMatch(/not refunded\. Cancelling stops the next renewal\.\s*(What|$)/i)
   })
 })
