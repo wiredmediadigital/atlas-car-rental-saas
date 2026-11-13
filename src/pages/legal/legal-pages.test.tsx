@@ -435,3 +435,31 @@ describe('Changing plan mid-period', () => {
     expect(text).toMatch(/how many vehicles you have/i)
   })
 })
+
+/*
+ * Where the data physically is. The first question a prospect's lawyer asks,
+ * and the one the rest of the transfer wording is meaningless without. Today
+ * every agency is in the US so nothing crosses a border — but the document
+ * has to be true on the day one is not, so it states the country and what
+ * happens when the agency is elsewhere.
+ */
+describe('Where the records are held', () => {
+  it('names the country rather than describing a principle', () => {
+    const { container } = renderPage(<DataProcessingPage />)
+    const text = container.textContent ?? ''
+    expect(text).toMatch(/held[\s\S]{0,40}United States|In the United States/i)
+    expect(text).toMatch(/database, the uploaded files and the backups/i)
+  })
+
+  it('says what happens when the agency is outside the US', () => {
+    const { container } = renderPage(<DataProcessingPage />)
+    expect(container.textContent ?? '').toMatch(
+      /transfer of personal data out of your own country/i,
+    )
+  })
+
+  it('promises notice before the records move country', () => {
+    const { container } = renderPage(<DataProcessingPage />)
+    expect(container.textContent ?? '').toMatch(/before moving your records to another country/i)
+  })
+})

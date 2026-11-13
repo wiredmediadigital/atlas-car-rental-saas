@@ -153,6 +153,24 @@ export function DataProcessingPage() {
         </p>
       </LegalSection>
 
+      <LegalSection heading="Where your records are held">
+        <p>
+          In the <strong>United States</strong>. {legal.entityName} is incorporated in Delaware, and
+          the database, the uploaded files and the backups all sit with our hosting provider in the
+          United States.
+        </p>
+        <p>
+          If your agency is outside the United States, sending us renter records is a transfer of
+          personal data out of your own country. We put a mechanism the law recognises in place
+          before that happens, and we will tell you which one applies to you — ask us rather than
+          assume.
+        </p>
+        <p>
+          We will tell you before moving your records to another country, in time for you to object
+          or to close your account if the move does not suit you.
+        </p>
+      </LegalSection>
+
       <LegalSection heading="When someone asks you about their data">
         <p>
           A renter&rsquo;s request goes to you, not to us. You are the controller, so you decide
