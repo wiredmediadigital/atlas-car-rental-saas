@@ -55,6 +55,8 @@ export function TermsPage() {
             'Payments are taken through Stripe. We do not see or store your card details.',
             'If a price changes, the new price applies from your next renewal, and we will tell you before it does.',
             'If a payment fails, we will tell you and try again. If it stays unpaid, the account becomes read-only until it is settled — your records stay intact and exportable, and are not deleted for non-payment.',
+            'Changing plan. You can move between plans at any time and the new vehicle allowance applies straight away. We do not refund or charge the difference there and then: it is worked out across the rest of the period you have already paid for and settled on your next invoice. On an annual plan that can be months away, so a downgrade part-way through a year leaves you with a credit rather than money back.',
+            'Moving to a smaller plan. A downgrade is refused while your fleet is larger than the smaller plan allows. The refusal tells you the new limit, how many vehicles you have, and which plan you were moving to, so you know exactly how many to remove first.',
           ]}
         />
       </LegalSection>

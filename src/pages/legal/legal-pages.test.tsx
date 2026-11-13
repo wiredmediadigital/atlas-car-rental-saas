@@ -402,3 +402,36 @@ describe('The two refund statements agree', () => {
     expect(text).not.toMatch(/not refunded\. Cancelling stops the next renewal\.\s*(What|$)/i)
   })
 })
+
+/*
+ * Changing plan mid-period. The product re-prices the subscription
+ * immediately and lets Stripe's default proration settle the money on the
+ * next invoice — which on an annual plan is up to a year away. An agency
+ * downgrading eight months into a year reasonably expects money back and
+ * gets a credit instead, so the terms have to say so before they try it.
+ */
+describe('Changing plan mid-period', () => {
+  function termsText(): string {
+    return renderPage(<TermsPage />).container.textContent ?? ''
+  }
+
+  it('says the new allowance applies immediately', () => {
+    expect(termsText()).toMatch(/new vehicle allowance applies straight away/i)
+  })
+
+  it('says the money is settled on the next invoice, not refunded', () => {
+    const text = termsText()
+    expect(text).toMatch(/settled on your next invoice/i)
+    expect(text).toMatch(/credit rather than money back/i)
+  })
+
+  it('warns that on an annual plan the next invoice is months away', () => {
+    expect(termsText()).toMatch(/annual plan that can be months away/i)
+  })
+
+  it('says a downgrade is refused while the fleet is too large', () => {
+    const text = termsText()
+    expect(text).toMatch(/downgrade is refused while your fleet is larger/i)
+    expect(text).toMatch(/how many vehicles you have/i)
+  })
+})
