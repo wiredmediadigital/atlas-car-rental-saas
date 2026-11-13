@@ -191,6 +191,15 @@ directly.
 a browser still loads the previous chunks. Hard-refresh before concluding
 anything is wrong.
 
+**`npm run setup:site -- <domain>` does the rest.** It checks the site is up and
+served over HTTPS, that the bundle points at the right Supabase project and
+carries no secret key, and that every directory under `supabase/functions/` is
+deployed and `ACTIVE` — the check that would have caught `mfa-reset` going out
+unbuilt. On a busy machine the Supabase call can exceed its 30-second timeout,
+and the function check then reports that it could not read the deployed list
+rather than passing or failing. That is the safe answer, not a green light: run
+it again before concluding the functions are fine.
+
 ---
 
 ## Secrets and variables
@@ -198,17 +207,18 @@ anything is wrong.
 Values are never recorded here or anywhere in the repo. Names, and where each
 one lives:
 
-| Name                                                 | Lives in                               | Notes                                                                                            |
-| ---------------------------------------------------- | -------------------------------------- | ------------------------------------------------------------------------------------------------ |
-| `VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY` | `.env.local`, build-time               | Compiled into the browser bundle — **never put a secret behind a `VITE_` prefix**                |
-| `BILLING_STRIPE_SECRET_KEY`                          | Supabase secrets                       | Prefix decides test or live mode                                                                 |
-| `BILLING_STRIPE_WEBHOOK_SECRET`                      | Supabase secrets                       |                                                                                                  |
-| `BILLING_APP_URL`                                    | Supabase secrets                       | Trusted return origin                                                                            |
-| `BILLING_PLAN_CATALOGUE`                             | Supabase secrets                       | JSON; plan keys to Stripe prices or lookup keys                                                  |
-| `BILLING_TRIAL_DAYS`                                 | Supabase secrets                       | `14`. Unset means no trial                                                                       |
-| `CLOSURE_OPERATOR_EMAIL`                             | Supabase secrets                       | Where closure and restore notices go. Currently a personal mailbox; worth moving to a shared one |
-| `ACCOUNT_CLOSURE_RUNNER_SECRET`                      | Supabase secrets **and** GitHub secret | Must match in both                                                                               |
-| `TEAM_*`                                             | Supabase secrets                       | Invitation email delivery                                                                        |
+| Name                                                 | Lives in                               | Notes                                                                                                                                                                                                           |
+| ---------------------------------------------------- | -------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY` | `.env.local`, build-time               | Compiled into the browser bundle — **never put a secret behind a `VITE_` prefix**                                                                                                                               |
+| `BILLING_STRIPE_SECRET_KEY`                          | Supabase secrets                       | Prefix decides test or live mode                                                                                                                                                                                |
+| `BILLING_STRIPE_WEBHOOK_SECRET`                      | Supabase secrets                       |                                                                                                                                                                                                                 |
+| `BILLING_APP_URL`                                    | Supabase secrets                       | Trusted return origin                                                                                                                                                                                           |
+| `BILLING_PLAN_CATALOGUE`                             | Supabase secrets                       | JSON; plan keys to Stripe prices or lookup keys                                                                                                                                                                 |
+| `BILLING_TRIAL_DAYS`                                 | Supabase secrets                       | `14`. Unset means no trial                                                                                                                                                                                      |
+| `CLOSURE_OPERATOR_EMAIL`                             | Supabase secrets                       | Where closure and restore notices go. Currently a personal mailbox; worth moving to a shared one                                                                                                                |
+| `ACCOUNT_CLOSURE_RUNNER_SECRET`                      | Supabase secrets **and** GitHub secret | Must match in both                                                                                                                                                                                              |
+| `TEAM_*`                                             | Supabase secrets                       | Invitation email delivery                                                                                                                                                                                       |
+| `SUPABASE_TOTP_ENABLED_FOR`                          | `.env.local`                           | Not a secret — the project ref the user confirmed the App Authenticator is on for. `npm run setup:check` blocks without it. Never set it yourself: only the user can say what is switched on in their dashboard |
 
 `supabase/.temp/project-ref` must match the project in `.env.local`. Confirm it
 before any remote command.
@@ -244,3 +254,15 @@ worker that failed to start under memory pressure, not a failing test. Re-run.
   Pevvy opens already use a configuration with it disabled, created
   automatically on first use. The dashboard setting is defence in depth for
   portal links reached any other way.
+- **Getting a sole owner back in when they have lost both their phone and their
+  recovery codes.** Two-factor is mandatory for every user, so there is no way
+  back from inside the product: their own recovery path needs a code, and the
+  owner path needs a second owner. `docs/security/second-factor-recovery.md` is
+  the runbook — SQL the operator runs against their own project with the service
+  key, plus the `app.record_security_event(…)` call that keeps the audit trail
+  honest about who did it. It is the only path, so it is worth reading once
+  before somebody needs it at speed.
+- **Switching the App Authenticator on for a new Supabase project.** Enforcement
+  is in the database, so pushing the migrations to a project with TOTP disabled
+  leaves every user unable to enrol and unable to read anything. `setup:check`
+  blocks on the confirmation; the switch itself is the user's to throw.
