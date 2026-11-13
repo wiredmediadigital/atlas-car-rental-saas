@@ -23,9 +23,14 @@ export const TERMS_ACCEPTED_METADATA_KEY = 'terms_accepted'
  * left alone. An account created after it cannot exist without the box having
  * been ticked, so a null there is a lost write and worth completing.
  *
- * It is the timestamp of 20261112100700_terms_acceptance.sql, which is the
- * migration that made the columns exist. Erring early would stamp people who
- * were never asked, so when in doubt this value should move later, never
- * earlier.
+ * It is the moment the checkbox reached pevvy.io, and deliberately NOT the
+ * timestamp of 20261112100700_terms_acceptance.sql. Migration filenames here
+ * are a synthetic ordering convention — 100300 through 100800 sit minutes
+ * apart across two days of real work — so that stamp read about seventeen
+ * hours before this code existed, which would have stamped live sign-ups that
+ * were never shown the sentence. Erring early manufactures exactly the
+ * evidence this record exists to make trustworthy, and a false stamp cannot be
+ * cleared through the application: the guard restores the stored value on
+ * every update. When in doubt move it later, never earlier.
  */
-export const TERMS_REQUIRED_FROM = '2026-11-12T10:07:00.000Z'
+export const TERMS_REQUIRED_FROM = '2026-11-13T05:00:00.000Z'
