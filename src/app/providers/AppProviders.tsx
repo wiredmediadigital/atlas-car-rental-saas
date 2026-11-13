@@ -3,6 +3,7 @@ import { type ReactNode, useState } from 'react'
 
 import { ToastProvider } from '@/components/ui'
 import { AuthProvider } from '@/features/auth/AuthProvider'
+import { RecordPendingTermsAcceptance } from '@/features/auth/components/RecordPendingTermsAcceptance'
 import { SecondFactorProvider } from '@/features/auth/SecondFactorProvider'
 import { toAppError } from '@/lib/supabase/errors'
 
@@ -38,6 +39,15 @@ export function AppProviders({ children }: { children: ReactNode }) {
     <QueryClientProvider client={queryClient}>
       <ToastProvider>
         <AuthProvider>
+          {/*
+           * Renders nothing. It finishes recording an agreement whose write was
+           * lost between the invitation screen and the server. Above the
+           * second-factor gate on purpose: a person who agreed and then got
+           * stuck on enrolment still has their acceptance completed, and the
+           * read it makes is of their own profile row, which an aal1 session
+           * can always see.
+           */}
+          <RecordPendingTermsAcceptance />
           {/*
            * Above the router, because the guard and the second-factor screens
            * are different branches of it and must share one answer: the screens

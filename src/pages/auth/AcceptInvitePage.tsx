@@ -63,6 +63,14 @@ const signUpSchema = z
     email: z.string().trim().min(1, 'Enter your email address.').email('Enter a valid address.'),
     password: z.string().min(8, 'Use at least 8 characters.').max(72, 'That is too long.'),
     confirmPassword: z.string(),
+    /*
+     * This sub-form creates a real account, so it asks the question rather than
+     * leaving it to the Join step. The Join step still records acceptance, and
+     * because the server's record is write-once that second stamp is a no-op
+     * for anybody who answered here — rather than being the only chance to
+     * record anything at all.
+     */
+    acceptedTerms: z.boolean().refine((value) => value, TERMS_REQUIRED_MESSAGE),
   })
   .refine((values) => values.password === values.confirmPassword, {
     message: 'Both passwords must match.',
@@ -128,7 +136,13 @@ export function AcceptInvitePage() {
   })
   const signUpForm = useForm<SignUpValues>({
     resolver: zodResolver(signUpSchema),
-    defaultValues: { fullName: '', email: '', password: '', confirmPassword: '' },
+    defaultValues: {
+      fullName: '',
+      email: '',
+      password: '',
+      confirmPassword: '',
+      acceptedTerms: false,
+    },
   })
 
   if (!token) {
@@ -234,7 +248,18 @@ export function AcceptInvitePage() {
 
   // -------------------------------------------------------------- signed in
   if (status === 'authenticated' && user) {
-    const join = () => {
+    /*
+     * Awaited end to end, which is why this is `mutateAsync` and not the
+     * callback form. Navigating in the same tick as the recording left that
+     * request racing a page already going away, and because the record is
+     * write-once and nullable a lost one is indistinguishable from a
+     * grandfathered account — nobody would ever be able to find the person
+     * again. recordTermsAcceptance cannot reject (a failure is logged, not
+     * thrown), so this delays the screen by one round trip and never blocks it.
+     * The residual window — a tab closed inside that request — is finished by
+     * RecordPendingTermsAcceptance on the next boot.
+     */
+    const join = async () => {
       setFormError(null)
       if (!hasAgreed) {
         setTermsError(TERMS_REQUIRED_MESSAGE)
@@ -242,17 +267,14 @@ export function AcceptInvitePage() {
       }
       setTermsError(null)
 
-      accept.mutate(token, {
-        onSuccess: (result) => {
-          rememberWorkspaceSelection(user.id, result.organization_id)
-          // Recorded after the membership exists, and not awaited: the person
-          // is already a member of the agency, so nothing here should be able
-          // to hold them on a screen whose only button has already worked.
-          void recordTermsAcceptance()
-          void navigate(paths.overview, { replace: true })
-        },
-        onError: (error) => setFormError(toErrorMessage(error)),
-      })
+      try {
+        const result = await accept.mutateAsync(token)
+        rememberWorkspaceSelection(user.id, result.organization_id)
+        await recordTermsAcceptance()
+        void navigate(paths.overview, { replace: true })
+      } catch (error) {
+        setFormError(toErrorMessage(error))
+      }
     }
 
     return (
@@ -289,7 +311,13 @@ export function AcceptInvitePage() {
             }}
           />
 
-          <Button variant="primary" size="lg" fullWidth isLoading={accept.isPending} onClick={join}>
+          <Button
+            variant="primary"
+            size="lg"
+            fullWidth
+            isLoading={accept.isPending}
+            onClick={() => void join()}
+          >
             Join {invitation.organizationName}
           </Button>
         </div>
@@ -363,11 +391,10 @@ export function AcceptInvitePage() {
           countryCode: '',
           defaultCurrency: '',
           timeZone: '',
-          // Not yet, and saying otherwise would be inventing evidence. This
-          // person has been asked nothing so far; the agreement is asked for on
-          // the Join step above, which every one of them passes through once
-          // they have an account, and recorded there.
-          acceptedTerms: false,
+          // The real answer, from the box on this form. The trigger stamps the
+          // acceptance during account creation, which means an invited person
+          // who confirms their email and never returns is still on record.
+          acceptedTerms: values.acceptedTerms,
         },
         // Back here after confirming, rather than to the generic callback that
         // would route somebody with no membership yet into "create an agency".
@@ -487,6 +514,10 @@ export function AcceptInvitePage() {
                 />
               </Field>
             </div>
+            <TermsAcceptance
+              error={signUpForm.formState.errors.acceptedTerms?.message}
+              {...signUpForm.register('acceptedTerms')}
+            />
             <Button
               type="submit"
               variant="primary"

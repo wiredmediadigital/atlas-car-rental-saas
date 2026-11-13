@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { render, screen } from '@testing-library/react'
+import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { User } from '@supabase/supabase-js'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
@@ -40,21 +40,23 @@ const TOKEN = 'a-token-long-enough-to-be-read'
 
 const user = { id: 'user-1', email: 'invited@agency.test' } as User
 
-const session: AuthContextValue = {
-  status: 'authenticated',
-  session: null,
-  user,
-  isRecoverySession: false,
-  signOut: vi.fn(),
+function sessionFor(status: AuthContextValue['status']): AuthContextValue {
+  return {
+    status,
+    session: null,
+    user: status === 'authenticated' ? user : null,
+    isRecoverySession: false,
+    signOut: vi.fn(),
+  }
 }
 
-function renderPage() {
+function renderPage(status: AuthContextValue['status'] = 'authenticated') {
   window.location.hash = `#token=${TOKEN}`
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
 
   return render(
     <QueryClientProvider client={client}>
-      <AuthContext.Provider value={session}>
+      <AuthContext.Provider value={sessionFor(status)}>
         <MemoryRouter initialEntries={[paths.acceptInvite]}>
           <Routes>
             <Route path={paths.acceptInvite} element={<AcceptInvitePage />} />
@@ -64,6 +66,13 @@ function renderPage() {
       </AuthContext.Provider>
     </QueryClientProvider>,
   )
+}
+
+/** The signed-out branch, switched to its "Create an account" sub-form. */
+async function openTheSignUpForm(actor: ReturnType<typeof userEvent.setup>) {
+  renderPage('unauthenticated')
+  await actor.click(await screen.findByRole('button', { name: /create an account/i }))
+  return screen.findByRole('button', { name: /^create account$/i })
 }
 
 function agreement(): HTMLInputElement {
@@ -136,6 +145,34 @@ describe('agreeing to the terms before joining', () => {
     expect(auth.recordTermsAcceptance).toHaveBeenCalled()
   })
 
+  it('waits for the recording before leaving the screen', async () => {
+    /*
+     * Navigating in the same tick left the POST racing a page that was already
+     * going away: a tab closed in that window lost the only record of the
+     * agreement, and a lost record is indistinguishable from a grandfathered
+     * account, so nobody could ever find the person again.
+     */
+    let settle = (): void => {}
+    auth.recordTermsAcceptance.mockReturnValue(
+      new Promise<void>((resolve) => {
+        settle = () => resolve()
+      }),
+    )
+    const actor = userEvent.setup()
+    renderPage()
+    await joinButton()
+    await actor.click(agreement())
+
+    await actor.click(await joinButton())
+
+    await waitFor(() => expect(auth.recordTermsAcceptance).toHaveBeenCalled())
+    expect(screen.queryByText('overview screen')).toBeNull()
+
+    settle()
+
+    expect(await screen.findByText('overview screen')).toBeVisible()
+  })
+
   it('records nothing when the invitation was never accepted', async () => {
     const actor = userEvent.setup()
     renderPage()
@@ -165,6 +202,72 @@ describe('agreeing to the terms before joining', () => {
 
     expect(agreement()).toHaveAccessibleName(
       'I agree to the Terms of Service and have read the Privacy Policy.',
+    )
+  })
+})
+
+describe('creating an account from the invitation screen', () => {
+  /*
+   * This sub-form creates a real account. Sending `true` from it would have
+   * been inventing evidence, because nobody had been shown the sentence — but
+   * the answer to that is to show the sentence, not to skip the question. The
+   * Join step's write-once stamp then becomes a harmless no-op instead of the
+   * only chance to record anything.
+   */
+  async function fillIn(actor: ReturnType<typeof userEvent.setup>) {
+    await actor.type(screen.getByLabelText(/your name/i), 'Grace Hopper')
+    await actor.type(screen.getByLabelText(/^email/i), 'invited@agency.test')
+    await actor.type(screen.getByLabelText(/^password/i), 'correct horse battery')
+    await actor.type(screen.getByLabelText(/confirm password/i), 'correct horse battery')
+  }
+
+  it('shows the sentence', async () => {
+    const actor = userEvent.setup()
+    await openTheSignUpForm(actor)
+
+    expect(agreement()).toHaveAccessibleName(
+      'I agree to the Terms of Service and have read the Privacy Policy.',
+    )
+    expect(agreement()).not.toBeChecked()
+  })
+
+  it('refuses the form and says so when the box is left unticked', async () => {
+    const actor = userEvent.setup()
+    const submit = await openTheSignUpForm(actor)
+    await fillIn(actor)
+
+    await actor.click(submit)
+
+    expect(await screen.findByText(/terms of service to continue/i)).toBeVisible()
+    expect(auth.signUp).not.toHaveBeenCalled()
+  })
+
+  it('sends the real answer once the box is ticked', async () => {
+    const actor = userEvent.setup()
+    const submit = await openTheSignUpForm(actor)
+    await fillIn(actor)
+    await actor.click(agreement())
+
+    await actor.click(submit)
+
+    await waitFor(() => expect(auth.signUp).toHaveBeenCalled())
+    expect(auth.signUp).toHaveBeenCalledWith(
+      expect.objectContaining({ acceptedTerms: true }),
+      paths.acceptInvite,
+    )
+  })
+
+  it('points at the terms and at the privacy notice here too', async () => {
+    const actor = userEvent.setup()
+    await openTheSignUpForm(actor)
+
+    expect(screen.getByRole('link', { name: /terms of service/i })).toHaveAttribute(
+      'href',
+      paths.terms,
+    )
+    expect(screen.getByRole('link', { name: /privacy policy/i })).toHaveAttribute(
+      'href',
+      paths.privacy,
     )
   })
 })

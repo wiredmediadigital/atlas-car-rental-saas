@@ -52,7 +52,17 @@ export function TermsAcceptance({ error, className, ...inputProps }: TermsAccept
         </label>
       </div>
       {error ? (
-        <p id={errorId} className="text-critical-600 mt-1.5 text-[0.75rem] leading-4 font-medium">
+        /*
+         * `role="alert"` because this message is the whole explanation for a
+         * button that appeared to do nothing. Without it a screen-reader user
+         * presses Create, hears silence, and has no way to discover that the
+         * refusal is sitting further down the form.
+         */
+        <p
+          id={errorId}
+          role="alert"
+          className="text-critical-600 mt-1.5 text-[0.75rem] leading-4 font-medium"
+        >
           {error}
         </p>
       ) : null}

@@ -71,6 +71,16 @@ describe('agreeing to the terms', () => {
     expect(auth.signUp).not.toHaveBeenCalled()
   })
 
+  it('announces the refusal, so it is not silence to a screen reader', async () => {
+    const user = userEvent.setup()
+    renderPage()
+    await fillTheForm(user)
+
+    await user.click(screen.getByRole('button', { name: /create agency/i }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(/terms of service to continue/i)
+  })
+
   it('creates the account once the box is ticked', async () => {
     const user = userEvent.setup()
     renderPage()

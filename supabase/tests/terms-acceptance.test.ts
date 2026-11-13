@@ -22,6 +22,7 @@
  */
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 
+import { TERMS_ACCEPTED_METADATA_KEY } from '../../src/features/auth/terms'
 import { LEGAL } from '../../src/pages/legal/legal-config'
 
 import { TestDatabase } from './support/harness'
@@ -33,6 +34,21 @@ interface Stamp {
   version: string | null
   /** PGlite hands back a Date for timestamptz, as the driver would. */
   at: Date | null
+}
+
+/**
+ * Sign-up metadata with the agreement flag set, keyed by the constant the
+ * client writes rather than by a string spelled out again here. A test that
+ * hardcoded 'terms_accepted' would agree with the trigger no matter what
+ * src/features/auth/api.ts actually sends.
+ */
+function ticked(extra: Record<string, unknown> = {}): string {
+  return JSON.stringify({ ...extra, [TERMS_ACCEPTED_METADATA_KEY]: true })
+}
+
+/** The same key carrying something other than a JSON true. */
+function key(value: unknown): string {
+  return JSON.stringify({ [TERMS_ACCEPTED_METADATA_KEY]: value })
 }
 
 /**
@@ -81,11 +97,24 @@ describe('the version constant', () => {
   it('is a constant, not a reading of the clock', async () => {
     expect(await currentVersion()).toBe(await currentVersion())
   })
+
+  it('is stable rather than immutable, because the Terms get revised', async () => {
+    // Immutable promises the answer can never change for a given input, which
+    // is exactly what the next revision of the Terms does. The practical cost
+    // of the wrong label is a plan or an index built on a stale answer.
+    const [row] = await db.sql<{ volatility: string }>(`
+      select p.provolatile as volatility
+        from pg_proc p
+        join pg_namespace n on n.oid = p.pronamespace
+       where n.nspname = 'app' and p.proname = 'current_terms_version'
+    `)
+    expect(row!.volatility).toBe('s')
+  })
 })
 
 describe('sign-up stamps acceptance from the metadata', () => {
   it('records the version and the moment when the box was ticked', async () => {
-    const userId = await register(JSON.stringify({ full_name: 'Ada', terms_accepted: true }))
+    const userId = await register(ticked({ full_name: 'Ada' }))
 
     const stamp = await stampOf(userId)
     expect(stamp).not.toBeNull()
@@ -94,22 +123,19 @@ describe('sign-up stamps acceptance from the metadata', () => {
   })
 
   it("stamps the server's version, not one the browser named", async () => {
-    const userId = await register(
-      JSON.stringify({ terms_accepted: true, terms_accepted_version: 'version 9' }),
-    )
+    const userId = await register(ticked({ terms_accepted_version: 'version 9' }))
 
     expect((await stampOf(userId))!.version).toBe(await currentVersion())
   })
 
   it('still provisions the agency alongside the stamp', async () => {
     const userId = await register(
-      JSON.stringify({
+      ticked({
         full_name: 'Ada',
         organization_name: 'Terms Motors',
         country_code: 'PT',
         default_currency: 'EUR',
         time_zone: 'Europe/Lisbon',
-        terms_accepted: true,
       }),
     )
 
@@ -125,11 +151,12 @@ describe('sign-up stamps acceptance from the metadata', () => {
 describe('an account is created whatever the flag looks like', () => {
   const cases: { name: string; metadata: string }[] = [
     { name: 'absent', metadata: JSON.stringify({ full_name: 'Ada' }) },
-    { name: 'false', metadata: JSON.stringify({ terms_accepted: false }) },
-    { name: 'the string "true"', metadata: JSON.stringify({ terms_accepted: 'true' }) },
-    { name: 'a number', metadata: JSON.stringify({ terms_accepted: 1 }) },
-    { name: 'JSON null', metadata: JSON.stringify({ terms_accepted: null }) },
-    { name: 'an object', metadata: JSON.stringify({ terms_accepted: { ticked: true } }) },
+    { name: 'false', metadata: key(false) },
+    { name: 'the string "true"', metadata: key('true') },
+    { name: 'a number', metadata: key(1) },
+    { name: 'JSON null', metadata: key(null) },
+    { name: 'an object', metadata: key({ ticked: true }) },
+    { name: 'under a key nobody reads', metadata: JSON.stringify({ accepted_terms: true }) },
     { name: 'metadata that is not an object at all', metadata: '"not an object"' },
     { name: 'metadata that is a JSON array', metadata: '[1, 2, 3]' },
     { name: 'no metadata', metadata: '{}' },
@@ -249,7 +276,7 @@ describe('the record is not the subject’s to rewrite', () => {
   }
 
   it('cannot be erased by the person it is about', async () => {
-    const userId = await register(JSON.stringify({ terms_accepted: true }))
+    const userId = await register(ticked())
 
     await patch(userId, null, null)
 
@@ -259,7 +286,7 @@ describe('the record is not the subject’s to rewrite', () => {
   })
 
   it('cannot be backdated or pointed at another version', async () => {
-    const userId = await register(JSON.stringify({ terms_accepted: true }))
+    const userId = await register(ticked())
     const before = (await stampOf(userId))!.at
 
     await patch(userId, 'version 9', '1999-01-01T00:00:00Z')
@@ -269,14 +296,37 @@ describe('the record is not the subject’s to rewrite', () => {
     expect(stamp!.at).toEqual(before)
   })
 
-  it('says what the server knows when a client stamps an unaccepted row by hand', async () => {
+  it('cannot be minted by a client that was never asked', async () => {
+    /*
+     * The fact matters more than the values. An earlier guard made a
+     * hand-written first stamp HONEST — the server's own version and moment —
+     * which left a row byte-identical to a genuine acceptance that nobody had
+     * ever been shown the sentence. There are exactly two writers now: the
+     * sign-up trigger and public.record_terms_acceptance().
+     */
     const userId = await register('{}')
 
     await patch(userId, 'version 9', '1999-01-01T00:00:00Z')
 
     const stamp = await stampOf(userId)
-    expect(stamp!.version).toBe(await currentVersion())
-    expect(stamp!.at!.getUTCFullYear()).toBeGreaterThan(2020)
+    expect(stamp!.version).toBeNull()
+    expect(stamp!.at).toBeNull()
+  })
+
+  it('cannot be minted with the real version either', async () => {
+    const userId = await register('{}')
+    const version = await currentVersion()
+
+    await db.asUser(userId, (session) =>
+      session.sql(
+        `update public.profiles
+            set terms_accepted_version = $2, terms_accepted_at = now()
+          where id = $1`,
+        [userId, version],
+      ),
+    )
+
+    expect((await stampOf(userId))!.at).toBeNull()
   })
 
   it('does not get in the way of an ordinary profile update', async () => {
