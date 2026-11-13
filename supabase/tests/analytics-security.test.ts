@@ -164,6 +164,16 @@ describe('nothing in the schema can bypass RLS', () => {
      * describes. It takes no arguments, acts only on auth.uid(), requires aal2
      * and returns nothing.
      *
+     * And record_terms_acceptance: definer because what it writes is evidence
+     * about the person writing it, and evidence a subject records under their
+     * own grant is not evidence. It takes no arguments, acts only on auth.uid(),
+     * takes the version and the moment from the server rather than the request,
+     * and will not touch a row that already carries a date. It is deliberately
+     * NOT gated on aal2 — a brand-new invited user has no second factor yet.
+     * app.guard_terms_acceptance() closes the other way in: the two columns sit
+     * inside the person's own UPDATE on profiles, so the trigger puts a recorded
+     * acceptance back and makes a first stamp say what the server knows.
+     *
      * Anything else appearing in this list is a leak.
      */
     expect(definerFunctions.map((row) => row.proname).sort()).toEqual([
@@ -198,6 +208,7 @@ describe('nothing in the schema can bypass RLS', () => {
       'organization_restore',
       'preview_team_invitation',
       'record_invitation_delivery',
+      'record_terms_acceptance',
       'remove_team_member',
       'resend_team_invitation',
       'revoke_team_invitation',

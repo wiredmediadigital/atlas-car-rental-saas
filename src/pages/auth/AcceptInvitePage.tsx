@@ -9,9 +9,11 @@ import { z } from 'zod'
 import { paths } from '@/app/routes/paths'
 import { FullPageLoader } from '@/components/feedback/FullPageLoader'
 import { Alert, Badge, Button, Field, Input } from '@/components/ui'
-import { signIn, signUp } from '@/features/auth/api'
+import { recordTermsAcceptance, signIn, signUp } from '@/features/auth/api'
 import { AuthLayout } from '@/features/auth/components/AuthLayout'
+import { TermsAcceptance } from '@/features/auth/components/TermsAcceptance'
 import { useAuth } from '@/features/auth/auth-context'
+import { TERMS_REQUIRED_MESSAGE } from '@/features/auth/schemas'
 import { previewInvitation } from '@/features/team/api'
 import { useAcceptInvitation } from '@/features/team/queries'
 import { rememberWorkspaceSelection } from '@/features/workspace/WorkspaceProvider'
@@ -95,6 +97,13 @@ export function AcceptInvitePage() {
   const [mode, setMode] = useState<'sign-in' | 'sign-up'>('sign-in')
   const [formError, setFormError] = useState<string | null>(null)
   const [awaitingConfirmation, setAwaitingConfirmation] = useState<string | null>(null)
+  /*
+   * The agreement, asked for at the step every invited person takes. Declared
+   * here with the rest because the branches below return early and a hook
+   * cannot live behind one of them.
+   */
+  const [hasAgreed, setHasAgreed] = useState(false)
+  const [termsError, setTermsError] = useState<string | null>(null)
 
   const preview = useQuery({
     // Deliberately not keyed on the token: a cache entry keyed by a bearer
@@ -227,9 +236,19 @@ export function AcceptInvitePage() {
   if (status === 'authenticated' && user) {
     const join = () => {
       setFormError(null)
+      if (!hasAgreed) {
+        setTermsError(TERMS_REQUIRED_MESSAGE)
+        return
+      }
+      setTermsError(null)
+
       accept.mutate(token, {
         onSuccess: (result) => {
           rememberWorkspaceSelection(user.id, result.organization_id)
+          // Recorded after the membership exists, and not awaited: the person
+          // is already a member of the agency, so nothing here should be able
+          // to hold them on a screen whose only button has already worked.
+          void recordTermsAcceptance()
           void navigate(paths.overview, { replace: true })
         },
         onError: (error) => setFormError(toErrorMessage(error)),
@@ -260,6 +279,15 @@ export function AcceptInvitePage() {
             You are signed in as <span className="text-ink font-medium">{user.email}</span>. If that
             is not the address this invitation was sent to, sign in as somebody else first.
           </p>
+
+          <TermsAcceptance
+            error={termsError ?? undefined}
+            checked={hasAgreed}
+            onChange={(event) => {
+              setHasAgreed(event.target.checked)
+              if (event.target.checked) setTermsError(null)
+            }}
+          />
 
           <Button variant="primary" size="lg" fullWidth isLoading={accept.isPending} onClick={join}>
             Join {invitation.organizationName}
@@ -335,6 +363,11 @@ export function AcceptInvitePage() {
           countryCode: '',
           defaultCurrency: '',
           timeZone: '',
+          // Not yet, and saying otherwise would be inventing evidence. This
+          // person has been asked nothing so far; the agreement is asked for on
+          // the Join step above, which every one of them passes through once
+          // they have an account, and recorded there.
+          acceptedTerms: false,
         },
         // Back here after confirming, rather than to the generic callback that
         // would route somebody with no membership yet into "create an agency".

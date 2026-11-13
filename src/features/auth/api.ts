@@ -48,6 +48,14 @@ export async function signUp(
         country_code: input.countryCode,
         default_currency: input.defaultCurrency,
         time_zone: input.timeZone,
+        /*
+         * Whether the box was ticked, and nothing else. The trigger stamps the
+         * version and the moment itself, from app.current_terms_version() and
+         * now(), so a browser claiming to have accepted some other version
+         * claims nothing. A missing or malformed flag leaves the columns null
+         * and still creates the account.
+         */
+        terms_accepted: input.acceptedTerms,
       },
     },
   })
@@ -55,6 +63,26 @@ export async function signUp(
   if (error) throw toAppError(error)
 
   return { hasSession: data.session !== null, email: input.email }
+}
+
+/**
+ * Records that the signed-in person agreed to the Terms of Service.
+ *
+ * For somebody who arrived by invitation. They never saw the sign-up screen, so
+ * the trigger that stamps acceptance during account creation never had a flag
+ * to read; this is the other half. The server decides the version and the
+ * moment, and refuses to move a date that is already recorded, so calling it
+ * twice is harmless.
+ *
+ * A failure is logged rather than thrown, for the same reason
+ * recordManualLinkShown does it: by the time this runs the person is already a
+ * member of the agency, and making the screen report a failure for the one
+ * thing that did succeed would be a lie about what happened.
+ */
+export async function recordTermsAcceptance(): Promise<void> {
+  const { error } = await getSupabaseClient().rpc('record_terms_acceptance')
+
+  if (error) console.error('Could not record the terms acceptance.')
 }
 
 export async function signIn(input: SignInInput): Promise<void> {

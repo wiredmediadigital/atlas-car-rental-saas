@@ -25,6 +25,15 @@ const password = z
   .min(8, 'Use at least 8 characters.')
   .max(72, 'Passwords cannot be longer than 72 characters.')
 
+/**
+ * Shown when somebody tries to continue without agreeing.
+ *
+ * Exported because the invitation screen asks the same question outside a Zod
+ * schema, and two wordings for one refusal is how a product starts sounding
+ * like two products.
+ */
+export const TERMS_REQUIRED_MESSAGE = 'Agree to the Terms of Service to continue.'
+
 export const signInSchema = z.object({
   email,
   password: z.string().min(1, 'Enter your password.'),
@@ -46,6 +55,12 @@ export const signUpSchema = z
     countryCode: z.string().length(2, 'Choose a country.'),
     defaultCurrency: z.string().refine(isValidCurrencyCode, 'Choose a currency.'),
     timeZone: z.string().refine(isValidTimeZone, 'Choose a time zone.'),
+    /*
+     * Not a preference with a sensible default: a liability cap nobody accepted
+     * is not a liability cap. False is the only starting value, and the form
+     * will not pass with it.
+     */
+    acceptedTerms: z.boolean().refine((value) => value, TERMS_REQUIRED_MESSAGE),
   })
   .refine((values) => values.password === values.confirmPassword, {
     message: 'Both passwords must match.',

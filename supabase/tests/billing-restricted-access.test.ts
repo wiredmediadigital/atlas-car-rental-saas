@@ -708,7 +708,10 @@ describe('the gate, structurally', () => {
      * "ways out" group against closure in 20261110100500, and
      * mfa_generate_recovery_codes in 20261112100100 and mfa_record_enrolment in
      * 20261112100500 (sign-in security belongs to a person, not an agency, so
-     * billing state must never block it).
+     * billing state must never block it), and record_terms_acceptance in
+     * 20261112100700 for the same reason: agreeing to the product's terms is a
+     * person's act, not an agency's, and a lapsed subscription must never be
+     * what stops someone recording it.
      * An entry whose reason
      * is in neither place has no reason, which is the thing this test exists to
      * make visible.
@@ -732,6 +735,7 @@ describe('the gate, structurally', () => {
       'organization_restore',
       'mfa_generate_recovery_codes',
       'mfa_record_enrolment',
+      'record_terms_acceptance',
     ]
     const rows = await db.sql<{ proname: string }>(
       `

@@ -201,6 +201,9 @@ type ProfileRow = {
   phone: string | null
   avatar_path: string | null
   locale: string
+  /** Null for anyone who signed up before acceptance was recorded; never backfilled. */
+  terms_accepted_version: string | null
+  terms_accepted_at: string | null
   created_at: string
   updated_at: string
 }
@@ -3005,6 +3008,10 @@ export interface Database {
       accept_team_invitation: {
         Args: { p_token: string }
         Returns: AcceptInvitationRow[]
+      }
+      record_terms_acceptance: {
+        Args: Record<string, never>
+        Returns: void
       }
       change_team_member_role: {
         Args: { p_organization_id: string; p_user_id: string; p_role: OrgRole }

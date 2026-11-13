@@ -7,6 +7,7 @@ import { paths } from '@/app/routes/paths'
 import { Alert, Button, Field, Input, Select } from '@/components/ui'
 import { signUp } from '@/features/auth/api'
 import { AuthLayout } from '@/features/auth/components/AuthLayout'
+import { TermsAcceptance } from '@/features/auth/components/TermsAcceptance'
 import { type SignUpInput, signUpSchema } from '@/features/auth/schemas'
 import { listTimeZones } from '@/lib/datetime/timezone'
 import { guessRegionalDefaults, listCountries, listCurrencies } from '@/lib/i18n/regions'
@@ -47,6 +48,7 @@ export function SignUpPage() {
       countryCode: defaults.countryCode ?? '',
       defaultCurrency: 'USD',
       timeZone: defaults.timeZone,
+      acceptedTerms: false,
     },
   })
 
@@ -141,6 +143,12 @@ export function SignUpPage() {
             <Select options={timeZones} {...register('timeZone')} />
           </Field>
         </div>
+
+        <TermsAcceptance
+          error={errors.acceptedTerms?.message}
+          {...register('acceptedTerms')}
+          className="border-line border-t pt-4"
+        />
 
         <Button type="submit" variant="primary" size="lg" fullWidth isLoading={isSubmitting}>
           Create agency

@@ -7,7 +7,11 @@
     "moduleResolution": "bundler",
     "moduleDetection": "force",
     "jsx": "react-jsx",
-    "types": ["node", "vitest/globals"],
+    // `vite/client` is here for the one thing it declares that these tests
+    // need: `import.meta.env`. terms-acceptance.test.ts imports the legal
+    // config — the source of truth for the Terms version — and that reaches
+    // src/lib/config/env.ts, which reads the Vite environment.
+    "types": ["node", "vitest/globals", "vite/client"],
     "lib": ["ES2023", "DOM"],
     // The Edge Function sources are Deno modules: they import with an explicit
     // .ts extension because Deno requires it. The suite type-checks them along
