@@ -83,8 +83,38 @@ export function PrivacyPolicyPage() {
             'Rental records: bookings, contracts, hand-over and return readings, condition photographs, charges, payments and refunds.',
             'Vehicle location data, where the agency has connected a GPS provider.',
             'Anything an agency writes into a free-text note.',
+            'Booking requests sent from the agency\u2019s public booking page: the name, email address, telephone number and message a visitor typed in, with the car and dates they asked about.',
           ]}
         />
+      </LegalSection>
+
+      <LegalSection heading="Details a renter submits themselves">
+        <p>
+          An agency can publish a booking page of its own and link to it from its website. Somebody
+          who has never dealt with the agency before can use that page to ask about a car, giving
+          their name, email address, telephone number and anything they choose to write in the
+          message.
+        </p>
+        <p>
+          This is the one place where personal data reaches {product} from a member of the public
+          rather than from the agency. It does not change who is responsible for it:{' '}
+          <strong className="text-ink font-medium">
+            the agency whose page it was is the controller of that request
+          </strong>
+          , exactly as it is for a renter record typed in at the counter. We hold it on the
+          agency&rsquo;s behalf and act on their instructions. If you sent a request and want to
+          know what is held about you, or want it deleted, ask the agency you sent it to.
+        </p>
+        <p>
+          The page asks for nothing else. It does not ask for a date of birth, a licence or passport
+          number, an address, a document scan or a payment card, and there is nowhere on it to
+          attach a file. An agency takes those at the counter, if the request becomes a hire.
+        </p>
+        <p>
+          A request is not a booking and holds no vehicle. Sending one results in a single
+          acknowledgement email, and the agency being told that a request arrived. It does not
+          create an account, it is not used for marketing, and nobody is added to a mailing list.
+        </p>
       </LegalSection>
 
       <LegalSection heading="Who else the data reaches">
@@ -144,6 +174,14 @@ export function PrivacyPolicyPage() {
           delete records at any time, and can export its data before closing its account. When an
           account is closed we delete or anonymise its data, except where we are required to keep
           something — billing records, for instance, are kept for the period tax law requires.
+        </p>
+        <p>
+          A booking request that an agency never turns into a rental is deleted twelve months after
+          it arrived. Long enough that an agency can say &ldquo;you enquired last spring&rdquo;;
+          short enough that the contact details of somebody who never became a customer are not held
+          indefinitely. A request that does become a rental stops being an enquiry at that point and
+          is kept with the rental it produced. An agency can delete any request sooner, and must do
+          so if the person asks.
         </p>
         <p>
           Deletion is not immediate: a closed account is suspended and kept for a 30-day grace

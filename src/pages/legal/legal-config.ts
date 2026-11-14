@@ -50,9 +50,11 @@ export function LEGAL(): LegalDetails {
     entityName: 'Adera Labs Inc',
     productName: getAppName(),
     contactEmail: SUPPORT_EMAIL,
+    // Unchanged: the public booking page added no term to the agreement, and
+    // moving this date asks every agency to accept the Terms again.
     termsUpdated: '12 November 2026',
-    privacyUpdated: '12 November 2026',
-    dataProcessingUpdated: '12 November 2026',
+    privacyUpdated: '14 November 2026',
+    dataProcessingUpdated: '14 November 2026',
     governingLaw: 'the State of Delaware',
   }
 }

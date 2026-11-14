@@ -71,8 +71,9 @@ export function DataProcessingPage() {
         </LegalSubsection>
         <LegalSubsection heading="Whose data">
           <p>
-            The renters and drivers your agency records, the people named on their documents, and
-            your own staff who use the product.
+            The renters and drivers your agency records, the people named on their documents, your
+            own staff who use the product, and anybody who sends a request from your public booking
+            page.
           </p>
         </LegalSubsection>
         <LegalSubsection heading="What kind">
@@ -81,13 +82,47 @@ export function DataProcessingPage() {
             documents, including their numbers, issuing country, dates and any scan uploaded —
             passports, national identity cards, residence permits and driving licences; rental
             records, contracts, condition photographs, charges and payments; vehicle location data
-            where a GPS provider is connected; and anything written into a free-text note.
+            where a GPS provider is connected; anything written into a free-text note; and the name,
+            email address, telephone number and message left by somebody using your public booking
+            page.
           </p>
         </LegalSubsection>
         <p>
           Some of that is sensitive in ordinary terms even where the law does not use that word. We
           treat identity documents and location data as the highest-risk records in the product, and
           the measures below reflect that.
+        </p>
+      </LegalSection>
+
+      <LegalSection heading="Requests from your public booking page">
+        <p>
+          If you switch on your public booking page, people who are not yet your customers can send
+          you a request: their name, email address, telephone number and a message, against a car
+          and a pair of dates. That data reaches us from them rather than from you, and it is worth
+          being exact about what that does and does not change.
+        </p>
+        <p>
+          <strong className="text-ink font-medium">
+            You are the controller of every request sent to your page.
+          </strong>{' '}
+          You decided to publish it, you decided which cars appear on it, and the request is
+          addressed to you. We are your processor for it on the same terms as everything else in
+          this document: we hold it, we act on your instructions, and we use it for nothing of our
+          own.
+        </p>
+        <p>
+          What we do without being asked is limited and fixed. We send the person one
+          acknowledgement that their request arrived, from our address rather than yours, naming
+          you; we tell your owners and administrators that a request is waiting, without putting the
+          person&rsquo;s details in that message; and we delete any request you have not turned into
+          a rental twelve months after it arrived. Nothing else is sent to them, and they are not
+          added to any list.
+        </p>
+        <p>
+          The obligations in &ldquo;When someone asks you about their data&rdquo; below apply to
+          these people exactly as they do to your renters. Somebody who asked about a car and never
+          hired one is still entitled to ask you what you hold and to have it deleted, and the
+          product gives you a way to delete an individual request so that you can answer them.
         </p>
       </LegalSection>
 
