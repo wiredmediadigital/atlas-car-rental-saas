@@ -113,8 +113,19 @@ export interface BookingDeps {
     phone: string | null
     note: string | null
   }): Promise<{ leadId: string; reference: string }>
-  /** Short-lived URLs for a logo and photographs held in private buckets. */
-  signImages(paths: readonly string[]): Promise<Map<string, string>>
+  /**
+   * Short-lived URLs for a logo and photographs held in two private buckets.
+   *
+   * The two are named separately because they live in different buckets and
+   * only this module knows which path came from where. Handing over one flat
+   * list would make the caller guess from the shape of a key, which is a
+   * wrong-bucket bug waiting for the first agency whose logo key has a slash
+   * in it.
+   */
+  signImages(input: {
+    logo: string | null
+    photos: readonly string[]
+  }): Promise<Map<string, string>>
   now(): number
   rate: RateState
   /** The caller's address, for rate limiting only. Never stored. */
@@ -389,13 +400,14 @@ export async function serveBooking(
     return { status: 503, body: { error: TROUBLE } }
   }
 
-  const paths = [
-    ...(agency.logo_path === null ? [] : [agency.logo_path]),
-    ...vehicles.flatMap((vehicle) => (vehicle.image_path === null ? [] : [vehicle.image_path])),
-  ]
+  const photos = vehicles.flatMap((vehicle) =>
+    vehicle.image_path === null ? [] : [vehicle.image_path],
+  )
   let urls = new Map<string, string>()
   try {
-    if (paths.length > 0) urls = await deps.signImages(paths)
+    if (agency.logo_path !== null || photos.length > 0) {
+      urls = await deps.signImages({ logo: agency.logo_path, photos })
+    }
   } catch (error) {
     // A page without photographs is still a page. Losing the images must not
     // lose the fleet.

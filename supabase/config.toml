@@ -531,6 +531,21 @@ verify_jwt = false
 [functions.pricing]
 verify_jwt = false
 
+# An agency's public booking page is read, and a request sent, by visitors who
+# are not signed in and never will be: there is no session to verify and no key
+# the browser could hold. The function reads with the service role and writes
+# through app.public_booking_create_lead, each of which re-checks the agency,
+# the vehicle, the plan and the dates for itself, so turning this check off
+# widens nothing. `anon` is granted nothing at all in this feature.
+#
+# Unlike the webhook above there is no signature to stand in its place, because
+# the caller is the public. What stands in its place is the narrowness of what
+# the three functions answer, a rate limit, a honeypot and a minimum time on
+# form -- see supabase/functions/_shared/public-booking-rates.ts, which is
+# honest about what each of those is worth.
+[functions.public-booking]
+verify_jwt = false
+
 # The user-initiated billing boundary keeps verify_jwt on, inheriting the
 # platform check, and calls auth.getUser() itself as well — the platform check is
 # never trusted alone.

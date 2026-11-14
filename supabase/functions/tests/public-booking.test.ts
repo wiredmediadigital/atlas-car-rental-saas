@@ -58,8 +58,15 @@ function depsFor(
       created.push(input)
       return Promise.resolve({ leadId: 'lead-1', reference: 'REQ-ABCD2345' })
     },
-    signImages: (paths) =>
-      Promise.resolve(new Map(paths.map((path) => [path, `https://signed.test/${path}`]))),
+    signImages: ({ logo, photos }) =>
+      Promise.resolve(
+        new Map(
+          [...(logo === null ? [] : [logo]), ...photos].map((path) => [
+            path,
+            `https://signed.test/${path}`,
+          ]),
+        ),
+      ),
     now: () => NOW,
     rate: createRateState(),
     address: '203.0.113.7',
