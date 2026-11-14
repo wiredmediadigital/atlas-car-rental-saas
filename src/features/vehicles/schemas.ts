@@ -151,6 +151,19 @@ export function buildVehicleSchema(currency: string, now: Date = new Date()) {
       currency: z.string().refine(isValidCurrencyCode, 'Choose a currency.'),
       status: z.enum(['available', 'maintenance', 'unavailable']),
 
+      /*
+       * Whether this car may be requested from the agency's public booking
+       * page. Off for every new vehicle: an agency that switches the page on
+       * chooses what appears on it, one car at a time, and nothing is
+       * published by a default somebody did not set.
+       */
+      /*
+       * Defaulted rather than required so a CSV import does not have to carry
+       * a column for it -- and the default is off, so importing a fleet never
+       * publishes one of its cars.
+       */
+      publicBookingEnabled: z.boolean().default(false),
+
       insuranceExpiresOn: optionalDate,
       inspectionExpiresOn: optionalDate,
       registrationExpiresOn: optionalDate,
@@ -191,6 +204,7 @@ export function emptyVehicleForm(currency: string): VehicleFormInput {
     dailyRate: '',
     currency,
     status: 'available',
+    publicBookingEnabled: false,
     insuranceExpiresOn: '',
     inspectionExpiresOn: '',
     registrationExpiresOn: '',

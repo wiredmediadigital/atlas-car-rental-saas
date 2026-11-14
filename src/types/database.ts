@@ -463,6 +463,8 @@ type VehicleFleetRow = {
   updated_at: string
   archived_at: string | null
   operational_status: VehicleOperationalStatus
+  /** Opt-in to the agency public booking page; off until somebody chooses. */
+  public_booking_enabled: boolean
   current_rental_id: string | null
   current_rental_reference: string | null
   current_customer_id: string | null
@@ -2796,6 +2798,10 @@ export interface Database {
           p_exclude_customer_id?: string | null
         }
         Returns: CustomerDuplicateRow[]
+      }
+      plan_allows_public_booking: {
+        Args: { p_organization_id: string }
+        Returns: boolean | null
       }
       convert_booking_lead: {
         Args: { p_lead_id: string; p_customer_overrides?: Json }

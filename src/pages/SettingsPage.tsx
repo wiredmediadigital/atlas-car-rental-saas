@@ -21,6 +21,7 @@ import { ContractTermsSection } from '@/features/rentals/components/ContractTerm
 import { NotificationPreferences } from '@/features/notifications/components/NotificationPreferences'
 import { AboutSection } from '@/features/settings/components/AboutSection'
 import { LogoUploader } from '@/features/settings/components/LogoUploader'
+import { BookingPageCard } from '@/features/settings/components/BookingPageCard'
 import { SecurityCard } from '@/features/settings/components/SecurityCard'
 import { SettingsNav } from '@/features/settings/components/SettingsNav'
 import { type AgencySettingsInput, agencySettingsSchema } from '@/features/settings/schemas'
@@ -41,6 +42,7 @@ const SECTION_IDS = [
   'regional',
   'branding',
   'contract',
+  'booking',
   'notifications',
   'security',
   'account',
@@ -83,8 +85,15 @@ export function SettingsPage() {
   // section does not exist, so a pasted #account link falls back to General
   // rather than opening an empty page.
   const canSeeAccount = hasMinRole(role, 'admin')
+  // Publishing the fleet and its prices is a decision about the business, so
+  // the section is administrator and above, like the agency's other public
+  // details. Below that it does not exist, and a pasted #booking link falls
+  // back to General rather than opening an empty page.
+  const canPublish = hasMinRole(role, 'admin')
   const activeSection: SectionId =
-    isSectionId(hash) && (hash !== 'account' || canSeeAccount) ? hash : 'general'
+    isSectionId(hash) && (hash !== 'account' || canSeeAccount) && (hash !== 'booking' || canPublish)
+      ? hash
+      : 'general'
 
   const selectSection = useCallback(
     (id: string) => {
@@ -218,6 +227,7 @@ export function SettingsPage() {
     { id: 'regional', label: 'Regional', isDirty: isRegionalDirty },
     { id: 'branding', label: 'Branding' },
     { id: 'contract', label: 'Contract terms', isDirty: isTermsDirty },
+    ...(canPublish ? [{ id: 'booking', label: 'Booking page' }] : []),
     { id: 'notifications', label: 'Notifications' },
     { id: 'security', label: 'Security' },
     ...(canSeeAccount ? [{ id: 'account', label: 'Close account' }] : []),
@@ -494,6 +504,17 @@ export function SettingsPage() {
             one person's own account. Every role has it — a second factor is
             required of everybody, so everybody must be able to replace theirs.
           */}
+          {canPublish ? (
+            <Section
+              id="booking"
+              isActive={activeSection === 'booking'}
+              title="Booking page"
+              description="A public page showing the cars you choose, where visitors can ask to hire one."
+            >
+              <BookingPageCard />
+            </Section>
+          ) : null}
+
           <Section
             id="security"
             isActive={activeSection === 'security'}

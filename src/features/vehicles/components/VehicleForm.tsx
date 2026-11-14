@@ -11,6 +11,7 @@ import {
   Field,
   Input,
   Select,
+  Switch,
   Textarea,
 } from '@/components/ui'
 import { useDistanceUnit } from '@/features/workspace/useOrganizationSettings'
@@ -190,6 +191,20 @@ export function VehicleForm({
             >
               <Select options={VEHICLE_STATUS_OPTIONS} {...register('status')} />
             </Field>
+
+            <Field
+              label="Show on the public booking page"
+              error={errors.publicBookingEnabled?.message}
+              hint="Off unless you choose it. The page itself is switched on in Settings."
+            >
+              {/*
+               * Two switches stand between a car and a stranger: this one and
+               * the agency's. Both start off, and neither implies the other --
+               * an agency can prepare its page before publishing it, and can
+               * take the page down without un-ticking every vehicle.
+               */}
+              <Switch {...register('publicBookingEnabled')} />
+            </Field>
           </div>
         </CardBody>
       </Card>
@@ -266,6 +281,7 @@ export function vehicleToFormInput(vehicle: {
   daily_rate_minor: number
   currency: string
   operational_status: VehicleFormInput['status']
+  public_booking_enabled: boolean
   insurance_expires_on: string | null
   inspection_expires_on: string | null
   registration_expires_on: string | null
@@ -289,6 +305,7 @@ export function vehicleToFormInput(vehicle: {
     dailyRate: minorToDecimalString(vehicle.daily_rate_minor, vehicle.currency),
     currency: vehicle.currency,
     status: vehicle.operational_status,
+    publicBookingEnabled: vehicle.public_booking_enabled,
     insuranceExpiresOn: vehicle.insurance_expires_on ?? '',
     inspectionExpiresOn: vehicle.inspection_expires_on ?? '',
     registrationExpiresOn: vehicle.registration_expires_on ?? '',
