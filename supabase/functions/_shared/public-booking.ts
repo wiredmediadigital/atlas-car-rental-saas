@@ -112,7 +112,16 @@ export interface BookingDeps {
     email: string
     phone: string | null
     note: string | null
-  }): Promise<{ leadId: string; reference: string }>
+  }): Promise<{ leadId: string; reference: string; created: boolean }>
+  /**
+   * Tells both sides a request arrived. Called only for a lead this call
+   * actually created, so a retried submission sends nothing a second time.
+   *
+   * It must never throw: the lead exists, the renter has their reference on
+   * screen, and a mail provider having a bad minute is not a reason to tell
+   * them their request failed.
+   */
+  announce(lead: { leadId: string; reference: string }, agency: AgencyRow): Promise<void>
   /**
    * Short-lived URLs for a logo and photographs held in two private buckets.
    *
@@ -545,6 +554,29 @@ export async function serveRequest(
       phone: submission.phone,
       note: submission.note,
     })
+
+    /*
+     * Only for a lead this call created. A duplicate suppressed by
+     * 20261113100800 is a double click, and somebody who pressed twice should
+     * not be written to twice.
+     *
+     * Awaited rather than left running: an Edge Function may be frozen the
+     * moment its response is returned, and an unawaited send is one that may
+     * simply not happen. It cannot throw -- announce swallows its own failures
+     * -- so this cannot turn a recorded request into an error on screen.
+     */
+    if (created.created) {
+      try {
+        await deps.announce(created, agency)
+      } catch (error) {
+        // announce is documented as never throwing, and it swallows its own
+        // failures. This is here because "documented as" is not "cannot": the
+        // lead is written, the renter is about to be shown their reference,
+        // and no fault in a mailer may turn that into an error on screen.
+        deps.log(`public-booking: announcing a lead failed: ${describe(error)}`)
+      }
+    }
+
     return { status: 201, body: { reference: created.reference } }
   } catch (error) {
     /*

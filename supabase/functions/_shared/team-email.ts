@@ -169,6 +169,14 @@ export interface EmailTransportConfig {
   readonly provider: string | undefined
   readonly apiKey: string | undefined
   readonly from: string | undefined
+  /**
+   * Where a reply should go, when that is not the sender.
+   *
+   * Used by the booking acknowledgement: it leaves from the platform address,
+   * because that is the domain the provider has verified, but a renter
+   * replying to it means to reach the agency.
+   */
+  readonly replyTo?: string | undefined
 }
 
 /**
@@ -220,6 +228,7 @@ export async function deliverMessage(
       body: JSON.stringify({
         from,
         to: [message.to],
+        ...(config.replyTo ? { reply_to: config.replyTo } : {}),
         subject: message.subject,
         html: message.html,
         text: message.text,

@@ -27,6 +27,7 @@
 import { createClient, type SupabaseClient } from 'jsr:@supabase/supabase-js@2'
 
 import { createRateState, forgetExpired, type RateState } from '../_shared/public-booking-rates.ts'
+import { deliverMessage } from '../_shared/team-email.ts'
 import {
   isError,
   parseBookingQuery,
@@ -38,6 +39,23 @@ import {
   type BookingDeps,
   type VehicleRow,
 } from '../_shared/public-booking.ts'
+
+/** One row of app.public_booking_lead_notice. Raw values; formatting is `_shared`. */
+interface NoticeRow {
+  reference: string
+  vehicle_label: string
+  starts_at: string
+  ends_at: string
+  currency: string
+  quoted_total_minor: number
+  renter_name: string
+  renter_email: string
+  agency_name: string
+  agency_phone: string | null
+  agency_email: string | null
+  time_zone: string
+  recipients: string[]
+}
 
 const CORS_HEADERS: Record<string, string> = {
   'Access-Control-Allow-Origin': '*',
@@ -116,10 +134,80 @@ function depsFor(service: SupabaseClient, request: Request): BookingDeps {
           p_phone: input.phone,
           p_note: input.note,
         }),
-      ) as { lead_id: string; reference: string }[] | null
+      ) as { lead_id: string; reference: string; created: boolean }[] | null
       const created = rows !== null && rows.length > 0 ? rows[0]! : null
       if (created === null) throw new Error('The request was not recorded.')
-      return { leadId: created.lead_id, reference: created.reference }
+      return {
+        leadId: created.lead_id,
+        reference: created.reference,
+        created: created.created,
+      }
+    },
+
+    /*
+     * Both messages, sent inline, because nothing in this deployment drains a
+     * queue -- the arrangement account-closure-notice already uses.
+     *
+     * NOTHING HERE THROWS. Every failure is caught and logged: the lead is
+     * written and the renter is about to be shown their reference, so a
+     * provider having a bad minute must not become an error on their screen.
+     * Nothing is retried either -- a retry loop inside a request handler is how
+     * one slow provider becomes a queue of held-open connections.
+     */
+    announce: async (lead, agency) => {
+      try {
+        const from = Deno.env.get('TEAM_EMAIL_FROM')
+        const provider = Deno.env.get('TEAM_EMAIL_PROVIDER')
+        const apiKey = Deno.env.get('TEAM_EMAIL_API_KEY')
+        // No provider configured is an ordinary state, not a fault: the request
+        // is recorded and the agency sees it in the product either way.
+        if (!from || !provider || !apiKey) return
+
+        const rows = must(
+          await app().rpc('public_booking_lead_notice', { p_lead_id: lead.leadId }),
+        ) as NoticeRow[] | null
+        const notice = rows !== null && rows.length > 0 ? rows[0]! : null
+        if (notice === null) return
+
+        const summary: LeadSummary = {
+          reference: notice.reference,
+          vehicleLabel: notice.vehicle_label,
+          startsAt: notice.starts_at,
+          endsAt: notice.ends_at,
+          currency: notice.currency,
+          quotedTotalMinor: Number(notice.quoted_total_minor),
+          renterName: notice.renter_name,
+          renterEmail: notice.renter_email,
+        }
+        const agencySummary: AgencySummary = {
+          name: notice.agency_name,
+          phone: notice.agency_phone,
+          timeZone: notice.time_zone,
+          contactEmail: notice.agency_email,
+          leadsUrl: `${(Deno.env.get('TEAM_APP_URL') ?? '').replace(/\/+$/, '')}/leads`,
+        }
+
+        const transport = { provider, apiKey, from }
+        const sender = senderFor(agencySummary, from)
+
+        // The renter first: they are waiting, and the agency can see the
+        // request in the product whether or not this sends.
+        await deliverMessage(renterAcknowledgement(summary, agencySummary), {
+          ...transport,
+          from: sender.from,
+          replyTo: sender.replyTo,
+        })
+
+        for (const recipient of notice.recipients) {
+          await deliverMessage(agencyNotification(summary, agencySummary, recipient), transport)
+        }
+      } catch (error) {
+        console.log(
+          `public-booking: announcing a lead failed: ${
+            error instanceof Error ? error.message : 'unknown error'
+          }`,
+        )
+      }
     },
 
     /*

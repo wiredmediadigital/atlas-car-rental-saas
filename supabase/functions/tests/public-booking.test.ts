@@ -49,15 +49,20 @@ const VEHICLE: VehicleRow = {
 
 function depsFor(
   overrides: Partial<BookingDeps> = {},
-): BookingDeps & { logs: string[]; created: unknown[] } {
+): BookingDeps & { logs: string[]; created: unknown[]; announced: unknown[] } {
   const logs: string[] = []
   const created: unknown[] = []
+  const announced: unknown[] = []
   return {
     findAgency: () => Promise.resolve(AGENCY),
     listVehicles: () => Promise.resolve([VEHICLE]),
     createLead: (input) => {
       created.push(input)
-      return Promise.resolve({ leadId: 'lead-1', reference: 'REQ-ABCD2345' })
+      return Promise.resolve({ leadId: 'lead-1', reference: 'REQ-ABCD2345', created: true })
+    },
+    announce: (lead) => {
+      announced.push(lead)
+      return Promise.resolve()
     },
     signImages: ({ logo, photos }) =>
       Promise.resolve(
@@ -74,6 +79,7 @@ function depsFor(
     log: (message: string) => logs.push(message),
     logs,
     created,
+    announced,
     ...overrides,
   }
 }
@@ -357,6 +363,34 @@ describe('serving a submission', () => {
     expect(decision.status).toBe(409)
     expect(JSON.stringify(decision.body)).not.toMatch(/subscription|read-only/i)
     expect(deps.logs.join(' ')).toMatch(/subscription/)
+  })
+
+  it('sends one acknowledgement per request', async () => {
+    const deps = depsFor()
+    await serveRequest(deps, submission())
+    expect(deps.announced).toHaveLength(1)
+  })
+
+  it('sends nothing for a request that was a repeat of itself', async () => {
+    // 20261113100800 answers a double click with the reference it already
+    // gave. Somebody who pressed twice should not be written to twice.
+    const deps = depsFor({
+      createLead: () =>
+        Promise.resolve({ leadId: 'lead-1', reference: 'REQ-ABCD2345', created: false }),
+    })
+    const decision = await serveRequest(deps, submission())
+    expect(decision.status).toBe(201)
+    expect(deps.announced).toHaveLength(0)
+  })
+
+  it('still records the request when telling people fails', async () => {
+    // The lead exists and the renter has their reference on screen. A mail
+    // provider having a bad minute is not a reason to say it failed.
+    const deps = depsFor({ announce: () => Promise.reject(new Error('mail is down')) })
+    const decision = await serveRequest(deps, submission())
+    expect(decision.status).toBe(201)
+    expect(decision.body).toEqual({ reference: 'REQ-ABCD2345' })
+    expect(deps.logs.join(' ')).toMatch(/mail is down/)
   })
 
   it('refuses a window the write would refuse, before asking it to', async () => {
