@@ -243,6 +243,9 @@ function buildDeps(service: SupabaseClient, deadline: number): ClosureDeps {
       must(await service.from('profiles').delete().eq('id', userId))
     },
 
+    purgeExpiredBookingLeads: async (limit) =>
+      Number(must(await app().rpc('purge_expired_booking_leads', { p_limit: limit })) ?? 0),
+
     hasTime: () => Date.now() < deadline,
   }
 }
