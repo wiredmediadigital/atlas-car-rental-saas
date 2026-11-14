@@ -6,6 +6,7 @@ import {
   type BookingPageResult,
   type PublicVehicle,
 } from '@/features/booking/api'
+import { RequestForm } from '@/features/booking/components/RequestForm'
 import { VehicleCard } from '@/features/booking/components/VehicleCard'
 import { formatWindow } from '@/features/booking/dates'
 import { Spinner } from '@/components/ui'
@@ -40,6 +41,8 @@ export function BookingPage() {
    * slug's answer, which is what `loaded` below checks.
    */
   const [answered, setAnswered] = useState<{ slug: string; result: BookingPageResult } | null>(null)
+  /** The car being asked about, or null while the fleet is on screen. */
+  const [asking, setAsking] = useState<PublicVehicle | null>(null)
 
   useEffect(() => {
     let current = true
@@ -53,8 +56,12 @@ export function BookingPage() {
 
   const result = answered !== null && answered.slug === slug ? answered.result : null
 
-  const onRequest = useCallback((_vehicle: PublicVehicle) => {
-    // The form arrives in the next task; until then the card simply offers.
+  const onRequest = useCallback((vehicle: PublicVehicle) => {
+    setAsking(vehicle)
+  }, [])
+
+  const onCloseForm = useCallback(() => {
+    setAsking(null)
   }, [])
 
   if (result === null) {
@@ -121,7 +128,22 @@ export function BookingPage() {
         </div>
       )}
 
-      {vehicles.length === 0 ? (
+      {asking !== null ? (
+        /*
+         * The form replaces the fleet rather than opening over it. A visitor
+         * on a telephone filling in four fields should not be doing it through
+         * a dialog they can dismiss by brushing the screen, and the car, the
+         * dates and the estimate are repeated at the top of the form so that
+         * what they are asking for is in front of them while they type.
+         */
+        <RequestForm
+          agency={agency}
+          vehicle={asking}
+          slug={slug}
+          period={period}
+          onClose={onCloseForm}
+        />
+      ) : vehicles.length === 0 ? (
         <p className="text-ink-muted text-sm">
           There are no cars on this page at the moment. Please check back, or call the agency.
         </p>

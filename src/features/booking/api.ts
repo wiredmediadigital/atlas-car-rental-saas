@@ -185,3 +185,71 @@ export async function fetchBookingPage(
   if (page === null) return { status: 'unavailable', message: UNAVAILABLE }
   return { status: 'ok', page }
 }
+
+/** What a submission can come back as. `message` is always shown to the visitor. */
+export type BookingRequestResult =
+  { status: 'sent'; reference: string } | { status: 'failed'; message: string }
+
+export interface BookingRequestInput {
+  slug: string
+  vehicleId: string
+  from: string
+  to: string
+  fullName: string
+  email: string
+  phone: string | null
+  note: string | null
+  /** The honeypot, named as the field a machine would expect to find. */
+  company: string
+  /**
+   * When the form was built, so the server can judge an impossible speed. Null
+   * when the page could not measure it; the server does not hold that against
+   * the visitor.
+   */
+  startedAt: number | null
+}
+
+const REQUEST_FAILED = 'Your request could not be sent. Please try again shortly.'
+
+/**
+ * Sends a booking request.
+ *
+ * Every failure resolves rather than throwing, and carries a sentence fit to
+ * show a stranger. The server writes those sentences; this never invents one
+ * from a status code it does not recognise, and never repeats a database
+ * message, because the function deliberately does not send one.
+ */
+export async function submitBookingRequest(
+  input: BookingRequestInput,
+): Promise<BookingRequestResult> {
+  const url = endpoint(FUNCTION)
+  if (url === null) return { status: 'failed', message: REQUEST_FAILED }
+
+  let response: Response
+  try {
+    response = await fetch(url, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', accept: 'application/json' },
+      body: JSON.stringify(input),
+    })
+  } catch {
+    return { status: 'failed', message: REQUEST_FAILED }
+  }
+
+  const body: unknown = await response.json().catch((): null => null)
+  const field = (key: string): string | null => {
+    if (typeof body !== 'object' || body === null) return null
+    const value = (body as Record<string, unknown>)[key]
+    return typeof value === 'string' ? value : null
+  }
+
+  if (response.ok) {
+    const reference = field('reference')
+    // A 2xx without a reference is a contract this page cannot honour: it
+    // would leave a visitor believing a request exists with nothing to quote.
+    if (reference === null) return { status: 'failed', message: REQUEST_FAILED }
+    return { status: 'sent', reference }
+  }
+
+  return { status: 'failed', message: field('error') ?? REQUEST_FAILED }
+}
