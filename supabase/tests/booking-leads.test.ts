@@ -18,6 +18,7 @@ let db: TestDatabase
 let organizationId: string
 let ownerId: string
 let staffId: string
+let managerId: string
 let vehicleId: string
 let seq = 0
 
@@ -89,6 +90,9 @@ beforeEach(async () => {
   const staff = await signUp(db, { email: `staff${seq}@leads.test` })
   staffId = staff.userId
   await addMember(db, organizationId, staffId, 'staff')
+  const manager = await signUp(db, { email: `manager${seq}@leads.test` })
+  managerId = manager.userId
+  await addMember(db, organizationId, managerId, 'manager')
   vehicleId = await createVehicle(organizationId, `LED-${seq}`)
 
   const other = await signUp(db, {
@@ -141,7 +145,7 @@ describe('who can see a lead', () => {
 })
 
 describe('what staff may do with a lead', () => {
-  it('lets staff work the queue and delete a lead', async () => {
+  it('lets staff work the queue', async () => {
     const lead = await insertLead()
     const updated = await db.asUser(staffId, (session) =>
       session.sql<{ status: string }>(
@@ -150,13 +154,59 @@ describe('what staff may do with a lead', () => {
       ),
     )
     expect(updated[0]!.status).toBe('contacted')
+  })
 
-    // The DPA promises an agency can act on a renter's erasure request, and
-    // without a delete that promise is empty.
-    const deleted = await db.asUser(staffId, (session) =>
+  it('lets a manager delete a lead and a staff member not', async () => {
+    /*
+     * Everything else staff do to a lead is additive or recoverable. Deleting
+     * one destroys a real person's enquiry -- their name, their address and
+     * whatever they wrote -- with nothing to undo it with, which is why it
+     * sits where rentals_delete and customer_documents_delete sit.
+     *
+     * The DPA promise survives: an agency can still act on a renter's erasure
+     * request, it just takes a manager rather than anyone at the front desk.
+     */
+    const lead = await insertLead()
+
+    const refused = await db.asUser(staffId, (session) =>
+      session.sql(`delete from public.booking_leads where id = $1 returning id`, [lead.id]),
+    )
+    expect(refused).toHaveLength(0)
+
+    const deleted = await db.asUser(managerId, (session) =>
       session.sql(`delete from public.booking_leads where id = $1 returning id`, [lead.id]),
     )
     expect(deleted).toHaveLength(1)
+  })
+
+  it('lets a manager erase a lead even while the agency is billing-restricted', async () => {
+    // A restricted agency is read-only for new work and still owes an erasure.
+    const lead = await insertLead()
+    await db.sql(`select app.billing_report_platform_state(true, 'test', 'Configured.')`)
+    await db.sql(`select app.billing_replace_catalogue($1::jsonb)`, [
+      JSON.stringify([
+        {
+          plan_key: 'pro_monthly',
+          display_name: 'Pro',
+          stripe_price_id: 'price_test_pro_monthly',
+          currency: 'EUR',
+          amount_minor: 4900,
+          interval: 'month',
+          interval_count: 1,
+          mode: 'test',
+          sort_order: 0,
+        },
+      ]),
+    ])
+    try {
+      const deleted = await db.asUser(managerId, (session) =>
+        session.sql(`delete from public.booking_leads where id = $1 returning id`, [lead.id]),
+      )
+      expect(deleted).toHaveLength(1)
+    } finally {
+      await db.sql(`select app.billing_replace_catalogue('[]'::jsonb)`)
+      await db.sql(`select app.billing_report_platform_state(false, 'test', 'Not configured.')`)
+    }
   })
 
   it('does not let a session without a second factor touch one', async () => {

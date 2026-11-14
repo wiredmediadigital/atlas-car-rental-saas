@@ -7,6 +7,9 @@
 export const paths = {
   overview: '/',
 
+  /** Requests from the public booking page, waiting for an answer. */
+  leads: '/leads',
+
   rentals: '/rentals',
   rentalNew: '/rentals/new',
   /** Detail route; build with `rentalDetailPath(id)`. */

@@ -207,6 +207,10 @@ const HelpIndexPage = lazy(() =>
   })),
 )
 
+const LeadsPage = lazy(() =>
+  import('@/pages/leads/LeadsPage').then((module) => ({ default: module.LeadsPage })),
+)
+
 const BookingPage = lazy(() =>
   import('@/pages/booking/BookingPage').then((module) => ({
     default: module.BookingPage,
@@ -373,6 +377,14 @@ export function AppRouter() {
                         permission: it is a view over the domain, not a second
                         way into it. */}
                       <Route path={paths.calendar} element={<CalendarPage />} />
+                    </Route>
+
+                    {/* Booking requests. Every member who can see a customer
+                      can see an enquiry; what a staff member cannot do is
+                      delete one, which the policy decides and the page
+                      follows. */}
+                    <Route element={<RequirePermission permission="leads.view" />}>
+                      <Route path={paths.leads} element={<LeadsPage />} />
                     </Route>
 
                     {/* Customers. Viewing is gated separately from creating, so

@@ -2,6 +2,7 @@ import {
   Banknote,
   CalendarRange,
   CarFront,
+  Inbox,
   CreditCard,
   FileSignature,
   LayoutDashboard,
@@ -48,6 +49,15 @@ export const navigationGroups: readonly NavigationGroup[] = [
   {
     label: 'Operations',
     items: [
+      {
+        // First in Operations because a lead comes before everything after it:
+        // it becomes a customer, which becomes a rental.
+        label: 'Booking requests',
+        to: paths.leads,
+        icon: Inbox,
+        permission: 'leads.view',
+        isAvailable: true,
+      },
       {
         label: 'Rentals',
         to: paths.rentals,

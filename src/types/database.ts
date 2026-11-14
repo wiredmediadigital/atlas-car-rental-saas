@@ -56,6 +56,9 @@ export const CUSTOMER_DOCUMENT_TYPES: readonly CustomerDocumentType[] = [
   'other',
 ]
 export type RentalStatus = 'draft' | 'reserved' | 'active' | 'completed' | 'cancelled'
+
+/** public.booking_lead_status: see 20261113100200. */
+export type BookingLeadStatus = 'new' | 'contacted' | 'converted' | 'declined' | 'lapsed'
 export type RentalPaymentStatus = 'unpaid' | 'partially_paid' | 'paid' | 'overpaid'
 export type RentalDriverRole = 'primary' | 'additional'
 export type PaymentDirection = 'inbound' | 'outbound'
@@ -330,6 +333,38 @@ type VehicleRow = {
   archived_at: string | null
   /** Opt-in to the public booking page; off until an agency chooses. */
   public_booking_enabled: boolean
+}
+
+/**
+ * A request from an agency's public booking page: see 20261113100200.
+ *
+ * Every column here is written by the database -- the public write function
+ * takes the price from the vehicle and a trigger assigns the reference -- so
+ * the only columns a client ever sets are the status and, at conversion, the
+ * two pointers.
+ */
+type BookingLeadRow = {
+  id: string
+  organization_id: string
+  vehicle_id: string
+  /** The short code the renter is told to quote. Random, not sequential. */
+  reference: string
+  status: BookingLeadStatus
+  starts_at: string
+  ends_at: string
+  full_name: string
+  email: string
+  phone: string | null
+  note: string | null
+  /** The price as it was quoted, frozen. The rental is priced fresh at conversion. */
+  currency: string
+  daily_rate_minor: number
+  billable_days: number
+  quoted_total_minor: number
+  converted_customer_id: string | null
+  converted_rental_id: string | null
+  created_at: string
+  updated_at: string
 }
 
 type VehicleDocumentRow = {
@@ -2366,6 +2401,45 @@ export interface Database {
         >
         Relationships: []
       }
+      booking_leads: {
+        Row: BookingLeadRow
+        Insert: Insertable<
+          BookingLeadRow,
+          | 'organization_id'
+          | 'vehicle_id'
+          | 'starts_at'
+          | 'ends_at'
+          | 'full_name'
+          | 'email'
+          | 'currency'
+          | 'daily_rate_minor'
+          | 'billable_days'
+          | 'quoted_total_minor',
+          'id' | 'reference' | 'status' | ManagedColumns
+        >
+        // Staff work the queue; the conversion function writes the two
+        // pointers. Nothing a client sends may restate what the renter asked
+        // for or what they were quoted.
+        Update: Updatable<
+          BookingLeadRow,
+          | 'id'
+          | 'organization_id'
+          | 'vehicle_id'
+          | 'reference'
+          | 'starts_at'
+          | 'ends_at'
+          | 'full_name'
+          | 'email'
+          | 'phone'
+          | 'note'
+          | 'currency'
+          | 'daily_rate_minor'
+          | 'billable_days'
+          | 'quoted_total_minor'
+          | ManagedColumns
+        >
+        Relationships: []
+      }
       rental_line_items: {
         Row: RentalLineItemRow
         Insert: Insertable<
@@ -2722,6 +2796,10 @@ export interface Database {
           p_exclude_customer_id?: string | null
         }
         Returns: CustomerDuplicateRow[]
+      }
+      convert_booking_lead: {
+        Args: { p_lead_id: string; p_customer_overrides?: Json }
+        Returns: { customer_id: string; rental_id: string }[]
       }
       rental_billable_days: {
         Args: { p_starts_at: string; p_ends_at: string }

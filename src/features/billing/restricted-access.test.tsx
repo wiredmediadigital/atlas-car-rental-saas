@@ -144,6 +144,10 @@ describe('what the interface offers a restricted agency', () => {
       'financingDocuments.view',
       'financingPayments.view',
       'gps.view',
+      // Reading an enquiry costs nothing, and erasing one is an obligation
+      // that does not lapse with the subscription: see AVAILABLE_WHEN_RESTRICTED.
+      'leads.delete',
+      'leads.view',
       'lenders.view',
       'organization.update',
       'organization.view',

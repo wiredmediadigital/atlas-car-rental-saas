@@ -45,6 +45,10 @@ const PERMISSION_TARGETS: Partial<
   'customerDocuments.update': { table: 'customer_documents', command: 'update' },
   'customerDocuments.delete': { table: 'customer_documents', command: 'delete' },
 
+  'leads.view': { table: 'booking_leads', command: 'select' },
+  'leads.update': { table: 'booking_leads', command: 'update' },
+  'leads.delete': { table: 'booking_leads', command: 'delete' },
+
   'rentals.view': { table: 'rentals', command: 'select' },
   'rentals.create': { table: 'rentals', command: 'insert' },
   'rentals.update': { table: 'rentals', command: 'update' },
@@ -111,6 +115,18 @@ const PERMISSIONS_WITHOUT_A_TABLE: readonly Permission[] = [
    */
   'gps.connect',
   'gps.sync',
+  /*
+   * Converting a lead has no policy of its own because it is not a write to
+   * booking_leads that a client performs: public.convert_booking_lead creates
+   * a customer, a rental, a charge line and a driver row in one transaction
+   * and marks the lead converted. It is SECURITY INVOKER, so every one of
+   * those writes is gated by that table's own policy -- customers_insert,
+   * rentals_insert and the rest -- and the function additionally refuses a
+   * caller who is not staff of the agency before it touches anything.
+   * supabase/tests/booking-lead-conversion.test.ts attacks it from a staff
+   * member, an aal1 session, another agency and a restricted agency.
+   */
+  'leads.convert',
   /*
    * Team's three write permissions had table policies until 20260821100000 took
    * INSERT, UPDATE and DELETE on organization_members away from `authenticated`

@@ -73,6 +73,32 @@ function isPostgresLikeError(error: unknown): error is PostgresLikeError {
  * includes the constraint or index name for integrity violations.
  */
 const CONSTRAINT_MESSAGES: ReadonlyArray<readonly [RegExp, string, AppErrorKind]> = [
+  /*
+   * Booking requests (20261113100500).
+   *
+   * These four sentences are raised by public.convert_booking_lead, and they
+   * are matched here because without them the SQLSTATE mapping below answers
+   * for them: 42501 becomes "You do not have permission to do that", which is
+   * untrue of an agency whose billing has lapsed and of a request somebody
+   * else converted a second earlier, and sends staff looking in the wrong
+   * place. The database wrote the right sentence; this lets it through.
+   */
+  [
+    /no longer free for those dates/i,
+    'That vehicle is no longer free for those dates. Somebody may have booked it since the request arrived.',
+    'conflict',
+  ],
+  [
+    /already been converted/i,
+    'That booking request has already been converted into a rental.',
+    'conflict',
+  ],
+  [
+    /that vehicle is no longer in the fleet/i,
+    'That vehicle is no longer in the fleet, so this request cannot be converted.',
+    'notFound',
+  ],
+  [/booking request could not be found/i, 'That booking request could not be found.', 'notFound'],
   [
     /rentals_no_vehicle_overlap/i,
     'This vehicle is already committed to another contract that overlaps these dates. Choose a different vehicle or adjust the period.',
