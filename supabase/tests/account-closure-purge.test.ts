@@ -133,6 +133,16 @@ async function seed(agency: Agency): Promise<Seeded> {
      values ($1, $2, 'Extra driver', 1500, 'EUR')`,
     [org, rental.id],
   )
+  // A request from the public booking page: a stranger's contact details, which
+  // is exactly the kind of row closure exists to remove.
+  await db.sql(
+    `insert into public.booking_leads
+       (organization_id, vehicle_id, starts_at, ends_at, full_name, email,
+        currency, daily_rate_minor, billable_days, quoted_total_minor)
+     values ($1, $2, now() + interval '10 days', now() + interval '14 days',
+             'Enquiring Person', 'enquiry@example.test', 'EUR', 4500, 4, 18000)`,
+    [org, vehicle.id],
+  )
   await db.sql(
     `insert into public.payments (organization_id, rental_id, customer_id, amount_minor, currency)
      values ($1, $2, $3, 2500, 'EUR')`,
