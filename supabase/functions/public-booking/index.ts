@@ -26,6 +26,13 @@
 
 import { createClient, type SupabaseClient } from 'jsr:@supabase/supabase-js@2'
 
+import {
+  agencyNotification,
+  renterAcknowledgement,
+  senderFor,
+  type AgencySummary,
+  type LeadSummary,
+} from '../_shared/booking-lead-email.ts'
 import { createRateState, forgetExpired, type RateState } from '../_shared/public-booking-rates.ts'
 import { deliverMessage } from '../_shared/team-email.ts'
 import {
