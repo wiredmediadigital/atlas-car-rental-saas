@@ -121,6 +121,7 @@ function makeOrganization(
     vehicle_limit_override: null,
     vehicle_limit_override_set_by: null,
     vehicle_limit_override_set_at: null,
+    public_booking_enabled: false,
     created_by: null,
     created_at: '2026-01-01T00:00:00Z',
     updated_at: '2026-01-01T00:00:00Z',

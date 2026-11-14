@@ -231,6 +231,8 @@ type OrganizationRow = {
   vehicle_limit_override: number | null
   vehicle_limit_override_set_by: string | null
   vehicle_limit_override_set_at: string | null
+  /** The public booking page switch. The database refuses it on while the plan lacks the feature. */
+  public_booking_enabled: boolean
   /** Closure lifecycle: see 20261108100000_account_closure_state.sql. Written only by definer functions. */
   closure_requested_at: string | null
   closure_requested_by: string | null
@@ -326,6 +328,8 @@ type VehicleRow = {
   created_at: string
   updated_at: string
   archived_at: string | null
+  /** Opt-in to the public booking page; off until an agency chooses. */
+  public_booking_enabled: boolean
 }
 
 type VehicleDocumentRow = {
