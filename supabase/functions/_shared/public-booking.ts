@@ -351,13 +351,49 @@ function offsetAt(instantMs: number, timeZone: string): number {
 
 // --------------------------------------------------------------- serving ----
 
-interface PublicAgency {
+/**
+ * The agency as the page receives it. Exported, with PublicVehicle and
+ * PublicBookingPage below, because the browser declares the same three shapes
+ * (the Deno and Vite module graphs are separate) and
+ * src/features/booking/booking-shape.check.ts pins the two copies together at
+ * tsc time -- the same arrangement public-pricing.ts has.
+ */
+export interface PublicAgency {
   name: string
   phone: string | null
   logoUrl: string | null
   timeZone: string
   currency: string
   acceptsRequests: boolean
+}
+
+/** One vehicle on the page: what it is, what it costs, and whether it is free. */
+export interface PublicVehicle {
+  id: string
+  make: string
+  model: string
+  year: number | null
+  category: string | null
+  transmission: string | null
+  fuelType: string | null
+  seats: number | null
+  doors: number | null
+  imageUrl: string | null
+  currency: string
+  dailyRateMinor: number
+  billableDays: number
+  quotedTotalMinor: number
+  isAvailable: boolean
+}
+
+/**
+ * The whole answer. There is deliberately no count of anything beside the list:
+ * how busy an agency is on a given weekend is commercially theirs.
+ */
+export interface PublicBookingPage {
+  agency: PublicAgency
+  window: { from: string; to: string }
+  vehicles: PublicVehicle[]
 }
 
 /**
@@ -423,30 +459,29 @@ export async function serveBooking(
     acceptsRequests: agency.accepts_requests,
   }
 
-  return {
-    status: 200,
-    body: {
-      agency: publicAgency,
-      window: chosen,
-      vehicles: vehicles.map((vehicle) => ({
-        id: vehicle.vehicle_id,
-        make: vehicle.make,
-        model: vehicle.model,
-        year: vehicle.model_year,
-        category: vehicle.category,
-        transmission: vehicle.transmission,
-        fuelType: vehicle.fuel_type,
-        seats: vehicle.seats,
-        doors: vehicle.doors,
-        imageUrl: vehicle.image_path === null ? null : (urls.get(vehicle.image_path) ?? null),
-        currency: vehicle.currency,
-        dailyRateMinor: Number(vehicle.daily_rate_minor),
-        billableDays: vehicle.billable_days,
-        quotedTotalMinor: Number(vehicle.quoted_total_minor),
-        isAvailable: vehicle.is_available,
-      })),
-    },
+  const page: PublicBookingPage = {
+    agency: publicAgency,
+    window: chosen,
+    vehicles: vehicles.map((vehicle) => ({
+      id: vehicle.vehicle_id,
+      make: vehicle.make,
+      model: vehicle.model,
+      year: vehicle.model_year,
+      category: vehicle.category,
+      transmission: vehicle.transmission,
+      fuelType: vehicle.fuel_type,
+      seats: vehicle.seats,
+      doors: vehicle.doors,
+      imageUrl: vehicle.image_path === null ? null : (urls.get(vehicle.image_path) ?? null),
+      currency: vehicle.currency,
+      dailyRateMinor: Number(vehicle.daily_rate_minor),
+      billableDays: vehicle.billable_days,
+      quotedTotalMinor: Number(vehicle.quoted_total_minor),
+      isAvailable: vehicle.is_available,
+    })),
   }
+
+  return { status: 200, body: page }
 }
 
 /**

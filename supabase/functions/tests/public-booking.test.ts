@@ -11,6 +11,7 @@ import {
   windowProblem,
   type AgencyRow,
   type BookingDeps,
+  type PublicBookingPage,
   type VehicleRow,
 } from '../_shared/public-booking.ts'
 
@@ -74,7 +75,7 @@ function depsFor(
     logs,
     created,
     ...overrides,
-  } as BookingDeps & { logs: string[]; created: unknown[] }
+  }
 }
 
 const submission = (overrides: Record<string, unknown> = {}) => ({
@@ -166,7 +167,7 @@ describe('serving the page', () => {
   it('answers with the agency, the window and the fleet', async () => {
     const decision = await serveBooking(depsFor(), { slug: 'atlas-cars', from: FROM, to: TO })
     expect(decision.status).toBe(200)
-    const body = decision.body as Record<string, any>
+    const body = decision.body as PublicBookingPage
     expect(body.agency).toMatchObject({ name: 'Atlas Cars', acceptsRequests: true })
     expect(body.window).toEqual({ from: FROM, to: TO })
     expect(body.vehicles).toHaveLength(1)
@@ -206,24 +207,24 @@ describe('serving the page', () => {
 
   it('uses the default window when the visitor has not chosen', async () => {
     const decision = await serveBooking(depsFor(), { slug: 'atlas-cars', from: null, to: null })
-    const body = decision.body as Record<string, any>
+    const body = decision.body as PublicBookingPage
     expect(body.window).toEqual(defaultWindow('Europe/Paris', NOW))
   })
 
   it('signs the logo and the photographs', async () => {
     const decision = await serveBooking(depsFor(), { slug: 'atlas-cars', from: FROM, to: TO })
-    const body = decision.body as Record<string, any>
+    const body = decision.body as PublicBookingPage
     expect(body.agency.logoUrl).toBe('https://signed.test/logos/atlas.png')
-    expect(body.vehicles[0].imageUrl).toBe('https://signed.test/fleet/clio.jpg')
+    expect(body.vehicles[0]!.imageUrl).toBe('https://signed.test/fleet/clio.jpg')
   })
 
   it('still serves the fleet when signing the images fails', async () => {
     const deps = depsFor({ signImages: () => Promise.reject(new Error('storage down')) })
     const decision = await serveBooking(deps, { slug: 'atlas-cars', from: FROM, to: TO })
-    const body = decision.body as Record<string, any>
+    const body = decision.body as PublicBookingPage
     expect(decision.status).toBe(200)
     expect(body.vehicles).toHaveLength(1)
-    expect(body.vehicles[0].imageUrl).toBeNull()
+    expect(body.vehicles[0]!.imageUrl).toBeNull()
   })
 
   it('answers 503 without explaining when the read itself fails', async () => {

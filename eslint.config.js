@@ -26,6 +26,7 @@ export default tseslint.config(
       'supabase/functions/account-closure/**',
       'supabase/functions/account-closure-notice/**',
       'supabase/functions/mfa-reset/**',
+      'supabase/functions/public-booking/**',
     ],
   },
   js.configs.recommended,

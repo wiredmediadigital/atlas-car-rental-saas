@@ -60,6 +60,14 @@ export const paths = {
    */
   dataProcessing: '/data-processing',
 
+  /**
+   * An agency's public booking page, linked from their own website. Public in
+   * the strongest sense in this product: no session, no workspace and no second
+   * factor, because the visitor has never heard of Pevvy. Build with
+   * `bookingPath(slug)`.
+   */
+  booking: '/book/:slug',
+
   signIn: '/sign-in',
   /** Two-factor set-up: scan a code, then save the recovery codes. */
   enrollFactor: '/sign-in/set-up',
@@ -105,4 +113,8 @@ export function financingEditPath(agreementId: string): string {
 
 export function helpArticlePath(slug: string): string {
   return `/help/${slug}`
+}
+
+export function bookingPath(slug: string): string {
+  return `/book/${slug}`
 }
