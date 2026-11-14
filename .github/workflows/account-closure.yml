@@ -1,9 +1,18 @@
 # Drains account-closure work once a day. This is the only scheduler Pevvy has.
 #
+# It also sweeps expired booking leads, because it is the only scheduler Pevvy
+# has: pg_cron is deliberately not installed, so the twelve-month retention on
+# an unconverted request rides this run rather than a second one introduced for
+# it. That happens inside the account-closure function, before the purges, and
+# needs no step of its own here -- see runAccountClosure in
+# supabase/functions/_shared/account-closure.ts.
+#
 # If this job stops running or fails, closed agencies are suspended but never
-# purged, and an operator notice that failed its first attempt is never
-# retried. That is data retained after a deletion instruction, so every step
-# fails the job on anything but a 2xx. A red run is the alarm; do not mute it.
+# purged, an operator notice that failed its first attempt is never retried,
+# and strangers' contact details are held past the date the privacy policy
+# promised to delete them. All three are data retained after a deletion
+# instruction, so every step fails the job on anything but a 2xx. A red run is
+# the alarm; do not mute it.
 #
 # GitHub DISABLES scheduled workflows after 60 days without repository activity
 # (a commit, not a run). A deployed install that goes two months without a commit

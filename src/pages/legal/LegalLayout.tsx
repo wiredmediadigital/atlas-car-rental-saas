@@ -9,6 +9,8 @@ import { LEGAL } from './legal-config'
 interface LegalLayoutProps {
   readonly title: string
   readonly summary: string
+  /** This document's own last-changed date, from `LEGAL()`. */
+  readonly updated: string
   readonly children: ReactNode
 }
 
@@ -48,7 +50,7 @@ function headingsOf(children: ReactNode): readonly string[] {
  * scroll to, and an anchor that goes nowhere is the defect the pricing work
  * spent a whole task preventing.
  */
-export function LegalLayout({ title, summary, children }: LegalLayoutProps) {
+export function LegalLayout({ title, summary, updated, children }: LegalLayoutProps) {
   const legal = LEGAL()
   const headings = headingsOf(children)
   useDocumentMeta(title, summary)
@@ -60,7 +62,7 @@ export function LegalLayout({ title, summary, children }: LegalLayoutProps) {
         <div className="mx-auto w-full max-w-[46rem] px-4 py-16 sm:px-6 lg:px-8">
           <h1 className="text-ink text-3xl font-semibold tracking-tight sm:text-4xl">{title}</h1>
           <p className="text-ink-muted mt-3 text-[0.9375rem] leading-7">{summary}</p>
-          <p className="text-ink-subtle mt-2 text-[0.8125rem]">Last updated {legal.lastUpdated}.</p>
+          <p className="text-ink-subtle mt-2 text-[0.8125rem]">Last updated {updated}.</p>
 
           <nav aria-labelledby="contents-heading" className="border-line mt-10 border-t pt-6">
             <h2

@@ -255,6 +255,7 @@ interface VehicleWritePayload {
   seats: number | null
   odometer: number
   daily_rate_minor: number
+  public_booking_enabled: boolean
   currency: string
   status: VehicleOperationalStatus
   insurance_expires_on: string | null
@@ -280,6 +281,7 @@ function toRow(values: VehicleFormValues): VehicleWritePayload {
     daily_rate_minor: values.dailyRate,
     currency: values.currency,
     status: values.status,
+    public_booking_enabled: values.publicBookingEnabled,
     insurance_expires_on: values.insuranceExpiresOn,
     inspection_expires_on: values.inspectionExpiresOn,
     registration_expires_on: values.registrationExpiresOn,

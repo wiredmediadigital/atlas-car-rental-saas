@@ -97,6 +97,13 @@ export const AUTH_USERS_BUCKET = 'closure:accounts-to-remove'
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 export const DEFAULT_SWEEP_BATCH = 100
+
+/**
+ * Booking leads deleted per run. Generous for an ordinary day -- a deployment
+ * producing more than a thousand expiring leads daily has other problems -- and
+ * small enough that the delete cannot be what makes the drain time out.
+ */
+export const EXPIRED_LEAD_BATCH = 1000
 const AUTH_BATCH = 100
 
 /**
@@ -346,6 +353,12 @@ export interface ClosureDeps {
   deleteAuthUser(userId: string): Promise<AuthDeleteError | null>
   /** Deletes the `profiles` row, if any. A row that is already gone is not an error. */
   deleteProfile(userId: string): Promise<void>
+  /**
+   * Deletes unconverted booking leads past their retention period, up to
+   * `limit`, and answers how many went. Nothing in this deployment sweeps on a
+   * schedule, so this housekeeping rides the daily drain.
+   */
+  purgeExpiredBookingLeads(limit: number): Promise<number>
   /** Called between units of work; false stops the run cleanly. */
   hasTime(): boolean
 }
@@ -382,6 +395,14 @@ export interface RunReport {
    * does not count; see runAccountClosure for why.
    */
   needsAttention: boolean
+  /** Unconverted booking leads deleted for age on this run. */
+  expiredLeadsRemoved: number
+  /**
+   * Why the retention sweep did not run, if it did not. A retention period that
+   * silently stops being applied is personal data kept past the date the
+   * product promised to delete it, so this counts towards needsAttention.
+   */
+  expiredLeadsError: string | null
 }
 
 const SWEEPABLE: readonly ClosureState[] = ['purging', 'closed']
@@ -592,6 +613,26 @@ export async function runAccountClosure(
   options: RunOptions,
 ): Promise<RunReport> {
   const batchSize = options.batchSize ?? DEFAULT_SWEEP_BATCH
+
+  /*
+   * Retention first, and never fatally.
+   *
+   * FIRST, because the run has a time budget and one large agency's purge can
+   * use most of it. A bounded delete that goes last is a delete that stops
+   * happening on exactly the busy days when it matters.
+   *
+   * NEVER FATALLY, for the same reason the workflow runs the purge even when
+   * the notice step failed: housekeeping must not hold back a deletion that is
+   * owed. The failure is reported rather than thrown, and it reddens the run.
+   */
+  let expiredLeadsRemoved = 0
+  let expiredLeadsError: string | null = null
+  try {
+    expiredLeadsRemoved = await deps.purgeExpiredBookingLeads(EXPIRED_LEAD_BATCH)
+  } catch (error) {
+    expiredLeadsError = error instanceof Error ? error.message : 'Unknown error.'
+  }
+
   const closing = await deps.listClosingOrganizations()
   const lingering = await deps.listClosedWithPendingWork()
   const byId = new Map([...closing, ...lingering].map((org) => [org.id, org]))
@@ -672,6 +713,9 @@ export async function runAccountClosure(
     needsAttention:
       blocked.some((entry) => entry.due) ||
       failures > 0 ||
-      outcomes.some((o) => o.unsweepableKeys > 0),
+      outcomes.some((o) => o.unsweepableKeys > 0) ||
+      expiredLeadsError !== null,
+    expiredLeadsRemoved,
+    expiredLeadsError,
   }
 }

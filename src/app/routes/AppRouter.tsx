@@ -207,6 +207,16 @@ const HelpIndexPage = lazy(() =>
   })),
 )
 
+const LeadsPage = lazy(() =>
+  import('@/pages/leads/LeadsPage').then((module) => ({ default: module.LeadsPage })),
+)
+
+const BookingPage = lazy(() =>
+  import('@/pages/booking/BookingPage').then((module) => ({
+    default: module.BookingPage,
+  })),
+)
+
 const PrivacyPolicyPage = lazy(() =>
   import('@/pages/legal/PrivacyPolicyPage').then((module) => ({
     default: module.PrivacyPolicyPage,
@@ -299,6 +309,16 @@ export function AppRouter() {
           <Route path={paths.help} element={<HelpIndexPage />} />
           <Route path={paths.helpArticle} element={<HelpArticlePage />} />
 
+          {/*
+           * An agency's public booking page. It sits here, above RequireAuth,
+           * for a stronger reason than the pages around it: its visitor is a
+           * stranger who arrived from the agency's own website and has no
+           * account to be sent to. It does fetch — unlike help and the legal
+           * documents — but through an Edge Function with no session, so a
+           * missing one still has nothing to refuse.
+           */}
+          <Route path={paths.booking} element={<BookingPage />} />
+
           {/* The legal documents sit beside help for the same reason: they are
               public, they read identically signed in or out, and nothing in
               them is fetched, so a missing session has nothing to refuse. */}
@@ -357,6 +377,14 @@ export function AppRouter() {
                         permission: it is a view over the domain, not a second
                         way into it. */}
                       <Route path={paths.calendar} element={<CalendarPage />} />
+                    </Route>
+
+                    {/* Booking requests. Every member who can see a customer
+                      can see an enquiry; what a staff member cannot do is
+                      delete one, which the policy decides and the page
+                      follows. */}
+                    <Route element={<RequirePermission permission="leads.view" />}>
+                      <Route path={paths.leads} element={<LeadsPage />} />
                     </Route>
 
                     {/* Customers. Viewing is gated separately from creating, so

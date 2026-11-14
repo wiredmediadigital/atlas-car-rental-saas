@@ -20,6 +20,9 @@
  * email_address domain. Every shape of absent, false and malformed metadata
  * below is asserted to still produce an account.
  */
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
+
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 
 import { TERMS_ACCEPTED_METADATA_KEY } from '../../src/features/auth/terms'
@@ -90,8 +93,19 @@ afterAll(async () => {
 })
 
 describe('the version constant', () => {
-  it('is the date the legal pages print, so the two cannot drift', async () => {
-    expect(await currentVersion()).toBe(LEGAL().lastUpdated)
+  it('is the same date as LEGAL().termsUpdated, written in the migration that defines it', async () => {
+    // The function's value and the Terms date are one fact kept in two places.
+    // Read the literal out of the migration so that moving either one without
+    // the other fails here. While all three legal dates hold the same value
+    // this cannot tell the Terms date from the privacy date; it starts to
+    // once they diverge.
+    const sql = readFileSync(
+      resolve(__dirname, '../migrations/20261113100000_legal_document_versions.sql'),
+      'utf8',
+    )
+    const literal = /select\s+'([^']+)'::text/.exec(sql)?.[1]
+    expect(literal).toBe(LEGAL().termsUpdated)
+    expect(await currentVersion()).toBe(literal)
   })
 
   it('is a constant, not a reading of the clock', async () => {

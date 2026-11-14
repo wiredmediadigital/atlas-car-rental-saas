@@ -15,6 +15,7 @@ export function TermsPage() {
   return (
     <LegalLayout
       title="Terms of service"
+      updated={legal.termsUpdated}
       summary={`The agreement between your agency and ${product} — what the service does, what it costs, and what each side is responsible for.`}
     >
       <LegalSection heading="The agreement">

@@ -43,6 +43,7 @@ function makeVehicle(overrides: Partial<VehicleFleetEntry> = {}): VehicleFleetEn
     updated_at: '2026-01-01T00:00:00Z',
     archived_at: null,
     operational_status: 'available',
+    public_booking_enabled: false,
     current_rental_id: null,
     current_rental_reference: null,
     current_customer_id: null,

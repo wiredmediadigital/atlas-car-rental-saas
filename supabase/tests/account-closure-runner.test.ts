@@ -204,6 +204,10 @@ function depsFor(world: World): ClosureDeps {
             and exists (select 1 from public.account_closure_objects x
                          where x.organization_id = o.id and x.deleted_at is null)`,
       ),
+    purgeExpiredBookingLeads: async (limit) =>
+      Number(
+        (await q<{ n: number }>(`select app.purge_expired_booking_leads($1) as n`, [limit]))[0]!.n,
+      ),
     hasLiveSubscription: async (id) =>
       (await q<{ v: boolean }>(`select app.organization_has_live_subscription($1) as v`, [id]))[0]!
         .v,
@@ -882,4 +886,65 @@ describe('the sweep does not trust the ledger', () => {
     await expect(sweepStorage(depsFor(world), a.organizationId)).rejects.toThrow(/suspended/)
     expect(world.removeCalls).toEqual([])
   }, 60_000)
+})
+
+describe('booking lead retention rides the daily drain', () => {
+  /** An agency with one expired lead and nothing to close. */
+  const agencyWithAnExpiredLead = async (): Promise<string> => {
+    const owner = await signUp(db, {
+      email: `leads${Math.random().toString(36).slice(2, 10)}@runner.test`,
+      organizationName: 'Leads Runner',
+      currency: 'EUR',
+    })
+    const organizationId = owner.organizationId!
+    const [vehicle] = await db.sql<{ id: string }>(
+      `insert into public.vehicles
+         (organization_id, make, model, registration_plate, currency, daily_rate_minor)
+       values ($1, 'Renault', 'Clio', $2, 'EUR', 4500) returning id`,
+      [organizationId, `RUN-${Math.random().toString(36).slice(2, 8)}`],
+    )
+    await db.sql(
+      `insert into public.booking_leads
+         (organization_id, vehicle_id, starts_at, ends_at, full_name, email,
+          currency, daily_rate_minor, billable_days, quoted_total_minor, created_at)
+       values ($1, $2, now() + interval '5 days', now() + interval '8 days',
+               'Long Forgotten', 'forgotten@example.test', 'EUR', 4500, 3, 13500,
+               now() - interval '13 months')`,
+      [organizationId, vehicle!.id],
+    )
+    return organizationId
+  }
+
+  it('deletes an expired lead on a run with nothing else to do', async () => {
+    const organizationId = await agencyWithAnExpiredLead()
+    const report = await runAccountClosure(depsFor({} as World), {
+      now: new Date(),
+      batchSize: 2,
+    })
+    expect(report.expiredLeadsRemoved).toBe(1)
+    expect(report.expiredLeadsError).toBeNull()
+    expect(report.needsAttention).toBe(false)
+    const [row] = await db.sql<{ n: number }>(
+      `select count(*)::int as n from public.booking_leads where organization_id = $1`,
+      [organizationId],
+    )
+    expect(row!.n).toBe(0)
+  })
+
+  it('reports a failed sweep, reddens the run, and still drains closures', async () => {
+    // Retention is housekeeping: it must not hold back a deletion that is owed,
+    // which is why it is caught rather than thrown. But a retention period that
+    // has silently stopped being applied is personal data kept past the date
+    // the product promised to delete it, so the run goes red.
+    const real = depsFor({} as World)
+    const deps: ClosureDeps = {
+      ...real,
+      purgeExpiredBookingLeads: () => Promise.reject(new Error('sweep exploded')),
+    }
+    const report = await runAccountClosure(deps, { now: new Date(), batchSize: 2 })
+    expect(report.expiredLeadsRemoved).toBe(0)
+    expect(report.expiredLeadsError).toMatch(/sweep exploded/)
+    expect(report.needsAttention).toBe(true)
+    expect((await guard(report)).status).toBe(500)
+  })
 })

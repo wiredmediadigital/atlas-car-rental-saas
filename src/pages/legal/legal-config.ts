@@ -13,8 +13,17 @@ export interface LegalDetails {
   readonly productName: string
   /** Where to write about privacy or the agreement. */
   readonly contactEmail: string
-  /** The date these documents last changed, shown to the reader. */
-  readonly lastUpdated: string
+  /**
+   * The date the Terms of service last changed. This is also the Terms
+   * version every agency accepts: `app.current_terms_version()` returns it,
+   * so moving it asks every agency to accept again. Change it only when the
+   * Terms change.
+   */
+  readonly termsUpdated: string
+  /** The date the privacy policy last changed. Independent of the Terms. */
+  readonly privacyUpdated: string
+  /** The date the data processing terms last changed. Independent of the Terms. */
+  readonly dataProcessingUpdated: string
   /**
    * The jurisdiction whose law governs the agreement, or `null` when nobody
    * has decided yet.
@@ -41,7 +50,11 @@ export function LEGAL(): LegalDetails {
     entityName: 'Adera Labs Inc',
     productName: getAppName(),
     contactEmail: SUPPORT_EMAIL,
-    lastUpdated: '12 November 2026',
+    // Unchanged: the public booking page added no term to the agreement, and
+    // moving this date asks every agency to accept the Terms again.
+    termsUpdated: '12 November 2026',
+    privacyUpdated: '14 November 2026',
+    dataProcessingUpdated: '14 November 2026',
     governingLaw: 'the State of Delaware',
   }
 }

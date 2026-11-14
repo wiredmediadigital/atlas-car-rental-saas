@@ -117,6 +117,19 @@ export const PERMISSIONS = {
   'customerDocuments.update': 'staff',
   'customerDocuments.delete': 'manager',
 
+  /*
+   * Booking requests from an agency's public page.
+   *
+   * Working the queue is front-desk work: reading an enquiry, telephoning the
+   * person, declining it, turning it into a rental. Deleting one is not --
+   * it destroys a stranger's name, address and message with nothing to undo it
+   * with, so it sits beside rentals.delete rather than beside the daily work.
+   */
+  'leads.view': 'staff',
+  'leads.update': 'staff',
+  'leads.convert': 'staff',
+  'leads.delete': 'manager',
+
   'rentals.view': 'staff',
   'rentals.create': 'staff',
   'rentals.update': 'staff',
@@ -242,6 +255,18 @@ const READ_ACTIONS: readonly string[] = ['view', 'history']
  *
  * `team.invite` is deliberately NOT here: taking on new staff is growth, and
  * the database refuses it in public.create_team_invitation.
+ *
+ *   leads.delete            Not a way out either, and not a way in. It is an
+ *                           obligation: the Data Processing Addendum promises
+ *                           an agency can act on a renter's request to be
+ *                           forgotten, and that promise does not lapse with a
+ *                           subscription. booking_leads_delete is the one
+ *                           write policy in the booking feature with no
+ *                           billing gate (20261113100200), so withdrawing the
+ *                           button here would hide a control the database
+ *                           allows -- and leave an agency unable to honour an
+ *                           erasure at exactly the moment they are least able
+ *                           to pay to.
  */
 const AVAILABLE_WHEN_RESTRICTED: readonly Permission[] = [
   'billing.manage',
@@ -250,6 +275,7 @@ const AVAILABLE_WHEN_RESTRICTED: readonly Permission[] = [
   'team.remove',
   'team.transferOwnership',
   'team.resetFactor',
+  'leads.delete',
 ]
 
 /**

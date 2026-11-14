@@ -666,13 +666,16 @@ describe('the gate, structurally', () => {
     expect(rows).toEqual([])
   })
 
-  it('covers 54 write policies and no fewer', async () => {
+  // 54 at the time the gate shipped, plus booking_leads_insert and
+  // booking_leads_update (20261113100200). booking_leads_delete is deliberately
+  // not among them: a restricted agency still owes a renter an erasure.
+  it('covers 56 write policies and no fewer', async () => {
     const [row] = await db.sql<{ n: number }>(`
       select count(*)::int as n from pg_policies
       where schemaname = 'public' and cmd <> 'SELECT'
         and coalesce(qual, '') || coalesce(with_check, '') like '%billing_may_write%'
     `)
-    expect(row!.n).toBe(54)
+    expect(row!.n).toBe(56)
   })
 
   it('is not inside app.has_min_role, which guards reads too', async () => {

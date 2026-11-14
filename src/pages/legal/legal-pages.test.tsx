@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from 'vitest'
 
 import { AuthContext, type AuthContextValue } from '@/features/auth/auth-context'
 
+import { LEGAL } from './legal-config'
 import type * as LegalConfig from './legal-config'
 import { PrivacyPolicyPage } from './PrivacyPolicyPage'
 import { DataProcessingPage } from './DataProcessingPage'
@@ -461,5 +462,112 @@ describe('Where the records are held', () => {
   it('promises notice before the records move country', () => {
     const { container } = renderPage(<DataProcessingPage />)
     expect(container.textContent ?? '').toMatch(/before moving your records to another country/i)
+  })
+})
+
+/*
+ * The three documents change on their own schedules. The Terms date is also
+ * the version every agency accepts, so the privacy policy and the DPA must
+ * be able to move without dragging it along.
+ */
+describe('Each document prints its own date', () => {
+  it('prints the date belonging to that page', async () => {
+    const config = await import('./legal-config')
+    vi.spyOn(config, 'LEGAL').mockReturnValue({
+      ...config.LEGAL(),
+      termsUpdated: '1 March 2026',
+      privacyUpdated: '2 April 2026',
+      dataProcessingUpdated: '3 May 2026',
+    })
+
+    const cases: ReadonlyArray<[React.ReactElement, string, readonly string[]]> = [
+      [<TermsPage key="t" />, '1 March 2026', ['2 April 2026', '3 May 2026']],
+      [<PrivacyPolicyPage key="p" />, '2 April 2026', ['1 March 2026', '3 May 2026']],
+      [<DataProcessingPage key="d" />, '3 May 2026', ['1 March 2026', '2 April 2026']],
+    ]
+    for (const [page, own, others] of cases) {
+      const { container, unmount } = renderPage(page)
+      const text = container.textContent ?? ''
+      expect(text).toContain(`Last updated ${own}.`)
+      for (const other of others) expect(text).not.toContain(`Last updated ${other}`)
+      unmount()
+    }
+  })
+})
+
+describe('a booking request, in the legal pages', () => {
+  /*
+   * The public booking page is the one place personal data reaches this
+   * product from somebody who is not a customer of the agency and has never
+   * heard of Pevvy. Both documents have to say so: the privacy policy because
+   * the person reading it may be that stranger, and the DPA because the agency
+   * needs to know the obligation is theirs.
+   */
+  it('says what happens to details a renter submits themselves', () => {
+    renderPage(<PrivacyPolicyPage />)
+    const section = screen
+      .getByRole('heading', { name: /details a renter submits themselves/i })
+      .closest('section') as HTMLElement
+    expect(section).not.toBeNull()
+    expect(section.textContent).toMatch(/name, email address, telephone number/i)
+    // And what it does NOT ask for, which is the part a template would invent.
+    expect(section.textContent).toMatch(/does not ask for a date of birth/i)
+    expect(section.textContent).toMatch(/licence or\s+passport number/i)
+    expect(section.textContent).toMatch(/not a booking and holds no vehicle/i)
+    expect(section.textContent).toMatch(/not used for marketing/i)
+  })
+
+  it('names the agency as controller of a booking request', () => {
+    // Not Pevvy. The agency published the page, chose the cars, and the
+    // request is addressed to them; we are their processor for it like
+    // everything else.
+    renderPage(<DataProcessingPage />)
+    const section = screen
+      .getByRole('heading', { name: /requests from your public booking page/i })
+      .closest('section') as HTMLElement
+    expect(section.textContent).toMatch(
+      /you are the controller of every request sent to your page/i,
+    )
+    expect(section.textContent).toMatch(/we are your processor/i)
+  })
+
+  it('tells the agency what we do with a request without being asked', () => {
+    renderPage(<DataProcessingPage />)
+    const section = screen
+      .getByRole('heading', { name: /requests from your public booking page/i })
+      .closest('section') as HTMLElement
+    expect(section.textContent).toMatch(/one\s+acknowledgement/i)
+    expect(section.textContent).toMatch(/without putting\s+the person.s details in that message/i)
+  })
+
+  it('states how long an unconverted request is kept', () => {
+    renderPage(<PrivacyPolicyPage />)
+    const section = screen
+      .getByRole('heading', { name: /how long it is kept/i })
+      .closest('section') as HTMLElement
+    expect(section.textContent).toMatch(/twelve months/i)
+  })
+
+  it('tells a stranger who to ask about their own request', () => {
+    // They have no account here and nobody to log in as; the answer has to be
+    // a sentence, not a screen.
+    renderPage(<PrivacyPolicyPage />)
+    expect(
+      screen
+        .getByRole('heading', { name: /details a renter submits themselves/i })
+        .closest('section')?.textContent,
+    ).toMatch(/ask the agency you sent it to/i)
+  })
+
+  it('leaves the Terms date untouched', () => {
+    /*
+     * app.current_terms_version() returns termsUpdated, and every agency has
+     * accepted that date. The booking page added no term to the agreement, so
+     * moving it would ask all of them to accept again for nothing.
+     */
+    const legal = LEGAL()
+    expect(legal.termsUpdated).toBe('12 November 2026')
+    expect(legal.privacyUpdated).not.toBe(legal.termsUpdated)
+    expect(legal.dataProcessingUpdated).not.toBe(legal.termsUpdated)
   })
 })
