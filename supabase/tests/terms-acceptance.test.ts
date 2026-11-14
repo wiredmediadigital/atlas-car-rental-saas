@@ -90,8 +90,19 @@ afterAll(async () => {
 })
 
 describe('the version constant', () => {
-  it('is the date the legal pages print, so the two cannot drift', async () => {
-    expect(await currentVersion()).toBe(LEGAL().lastUpdated)
+  it('returns the Terms date, not the privacy date', async () => {
+    expect(await currentVersion()).toBe(LEGAL().termsUpdated)
+  })
+
+  it('keeps the Terms version unchanged when only the privacy date moves', async () => {
+    // Amending the privacy policy or the DPA must not make every agency
+    // re-accept the Terms. With the privacy date moved, the version is still
+    // the Terms date and is not the privacy date.
+    const real = LEGAL()
+    const moved = { ...real, privacyUpdated: '1 January 2099' }
+    expect(moved.privacyUpdated).not.toBe(moved.termsUpdated)
+    expect(await currentVersion()).toBe(moved.termsUpdated)
+    expect(await currentVersion()).not.toBe(moved.privacyUpdated)
   })
 
   it('is a constant, not a reading of the clock', async () => {

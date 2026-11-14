@@ -19,6 +19,7 @@ export function PrivacyPolicyPage() {
   return (
     <LegalLayout
       title="Privacy policy"
+      updated={legal.privacyUpdated}
       summary={`How ${product} handles personal data — both the accounts of the agencies who use it, and the renter records those agencies keep in it.`}
     >
       <LegalSection heading="Who we are">

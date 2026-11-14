@@ -463,3 +463,33 @@ describe('Where the records are held', () => {
     expect(container.textContent ?? '').toMatch(/before moving your records to another country/i)
   })
 })
+
+/*
+ * The three documents change on their own schedules. The Terms date is also
+ * the version every agency accepts, so the privacy policy and the DPA must
+ * be able to move without dragging it along.
+ */
+describe('Each document prints its own date', () => {
+  it('prints the date belonging to that page', async () => {
+    const config = await import('./legal-config')
+    vi.spyOn(config, 'LEGAL').mockReturnValue({
+      ...config.LEGAL(),
+      termsUpdated: '1 March 2026',
+      privacyUpdated: '2 April 2026',
+      dataProcessingUpdated: '3 May 2026',
+    })
+
+    const cases: ReadonlyArray<[React.ReactElement, string, readonly string[]]> = [
+      [<TermsPage key="t" />, '1 March 2026', ['2 April 2026', '3 May 2026']],
+      [<PrivacyPolicyPage key="p" />, '2 April 2026', ['1 March 2026', '3 May 2026']],
+      [<DataProcessingPage key="d" />, '3 May 2026', ['1 March 2026', '2 April 2026']],
+    ]
+    for (const [page, own, others] of cases) {
+      const { container, unmount } = renderPage(page)
+      const text = container.textContent ?? ''
+      expect(text).toContain(`Last updated ${own}.`)
+      for (const other of others) expect(text).not.toContain(`Last updated ${other}`)
+      unmount()
+    }
+  })
+})

@@ -26,6 +26,7 @@ export function DataProcessingPage() {
   return (
     <LegalLayout
       title="Data processing terms"
+      updated={legal.dataProcessingUpdated}
       summary={`What ${legal.entityName} may and may not do with the personal data your agency keeps in ${product} — the obligations we take on as your processor.`}
     >
       <LegalSection heading="What this is">
