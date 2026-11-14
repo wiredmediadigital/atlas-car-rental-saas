@@ -187,9 +187,49 @@ curl -s https://pevvy.io/assets/<the lazy chunk> | grep -c "<a string your chang
 Feature code is lazily loaded, so it is never in the chunks `index.html` lists
 directly.
 
-**`index.html` is not content-hashed and is cached.** A deploy can be live while
-a browser still loads the previous chunks. Hard-refresh before concluding
-anything is wrong.
+**The chunk graph is deeper than one level.** The entry bundle names the page
+chunks, but those import further chunks the entry never mentions, and a
+component shared by two pages gets a chunk of its own. The terms-acceptance
+checkbox lives in `TermsAcceptance-<hash>.js`, reachable only from
+`SignUpPage-<hash>.js` and `AcceptInvitePage-<hash>.js` — a scan of the chunks
+`index.html` lists finds nothing and reads as "not deployed". Follow the imports
+transitively, or grep the page chunk for the name of the chunk you actually
+want:
+
+```bash
+curl -s https://pevvy.io/assets/<page chunk> | grep -oE '<Component>-[A-Za-z0-9_-]+\.js'
+```
+
+**Grep for a string the compiler really emits.** A sentence written across JSX
+elements is not one string in the bundle. This label —
+
+```jsx
+I agree to the <Link>Terms of Service</Link> and have read the <Link>Privacy Policy</Link>.
+```
+
+— compiles to four separate literals, so `grep "have read the Privacy Policy"`
+never matches however many times the feature ships. Pick a run of text from a
+single JSX text node (`and have read the`), or a non-UI constant the change
+introduced. A background watcher polling on the wrong string waits forever on
+work that is already live.
+
+**`last-modified` on `index.html` dates the deploy.** It is served
+`Cache-Control: no-cache, no-store, must-revalidate`, so curl always sees the
+current one, and its timestamp is when the build was written. Comparing it to
+`git log` on `main` tells you which commit the live site was built from:
+
+```bash
+curl -sI https://pevvy.io/ | grep -i last-modified
+git log -1 --format='%h %ad %s' --date=iso-strict main
+```
+
+About eighty seconds separates the two on a normal deploy.
+
+**`index.html` is not content-hashed, and an open browser holds the old one.**
+The server sends it `no-store`, so curl is always current — but a tab opened
+before the deploy keeps the modules it already loaded, chunk hashes and all. A
+deploy can be live while the screen in front of you is the previous build.
+Hard-refresh before concluding anything is wrong.
 
 **`npm run setup:site -- <domain>` does the rest.** It checks the site is up and
 served over HTTPS, that the bundle points at the right Supabase project and
