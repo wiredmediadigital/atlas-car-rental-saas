@@ -42,11 +42,20 @@ type EventRow = {
   source_id: string
 }
 
-async function createLead(): Promise<string> {
+async function createLead(overrides: { email?: string } = {}): Promise<string> {
   const [row] = await db.asServiceRole(ownerId, (session) =>
     session.sql<{ lead_id: string }>(
       `select lead_id from app.public_booking_create_lead($1, $2, $3, $4, $5, $6, $7, $8)`,
-      [organizationId, vehicleId, FROM, TO, RENTER.name, RENTER.email, RENTER.phone, RENTER.note],
+      [
+        organizationId,
+        vehicleId,
+        FROM,
+        TO,
+        RENTER.name,
+        overrides.email ?? RENTER.email,
+        RENTER.phone,
+        RENTER.note,
+      ],
     ),
   )
   return row!.lead_id
@@ -127,8 +136,10 @@ describe('the event', () => {
   })
 
   it('records a second event for a second lead', async () => {
+    // Two different people. The identical request twice is a double click and
+    // is collapsed by 20261113100800, which notifies once.
     await createLead()
-    await createLead()
+    await createLead({ email: 'second.person@example.test' })
     expect(await events()).toHaveLength(2)
   })
 

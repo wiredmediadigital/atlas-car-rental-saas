@@ -178,8 +178,11 @@ describe('a request that should succeed', () => {
   })
 
   it('gives each request its own reference', async () => {
+    // Two DIFFERENT requests. Sending the identical one twice is a double
+    // click, and is answered with the first reference on purpose -- see the
+    // duplicate tests at the end of this file.
     const [first] = await request()
-    const [second] = await request()
+    const [second] = await request({ email: 'another.person@example.test' })
     expect(second!.reference).not.toBe(first!.reference)
   })
 
@@ -344,5 +347,76 @@ describe('who may call it', () => {
       () => db.asUser(ownerId, (session) => session.sql(statement)),
       /permission denied/i,
     )
+  })
+})
+
+describe('the same request twice', () => {
+  /*
+   * A double click, a flaky connection retried, a browser that resubmits on
+   * back -- all of them send the identical payload again within seconds. The
+   * second one answers with the first one's reference and writes nothing, so
+   * the renter sees the success they expected and staff see one enquiry.
+   *
+   * ANSWERING RATHER THAN REFUSING IS THE POINT. A refusal would show an error
+   * to somebody who did nothing wrong, and would tempt them to try again.
+   */
+  it('answers the first reference and creates no second lead', async () => {
+    const [first] = await request()
+    const [second] = await request()
+    expect(second!.reference).toBe(first!.reference)
+    expect(second!.lead_id).toBe(first!.lead_id)
+    expect(await leads()).toHaveLength(1)
+  })
+
+  it('ignores the case of the address, as a mail server would', async () => {
+    const [first] = await request({ email: 'Grace@Example.test' })
+    const [second] = await request({ email: 'grace@example.test' })
+    expect(second!.reference).toBe(first!.reference)
+    expect(await leads()).toHaveLength(1)
+  })
+
+  it('does not collapse a different car, a different window or a different person', async () => {
+    await request()
+    const other = await createVehicle(`TWO-${seq}`)
+    await request({ vehicleId: other })
+    await request({ from: '2027-04-01T09:00:00Z', to: '2027-04-05T09:00:00Z' })
+    await request({ email: 'someone.else@example.test' })
+    expect(await leads()).toHaveLength(4)
+  })
+
+  it('takes a repeat as a new enquiry once staff have worked the first', async () => {
+    // Contacted, declined or converted: the agency has already acted, so the
+    // same person asking again is saying something new, not clicking twice.
+    const [first] = await request()
+    await db.sql(`update public.booking_leads set status = 'contacted' where id = $1`, [
+      first!.lead_id,
+    ])
+    const [second] = await request()
+    expect(second!.reference).not.toBe(first!.reference)
+    expect(await leads()).toHaveLength(2)
+  })
+
+  it('takes a repeat as a new enquiry once the window has passed', async () => {
+    const [first] = await request()
+    await db.sql(
+      `update public.booking_leads set created_at = now() - interval '2 hours' where id = $1`,
+      [first!.lead_id],
+    )
+    const [second] = await request()
+    expect(second!.reference).not.toBe(first!.reference)
+    expect(await leads()).toHaveLength(2)
+  })
+
+  it('notifies once, not twice', async () => {
+    // The notification hangs off the insert, so suppressing the duplicate
+    // suppresses the second notification without the trigger knowing.
+    await request()
+    await request()
+    const [row] = await db.sql<{ n: number }>(
+      `select count(*)::int as n from public.notification_events
+        where organization_id = $1 and kind = 'booking_lead_received'`,
+      [organizationId],
+    )
+    expect(row!.n).toBe(1)
   })
 })
