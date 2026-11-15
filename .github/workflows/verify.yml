@@ -1,0 +1,70 @@
+# The check a change has to pass before it can reach main.
+#
+# WHY THIS EXISTS. A push to main deploys pevvy.io about two minutes later, and
+# until now nothing ran between the two. On 15 November a bot opened a pull
+# request bumping zod and vite, merged its own pull request, and deployed the
+# result to the live site; the first thing that verified those versions was a
+# person running the suite afterwards. zod validates every form, deep link and
+# API payload in this product. The next bump may not be as forgiving.
+#
+# WHAT IT RUNS is `npm run verify` broken into its steps, so a failure names
+# itself in the job list rather than having to be read out of a log: formatting,
+# lint, types, the test suite, and the production build.
+#
+# npm ci, NOT npm install, and that difference is the point. `ci` refuses to
+# start when package.json and package-lock.json disagree -- which is exactly the
+# state the bot's patch left the repository in, and which Hostinger's own build
+# silently tolerated by resolving whatever was newest. A build nobody can
+# reproduce is a build nobody can roll back.
+#
+# The suite runs with bounded workers. Every database test file starts its own
+# in-memory Postgres (PGlite), and the whole suite at full parallelism has been
+# seen to exhaust the memory on a developer machine. A slower job that finishes
+# is worth more than a fast one that is killed.
+name: Verify
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  # A second push to the same branch makes the first run irrelevant.
+  group: verify-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          # Above the engines floor of 20.19.0, and what vite 8 expects.
+          node-version: '22'
+          cache: npm
+
+      - name: Install exactly what the lockfile says
+        run: npm ci
+
+      - name: Formatting
+        run: npm run format:check
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Types
+        run: npm run typecheck
+
+      - name: Tests
+        run: npx vitest run --maxWorkers=2
+
+      - name: Build
+        run: npm run build
