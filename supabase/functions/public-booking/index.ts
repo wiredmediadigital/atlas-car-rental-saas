@@ -27,9 +27,7 @@
 import { createClient, type SupabaseClient } from 'jsr:@supabase/supabase-js@2'
 
 import {
-  agencyNotification,
-  renterAcknowledgement,
-  senderFor,
+  envelopesFor,
   type AgencySummary,
   type LeadSummary,
 } from '../_shared/booking-lead-email.ts'
@@ -62,6 +60,7 @@ interface NoticeRow {
   agency_email: string | null
   time_zone: string
   recipients: string[]
+  recent_requests: number
 }
 
 const CORS_HEADERS: Record<string, string> = {
@@ -195,19 +194,27 @@ function depsFor(service: SupabaseClient, request: Request): BookingDeps {
         }
 
         const transport = { provider, apiKey, from }
-        const sender = senderFor(agencySummary, from)
 
-        // The renter first: they are waiting, and the agency can see the
-        // request in the product whether or not this sends.
-        await deliverMessage(renterAcknowledgement(summary, agencySummary), {
-          ...transport,
-          from: sender.from,
-          replyTo: sender.replyTo,
+        /*
+         * One loop over whatever `_shared` hands back, and no branch here. The
+         * order, who each message appears to come from, and whether this agency
+         * is over its hourly cap are all decided there, where the tests are --
+         * an empty list is a capped agency, and this cannot tell the difference
+         * or get it wrong.
+         */
+        const envelopes = envelopesFor(summary, agencySummary, notice.recipients, {
+          recentRequests: Number(notice.recent_requests),
+          platformFrom: from,
         })
 
-        for (const recipient of notice.recipients) {
-          await deliverMessage(agencyNotification(summary, agencySummary, recipient), transport)
+        for (const envelope of envelopes) {
+          await deliverMessage(envelope.message, { ...transport, ...(envelope.sender ?? {}) })
         }
+
+        console.log(
+          `public-booking: lead ${lead.reference} sent ${envelopes.length} message(s)` +
+            ` (${notice.recent_requests} request(s) for this agency in the last hour)`,
+        )
       } catch (error) {
         console.log(
           `public-booking: announcing a lead failed: ${

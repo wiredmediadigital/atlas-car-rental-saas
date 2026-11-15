@@ -246,3 +246,57 @@ export function agencyNotification(
     footnotes: [['A request does not hold the car. It is held when you convert the request.']],
   })
 }
+
+/**
+ * How many requests an agency may receive in an hour before this stops mailing.
+ *
+ * Generously above what a real agency sees. A promotion that brings in thirty
+ * enquiries in an hour is a good day; thirty-one is almost certainly a machine,
+ * and the cost of being wrong is one hour without email for an agency that can
+ * still see every request in the product.
+ */
+export const MAIL_CAP_PER_HOUR = 30
+
+/** One message, and who it should appear to come from. */
+export interface Envelope {
+  message: OutgoingMessage
+  /** Absent means the platform's own sender, unchanged. */
+  sender?: SenderIdentity
+}
+
+/**
+ * Every message one request should produce, in the order they should be sent.
+ *
+ * RETURNS AN EMPTY LIST WHEN THE AGENCY IS OVER THE CAP, which is the whole of
+ * the cap's implementation. The caller sends what it is handed and has no
+ * branch to get wrong -- and because this is the only place the decision is
+ * made, it is the only place a test has to reach.
+ *
+ * CAPPING MAIL IS NOT CAPPING REQUESTS. The lead is written before any of this
+ * is called, the in-app notification has already fired, and the agency's queue
+ * is unaffected. Somebody who floods an agency costs it an hour of email and
+ * nothing else; refusing their requests instead would have handed them a way
+ * to switch a competitor's booking page off.
+ *
+ * THE RENTER IS WRITTEN TO FIRST. If anything is going to fail halfway, the
+ * person waiting for an answer should be the one who got theirs: the agency
+ * can see the request in the product regardless.
+ */
+export function envelopesFor(
+  lead: LeadSummary,
+  agency: AgencySummary,
+  recipients: readonly string[],
+  context: { recentRequests: number; platformFrom: string },
+): Envelope[] {
+  if (context.recentRequests > MAIL_CAP_PER_HOUR) return []
+
+  return [
+    {
+      message: renterAcknowledgement(lead, agency),
+      sender: senderFor(agency, context.platformFrom),
+    },
+    ...recipients.map((recipient) => ({
+      message: agencyNotification(lead, agency, recipient),
+    })),
+  ]
+}
