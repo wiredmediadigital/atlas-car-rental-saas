@@ -9,6 +9,7 @@ import type {
   CustomerFinancialSummaryRow,
   CustomerRentalSummaryRow,
   CustomerUsageRow,
+  RentalBoardEntry,
   TablesUpdate,
 } from '@/types/database'
 
@@ -359,6 +360,36 @@ export async function fetchFinancialSummary(
   const { data, error } = await getSupabaseClient().rpc('customer_financial_summary', {
     p_customer_id: customerId,
   })
+
+  if (error) throw toAppError(error)
+  return data ?? []
+}
+
+/**
+ * How many contracts the account shows before it stops.
+ *
+ * A customer's page is a profile, not the Rentals module: a hire company's
+ * best customer can have hundreds of contracts, and loading all of them to
+ * render the last few is a cost paid on every visit. The list says when it has
+ * been cut short and the Rentals page holds the rest.
+ */
+export const CUSTOMER_RENTAL_LIMIT = 25
+
+/**
+ * The contracts this customer is the renter on, newest first.
+ *
+ * Cancelled bookings are included deliberately. They are the ones somebody
+ * comes to this page looking for — a customer asking why they were charged, or
+ * staff checking whether a booking was ever made — and leaving them out is how
+ * a cancelled reservation became invisible everywhere except its own URL.
+ */
+export async function fetchCustomerRentals(customerId: string): Promise<RentalBoardEntry[]> {
+  const { data, error } = await getSupabaseClient()
+    .from('rental_board')
+    .select('*')
+    .eq('customer_id', customerId)
+    .order('starts_at', { ascending: false })
+    .limit(CUSTOMER_RENTAL_LIMIT)
 
   if (error) throw toAppError(error)
   return data ?? []

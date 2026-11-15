@@ -596,11 +596,16 @@ export type CustomerRentalSummaryRow = {
 
 export type CustomerFinancialSummaryRow = {
   currency: string
+  /** Every booking in this currency, cancelled ones included — this is history. */
   rental_count: number
+  /** Cancelled bookings are not charges, so they are not counted here. */
   charged_minor: number
   paid_minor: number
   outstanding_minor: number
   deposits_held_minor: number
+  cancelled_count: number
+  /** Money taken against a cancelled booking, which the agency is still holding. */
+  to_refund_minor: number
 }
 
 export type CustomerDuplicateRow = {

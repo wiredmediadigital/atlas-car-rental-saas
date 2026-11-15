@@ -8,7 +8,7 @@ import { formatDate } from '@/lib/datetime/format'
 import { formatMoney } from '@/lib/money/money'
 import type { CustomerDirectoryEntry } from '@/types/database'
 
-import { useCustomerFinancialSummary } from '../queries'
+import { useCustomerFinancialSummary, useCustomerRentalSummary } from '../queries'
 
 export interface CustomerActivityPanelProps {
   customer: CustomerDirectoryEntry
@@ -32,6 +32,17 @@ export function CustomerActivityPanel({
   const financeQuery = useCustomerFinancialSummary(customer.customer_id)
   const finance = financeQuery.data ?? []
 
+  // The cancelled count is already computed by customer_rental_summary and was
+  // never rendered anywhere, so a cancelled reservation left no trace on the
+  // account at all.
+  const rentalSummary = useCustomerRentalSummary(customer.customer_id).data
+  const cancelledCount = Number(rentalSummary?.cancelled_count ?? 0)
+
+  // Money taken against a booking that was called off. It is nobody's charge,
+  // so it gets the same red the outstanding column gets: both are figures that
+  // need somebody to do something about them.
+  const hasRefunds = finance.some((row) => row.to_refund_minor > 0)
+
   const hasHistory = customer.rental_count > 0
 
   return (
@@ -49,7 +60,11 @@ export function CustomerActivityPanel({
         ) : (
           <>
             <dl className="divide-line grid grid-cols-2 divide-y sm:grid-cols-4 sm:divide-y-0 sm:divide-x">
-              <Figure label="Rentals" value={String(customer.rental_count)} />
+              <Figure
+                label="Rentals"
+                value={String(customer.rental_count)}
+                note={cancelledCount > 0 ? `${cancelledCount} cancelled` : undefined}
+              />
               <Figure
                 label="First rental"
                 value={
@@ -142,9 +157,11 @@ export function CustomerActivityPanel({
       <CardHeader
         title="Financial summary"
         description={
-          finance.length > 1
-            ? 'Reported per currency — figures in different currencies are never added together.'
-            : 'Across this customer’s contracts.'
+          hasRefunds
+            ? 'A cancelled booking is not a charge. Money taken against one is shown as refundable.'
+            : finance.length > 1
+              ? 'Reported per currency — figures in different currencies are never added together.'
+              : 'Across this customer’s contracts.'
         }
         className="border-t"
       />
@@ -163,7 +180,9 @@ export function CustomerActivityPanel({
           />
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[520px] border-collapse text-[0.8125rem]">
+            <table
+              className={`w-full border-collapse text-[0.8125rem] ${hasRefunds ? 'min-w-[620px]' : 'min-w-[520px]'}`}
+            >
               <thead>
                 <tr className="border-line border-b">
                   <th scope="col" className="eyebrow px-5 py-2 text-start font-semibold">
@@ -178,6 +197,11 @@ export function CustomerActivityPanel({
                   <th scope="col" className="eyebrow px-3 py-2 text-end font-semibold">
                     Outstanding
                   </th>
+                  {hasRefunds ? (
+                    <th scope="col" className="eyebrow px-3 py-2 text-end font-semibold">
+                      To refund
+                    </th>
+                  ) : null}
                   <th scope="col" className="eyebrow px-5 py-2 text-end font-semibold">
                     Deposits held
                   </th>
@@ -199,6 +223,14 @@ export function CustomerActivityPanel({
                     >
                       {formatMoney(row.outstanding_minor, row.currency, { locale })}
                     </td>
+                    {hasRefunds ? (
+                      <td
+                        data-numeric=""
+                        className={`px-3 py-2.5 text-end ${row.to_refund_minor > 0 ? 'text-critical-700 font-medium' : ''}`}
+                      >
+                        {formatMoney(row.to_refund_minor, row.currency, { locale })}
+                      </td>
+                    ) : null}
                     <td data-numeric="" className="px-5 py-2.5 text-end">
                       {formatMoney(row.deposits_held_minor, row.currency, { locale })}
                     </td>
@@ -213,12 +245,13 @@ export function CustomerActivityPanel({
   )
 }
 
-function Figure({ label, value }: { label: string; value: string }) {
+function Figure({ label, value, note }: { label: string; value: string; note?: string }) {
   return (
     <div className="px-5 py-3">
       <dt className="eyebrow">{label}</dt>
       <dd data-numeric="" className="text-ink mt-1 text-[0.8125rem] font-medium">
         {value}
+        {note ? <span className="text-ink-subtle block font-normal">{note}</span> : null}
       </dd>
     </div>
   )

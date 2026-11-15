@@ -19,6 +19,7 @@ import {
   fetchCustomer,
   fetchCustomerCountries,
   fetchCustomerDocuments,
+  fetchCustomerRentals,
   fetchCustomerUsage,
   fetchCustomers,
   fetchFinancialSummary,
@@ -56,6 +57,8 @@ export const customerKeys = {
     ['organization', organizationId, 'customers', 'usage', customerId] as const,
   rentals: (organizationId: string, customerId: string) =>
     ['organization', organizationId, 'customers', 'rentals', customerId] as const,
+  rentalList: (organizationId: string, customerId: string) =>
+    ['organization', organizationId, 'customers', 'rental-list', customerId] as const,
   finance: (organizationId: string, customerId: string) =>
     ['organization', organizationId, 'customers', 'finance', customerId] as const,
   duplicates: (organizationId: string, probe: unknown) =>
@@ -141,6 +144,24 @@ export function useCustomerRentalSummary(customerId: string | undefined) {
   return useQuery({
     queryKey: customerKeys.rentals(organization.id, customerId ?? 'none'),
     queryFn: () => fetchRentalSummary(customerId!),
+    enabled: Boolean(customerId),
+    retry: false,
+  })
+}
+
+/**
+ * The contracts themselves, not the counts.
+ *
+ * `useCustomerRentalSummary` answers how many and when; this answers which.
+ * Both are needed: a figure saying one booking was cancelled is only useful
+ * next to the booking it is talking about.
+ */
+export function useCustomerRentals(customerId: string | undefined) {
+  const organization = useOrganization()
+
+  return useQuery({
+    queryKey: customerKeys.rentalList(organization.id, customerId ?? 'none'),
+    queryFn: () => fetchCustomerRentals(customerId!),
     enabled: Boolean(customerId),
     retry: false,
   })

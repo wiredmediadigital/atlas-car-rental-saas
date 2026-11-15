@@ -768,3 +768,100 @@ describe('directory read model', () => {
     expect(rows.find((row) => row.currency === 'USD')?.outstanding_minor).toBe(30_000)
   })
 })
+
+describe('a cancelled booking on the account', () => {
+  let customerC: string
+  let vehicleC: string
+
+  beforeAll(async () => {
+    customerC = await createCustomer(agencyA.organizationId, 'Cancelled', 'History')
+    const [vehicle] = await db.sql<{ id: string }>(
+      `insert into public.vehicles (organization_id, make, model, registration_plate, currency)
+       values ($1, 'Dacia', 'Duster', 'CUST-3', 'EUR') returning id`,
+      [agencyA.organizationId],
+    )
+    vehicleC = vehicle!.id
+
+    // One hire that happened and was paid for, and one that was called off
+    // after a deposit had been taken.
+    await db.sql(
+      `insert into public.rentals
+         (organization_id, vehicle_id, customer_id, starts_at, ends_at, currency,
+          status, total_minor, amount_paid_minor, completed_at)
+       values ($1, $2, $3, '2029-06-01T09:00:00Z', '2029-06-05T09:00:00Z', 'EUR',
+               'completed', 60000, 60000, '2029-06-05T09:00:00Z')`,
+      [agencyA.organizationId, vehicleC, customerC],
+    )
+    await db.sql(
+      `insert into public.rentals
+         (organization_id, vehicle_id, customer_id, starts_at, ends_at, currency,
+          status, total_minor, amount_paid_minor, cancelled_at)
+       values ($1, $2, $3, '2029-07-01T09:00:00Z', '2029-07-08T09:00:00Z', 'EUR',
+               'cancelled', 71400, 10000, now())`,
+      [agencyA.organizationId, vehicleC, customerC],
+    )
+  })
+
+  const summary = async () => {
+    const [row] = await db.asUser(agencyA.userId, (session) =>
+      session.sql<{
+        rental_count: number
+        charged_minor: number
+        paid_minor: number
+        outstanding_minor: number
+        cancelled_count: number
+        to_refund_minor: number
+      }>(`select * from public.customer_financial_summary($1)`, [customerC]),
+    )
+    return row!
+  }
+
+  it('does not charge the customer for the hire that was called off', async () => {
+    // The booking's lines still describe a hire that is not happening, so its
+    // total is not a demand on anybody. Charged used to include it and
+    // outstanding never did, which left charged less paid disagreeing with the
+    // outstanding figure printed beside it.
+    const row = await summary()
+
+    expect(Number(row.charged_minor)).toBe(60_000)
+    expect(Number(row.paid_minor)).toBe(60_000)
+    expect(Number(row.outstanding_minor)).toBe(0)
+  })
+
+  it('reports what was taken against it as money still held', async () => {
+    const row = await summary()
+    expect(Number(row.to_refund_minor)).toBe(10_000)
+  })
+
+  it('still counts it as history', async () => {
+    // Leaving the money out must not make the booking disappear: it happened,
+    // and the account has to say so.
+    const row = await summary()
+
+    expect(Number(row.rental_count)).toBe(2)
+    expect(Number(row.cancelled_count)).toBe(1)
+  })
+
+  it('reports nothing to refund when a cancellation took no money', async () => {
+    const customerD = await createCustomer(agencyA.organizationId, 'Nothing', 'Taken')
+    await db.sql(
+      `insert into public.rentals
+         (organization_id, vehicle_id, customer_id, starts_at, ends_at, currency,
+          status, total_minor, amount_paid_minor, cancelled_at)
+       values ($1, $2, $3, '2029-09-01T09:00:00Z', '2029-09-04T09:00:00Z', 'EUR',
+               'cancelled', 30600, 0, now())`,
+      [agencyA.organizationId, vehicleC, customerD],
+    )
+
+    const [row] = await db.asUser(agencyA.userId, (session) =>
+      session.sql<{ charged_minor: number; to_refund_minor: number; cancelled_count: number }>(
+        `select * from public.customer_financial_summary($1)`,
+        [customerD],
+      ),
+    )
+
+    expect(Number(row!.charged_minor)).toBe(0)
+    expect(Number(row!.to_refund_minor)).toBe(0)
+    expect(Number(row!.cancelled_count)).toBe(1)
+  })
+})
