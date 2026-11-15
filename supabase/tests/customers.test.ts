@@ -865,3 +865,87 @@ describe('a cancelled booking on the account', () => {
     expect(Number(row!.cancelled_count)).toBe(1)
   })
 })
+
+describe('the money on a customer’s record', () => {
+  let payerId: string
+  let rentalId: string
+
+  beforeAll(async () => {
+    payerId = await createCustomer(agencyA.organizationId, 'Paying', 'Customer')
+    const [vehicle] = await db.sql<{ id: string }>(
+      `insert into public.vehicles (organization_id, make, model, registration_plate, currency)
+       values ($1, 'Fiat', 'Panda', 'CUST-4', 'EUR') returning id`,
+      [agencyA.organizationId],
+    )
+    const [rental] = await db.sql<{ id: string }>(
+      `insert into public.rentals
+         (organization_id, vehicle_id, customer_id, starts_at, ends_at, currency, status,
+          total_minor, completed_at)
+       values ($1, $2, $3, '2029-11-01T09:00:00Z', '2029-11-04T09:00:00Z', 'EUR',
+               'completed', 30000, '2029-11-04T09:00:00Z')
+       returning id`,
+      [agencyA.organizationId, vehicle!.id, payerId],
+    )
+    rentalId = rental!.id
+
+    await db.sql(
+      `insert into public.payments
+         (organization_id, rental_id, customer_id, direction, purpose, method,
+          amount_minor, currency)
+       values ($1, $2, $3, 'inbound', 'rental_charge', 'card', 30000, 'EUR')`,
+      [agencyA.organizationId, rentalId, payerId],
+    )
+  })
+
+  it('carries the booking each entry belongs to', async () => {
+    const rows = await db.asUser(agencyA.userId, (session) =>
+      session.sql<{ amount_minor: number; rental_reference: string | null }>(
+        `select amount_minor, rental_reference from public.customer_payment_ledger
+          where customer_id = $1`,
+        [payerId],
+      ),
+    )
+
+    expect(rows).toHaveLength(1)
+    expect(Number(rows[0]!.amount_minor)).toBe(30_000)
+    expect(rows[0]!.rental_reference).toBeTruthy()
+  })
+
+  it('keeps money with no booking on the record', async () => {
+    // payments.rental_id has always been nullable. A ledger that dropped those
+    // rows would stop adding up the day something writes one.
+    await db.sql(
+      `insert into public.payments
+         (organization_id, rental_id, customer_id, direction, purpose, method,
+          amount_minor, currency)
+       values ($1, null, $2, 'inbound', 'rental_charge', 'cash', 5000, 'EUR')`,
+      [agencyA.organizationId, payerId],
+    )
+
+    const rows = await db.asUser(agencyA.userId, (session) =>
+      session.sql<{ rental_id: string | null }>(
+        `select rental_id from public.customer_payment_ledger where customer_id = $1`,
+        [payerId],
+      ),
+    )
+
+    expect(rows).toHaveLength(2)
+    expect(rows.filter((row) => row.rental_id === null)).toHaveLength(1)
+  })
+
+  it('shows another agency nothing at all', async () => {
+    const rows = await db.asUser(agencyB.userId, (session) =>
+      session.sql(`select * from public.customer_payment_ledger where customer_id = $1`, [payerId]),
+    )
+    expect(rows).toEqual([])
+  })
+
+  it('denies anon', async () => {
+    await db.asAnon(async (session) => {
+      await session.expectRejection(
+        () => session.sql(`select * from public.customer_payment_ledger`),
+        /permission denied/i,
+      )
+    })
+  })
+})

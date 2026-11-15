@@ -1,14 +1,13 @@
-import { CalendarClock, ReceiptText } from 'lucide-react'
+import { CalendarClock } from 'lucide-react'
 import { Link } from 'react-router-dom'
 
 import { rentalDetailPath } from '@/app/routes/paths'
-import { CardBody, CardHeader, EmptyState, Skeleton } from '@/components/ui'
+import { CardBody, CardHeader, EmptyState } from '@/components/ui'
 import type { ComplianceOptions } from '@/lib/compliance/expiry'
 import { formatDate } from '@/lib/datetime/format'
-import { formatMoney } from '@/lib/money/money'
 import type { CustomerDirectoryEntry } from '@/types/database'
 
-import { useCustomerFinancialSummary, useCustomerRentalSummary } from '../queries'
+import { useCustomerRentalSummary } from '../queries'
 
 export interface CustomerActivityPanelProps {
   customer: CustomerDirectoryEntry
@@ -29,25 +28,17 @@ export function CustomerActivityPanel({
   compliance,
   locale,
 }: CustomerActivityPanelProps) {
-  const financeQuery = useCustomerFinancialSummary(customer.customer_id)
-  const finance = financeQuery.data ?? []
-
   // The cancelled count is already computed by customer_rental_summary and was
   // never rendered anywhere, so a cancelled reservation left no trace on the
   // account at all.
   const rentalSummary = useCustomerRentalSummary(customer.customer_id).data
   const cancelledCount = Number(rentalSummary?.cancelled_count ?? 0)
 
-  // Money taken against a booking that was called off. It is nobody's charge,
-  // so it gets the same red the outstanding column gets: both are figures that
-  // need somebody to do something about them.
-  const hasRefunds = finance.some((row) => row.to_refund_minor > 0)
-
   const hasHistory = customer.rental_count > 0
 
   return (
     <>
-      <CardHeader title="Rental activity" description="Contracts and balances for this customer." />
+      <CardHeader title="Rental activity" description="Where this customer stands right now." />
 
       <CardBody className="p-0">
         {!hasHistory ? (
@@ -59,7 +50,7 @@ export function CustomerActivityPanel({
           />
         ) : (
           <>
-            <dl className="divide-line grid grid-cols-2 divide-y sm:grid-cols-4 sm:divide-y-0 sm:divide-x">
+            <dl className="divide-line grid grid-cols-2 divide-x divide-y">
               <Figure
                 label="Rentals"
                 value={String(customer.rental_count)}
@@ -151,94 +142,6 @@ export function CustomerActivityPanel({
               </div>
             ) : null}
           </>
-        )}
-      </CardBody>
-
-      <CardHeader
-        title="Financial summary"
-        description={
-          hasRefunds
-            ? 'A cancelled booking is not a charge. Money taken against one is shown as refundable.'
-            : finance.length > 1
-              ? 'Reported per currency — figures in different currencies are never added together.'
-              : 'Across this customer’s contracts.'
-        }
-        className="border-t"
-      />
-
-      <CardBody className="p-0">
-        {financeQuery.isPending ? (
-          <div className="space-y-2 p-5">
-            <Skeleton className="h-10 w-full" />
-          </div>
-        ) : finance.length === 0 ? (
-          <EmptyState
-            size="sm"
-            icon={ReceiptText}
-            title="Nothing billed yet"
-            description="Charges, payments and balances appear once this customer has a contract."
-          />
-        ) : (
-          <div className="overflow-x-auto">
-            <table
-              className={`w-full border-collapse text-[0.8125rem] ${hasRefunds ? 'min-w-[620px]' : 'min-w-[520px]'}`}
-            >
-              <thead>
-                <tr className="border-line border-b">
-                  <th scope="col" className="eyebrow px-5 py-2 text-start font-semibold">
-                    Currency
-                  </th>
-                  <th scope="col" className="eyebrow px-3 py-2 text-end font-semibold">
-                    Charged
-                  </th>
-                  <th scope="col" className="eyebrow px-3 py-2 text-end font-semibold">
-                    Paid
-                  </th>
-                  <th scope="col" className="eyebrow px-3 py-2 text-end font-semibold">
-                    Outstanding
-                  </th>
-                  {hasRefunds ? (
-                    <th scope="col" className="eyebrow px-3 py-2 text-end font-semibold">
-                      To refund
-                    </th>
-                  ) : null}
-                  <th scope="col" className="eyebrow px-5 py-2 text-end font-semibold">
-                    Deposits held
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="divide-line divide-y">
-                {finance.map((row) => (
-                  <tr key={row.currency}>
-                    <td className="identifier px-5 py-2.5">{row.currency}</td>
-                    <td data-numeric="" className="px-3 py-2.5 text-end">
-                      {formatMoney(row.charged_minor, row.currency, { locale })}
-                    </td>
-                    <td data-numeric="" className="px-3 py-2.5 text-end">
-                      {formatMoney(row.paid_minor, row.currency, { locale })}
-                    </td>
-                    <td
-                      data-numeric=""
-                      className={`px-3 py-2.5 text-end ${row.outstanding_minor > 0 ? 'text-critical-700 font-medium' : ''}`}
-                    >
-                      {formatMoney(row.outstanding_minor, row.currency, { locale })}
-                    </td>
-                    {hasRefunds ? (
-                      <td
-                        data-numeric=""
-                        className={`px-3 py-2.5 text-end ${row.to_refund_minor > 0 ? 'text-critical-700 font-medium' : ''}`}
-                      >
-                        {formatMoney(row.to_refund_minor, row.currency, { locale })}
-                      </td>
-                    ) : null}
-                    <td data-numeric="" className="px-5 py-2.5 text-end">
-                      {formatMoney(row.deposits_held_minor, row.currency, { locale })}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
         )}
       </CardBody>
     </>

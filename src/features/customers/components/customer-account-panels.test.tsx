@@ -7,20 +7,24 @@ import { formatMoney } from '@/lib/money/money'
 import type {
   CustomerDirectoryEntry,
   CustomerFinancialSummaryRow,
+  CustomerPaymentEntry,
   RentalBoardEntry,
 } from '@/types/database'
 
 import { CustomerActivityPanel } from './CustomerActivityPanel'
+import { CustomerMoneyPanel } from './CustomerMoneyPanel'
 import { CustomerRentalsPanel } from './CustomerRentalsPanel'
 
 const useCustomerFinancialSummary = vi.hoisted(() => vi.fn())
 const useCustomerRentalSummary = vi.hoisted(() => vi.fn())
 const useCustomerRentals = vi.hoisted(() => vi.fn())
+const useCustomerPayments = vi.hoisted(() => vi.fn())
 
 vi.mock('../queries', () => ({
   useCustomerFinancialSummary,
   useCustomerRentalSummary,
   useCustomerRentals,
+  useCustomerPayments,
 }))
 
 const COMPLIANCE: ComplianceOptions = {
@@ -57,11 +61,7 @@ function money(overrides: Partial<CustomerFinancialSummaryRow> = {}): CustomerFi
   }
 }
 
-function renderActivity(
-  finance: CustomerFinancialSummaryRow[],
-  cancelledCount = 0,
-): ReturnType<typeof render> {
-  useCustomerFinancialSummary.mockReturnValue({ data: finance, isPending: false })
+function renderActivity(cancelledCount = 0): ReturnType<typeof render> {
   useCustomerRentalSummary.mockReturnValue({ data: { cancelled_count: cancelledCount } })
 
   return render(
@@ -71,27 +71,64 @@ function renderActivity(
   )
 }
 
+function renderMoney(
+  finance: CustomerFinancialSummaryRow[],
+  payments: CustomerPaymentEntry[] = [],
+): ReturnType<typeof render> {
+  useCustomerFinancialSummary.mockReturnValue({ data: finance, isPending: false })
+  useCustomerPayments.mockReturnValue({ data: payments, isPending: false })
+
+  return render(
+    <MemoryRouter>
+      <CustomerMoneyPanel customerId="customer-1" compliance={COMPLIANCE} locale="en" />
+    </MemoryRouter>,
+  )
+}
+
+function payment(overrides: Partial<CustomerPaymentEntry> = {}): CustomerPaymentEntry {
+  return {
+    id: 'payment-1',
+    organization_id: 'org-1',
+    customer_id: 'customer-1',
+    rental_id: 'rental-1',
+    direction: 'inbound',
+    purpose: 'rental_charge',
+    method: 'card',
+    amount_minor: 12_000,
+    currency: 'EUR',
+    paid_at: '2026-05-02T10:00:00Z',
+    reference: null,
+    notes: null,
+    voided_at: null,
+    void_reason: null,
+    rental_reference: 'RNT-0001',
+    rental_status: 'completed',
+    ...overrides,
+  }
+}
+
 beforeEach(() => {
   useCustomerFinancialSummary.mockReset()
   useCustomerRentalSummary.mockReset()
   useCustomerRentals.mockReset()
+  useCustomerPayments.mockReset()
 })
 
 describe('a cancelled booking on the account', () => {
   it('says how many bookings were cancelled', () => {
     // The figure was computed by the database from the start and rendered
     // nowhere, so a cancelled reservation left no mark on the account at all.
-    renderActivity([money()], 1)
+    renderActivity(1)
     expect(screen.getByText('1 cancelled')).toBeInTheDocument()
   })
 
   it('says nothing about cancellations when there have been none', () => {
-    renderActivity([money()], 0)
+    renderActivity(0)
     expect(screen.queryByText(/cancelled/i)).not.toBeInTheDocument()
   })
 
   it('reports money taken against a cancelled booking as refundable', () => {
-    renderActivity([money({ to_refund_minor: 10_000, cancelled_count: 1 })], 1)
+    renderMoney([money({ to_refund_minor: 10_000, cancelled_count: 1 })])
 
     const row = screen.getByRole('row', { name: /EUR/ })
     expect(within(row).getByText(formatMoney(10_000, 'EUR', { locale: 'en' }))).toBeInTheDocument()
@@ -101,7 +138,7 @@ describe('a cancelled booking on the account', () => {
   it('does not carry a permanently empty refund column', () => {
     // An agency that has never cancelled anything should not be reading a
     // column of zeroes to find the one that matters.
-    renderActivity([money()], 0)
+    renderMoney([money()])
     expect(screen.queryByRole('columnheader', { name: 'To refund' })).not.toBeInTheDocument()
   })
 })
@@ -167,5 +204,42 @@ describe('the contracts on a customer’s account', () => {
   it('names the vehicle each booking was for', () => {
     renderRentals([rental()])
     expect(screen.getByText('Dacia Duster')).toBeInTheDocument()
+  })
+})
+
+describe('the money on a customer’s record', () => {
+  it('lists what was taken, against the booking it was taken for', () => {
+    // Money used to be visible one contract at a time: answering "what has
+    // this person actually paid us" meant opening their bookings one by one.
+    renderMoney([money()], [payment()])
+
+    expect(screen.getByText('€120.00')).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'RNT-0001' })).toHaveAttribute(
+      'href',
+      '/rentals/rental-1',
+    )
+  })
+
+  it('shows a refund as money going out', () => {
+    renderMoney([money()], [payment({ direction: 'outbound', amount_minor: 7_000 })])
+    expect(screen.getByText('−€70.00')).toBeInTheDocument()
+    expect(screen.getByText('Refund')).toBeInTheDocument()
+  })
+
+  it('keeps a voided entry visible rather than dropping it', () => {
+    // It is part of what happened. The rolled up figures already exclude it.
+    renderMoney([money()], [payment({ voided_at: '2026-05-03T10:00:00Z' })])
+    expect(screen.getByText('Voided')).toBeInTheDocument()
+  })
+
+  it('marks money held against the customer rather than a booking', () => {
+    // Nothing writes this yet, and the schema has always allowed it.
+    renderMoney([money()], [payment({ rental_id: null, rental_reference: null })])
+    expect(screen.getByText('On account')).toBeInTheDocument()
+  })
+
+  it('says so plainly when no money has moved', () => {
+    renderMoney([money()], [])
+    expect(screen.getByText('Nothing recorded yet')).toBeInTheDocument()
   })
 })

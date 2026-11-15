@@ -19,6 +19,7 @@ import {
   fetchCustomer,
   fetchCustomerCountries,
   fetchCustomerDocuments,
+  fetchCustomerPayments,
   fetchCustomerRentals,
   fetchCustomerUsage,
   fetchCustomers,
@@ -59,6 +60,8 @@ export const customerKeys = {
     ['organization', organizationId, 'customers', 'rentals', customerId] as const,
   rentalList: (organizationId: string, customerId: string) =>
     ['organization', organizationId, 'customers', 'rental-list', customerId] as const,
+  payments: (organizationId: string, customerId: string) =>
+    ['organization', organizationId, 'customers', 'payments', customerId] as const,
   finance: (organizationId: string, customerId: string) =>
     ['organization', organizationId, 'customers', 'finance', customerId] as const,
   duplicates: (organizationId: string, probe: unknown) =>
@@ -162,6 +165,17 @@ export function useCustomerRentals(customerId: string | undefined) {
   return useQuery({
     queryKey: customerKeys.rentalList(organization.id, customerId ?? 'none'),
     queryFn: () => fetchCustomerRentals(customerId!),
+    enabled: Boolean(customerId),
+    retry: false,
+  })
+}
+
+export function useCustomerPayments(customerId: string | undefined) {
+  const organization = useOrganization()
+
+  return useQuery({
+    queryKey: customerKeys.payments(organization.id, customerId ?? 'none'),
+    queryFn: () => fetchCustomerPayments(customerId!),
     enabled: Boolean(customerId),
     retry: false,
   })

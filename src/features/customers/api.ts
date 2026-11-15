@@ -8,6 +8,7 @@ import type {
   CustomerDuplicateRow,
   CustomerFinancialSummaryRow,
   CustomerRentalSummaryRow,
+  CustomerPaymentEntry,
   CustomerUsageRow,
   RentalBoardEntry,
   TablesUpdate,
@@ -390,6 +391,34 @@ export async function fetchCustomerRentals(customerId: string): Promise<RentalBo
     .eq('customer_id', customerId)
     .order('starts_at', { ascending: false })
     .limit(CUSTOMER_RENTAL_LIMIT)
+
+  if (error) throw toAppError(error)
+  return data ?? []
+}
+
+/**
+ * How far back the money list goes before it stops.
+ *
+ * Same reasoning as the contracts list: a profile is not a ledger export, and
+ * a customer of several years should not cost a thousand rows to render.
+ */
+export const CUSTOMER_PAYMENT_LIMIT = 50
+
+/**
+ * Every payment and refund on this customer, newest first, across all of their
+ * contracts.
+ *
+ * Voided entries come back too, marked. They are part of what happened, and a
+ * list that quietly dropped them would not reconcile against the receipts the
+ * agency actually issued.
+ */
+export async function fetchCustomerPayments(customerId: string): Promise<CustomerPaymentEntry[]> {
+  const { data, error } = await getSupabaseClient()
+    .from('customer_payment_ledger')
+    .select('*')
+    .eq('customer_id', customerId)
+    .order('paid_at', { ascending: false })
+    .limit(CUSTOMER_PAYMENT_LIMIT)
 
   if (error) throw toAppError(error)
   return data ?? []

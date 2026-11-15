@@ -1008,6 +1008,27 @@ type PaymentRow = {
   updated_at: string
 }
 
+/** One customer's money across every contract — see customer_payment_ledger. */
+type CustomerPaymentLedgerRow = {
+  id: string
+  organization_id: string
+  customer_id: string | null
+  rental_id: string | null
+  direction: PaymentDirection
+  purpose: PaymentPurpose
+  method: PaymentMethod
+  amount_minor: number
+  currency: string
+  paid_at: string
+  reference: string | null
+  notes: string | null
+  voided_at: string | null
+  void_reason: string | null
+  /** Null for money held against the customer rather than a booking. */
+  rental_reference: string | null
+  rental_status: RentalStatus | null
+}
+
 type ExpenseRow = {
   id: string
   organization_id: string
@@ -2703,6 +2724,10 @@ export interface Database {
         Row: CustomerDirectoryRow
         Relationships: []
       }
+      customer_payment_ledger: {
+        Row: CustomerPaymentLedgerRow
+        Relationships: []
+      }
       rental_board: {
         Row: RentalBoardRow
         Relationships: []
@@ -3403,6 +3428,7 @@ export type RentalContract = Tables<'rental_contracts'>
 export type RentalConditionPhoto = Tables<'rental_condition_photos'>
 export type RentalDriver = Tables<'rental_drivers'>
 export type RentalBoardEntry = Database['public']['Views']['rental_board']['Row']
+export type CustomerPaymentEntry = Database['public']['Views']['customer_payment_ledger']['Row']
 export type RentalScheduleEntry = Database['public']['Views']['rental_schedule']['Row']
 export type ExpenseCategoryRecord = Tables<'expense_categories'>
 export type ExpenseVendor = Tables<'expense_vendors'>

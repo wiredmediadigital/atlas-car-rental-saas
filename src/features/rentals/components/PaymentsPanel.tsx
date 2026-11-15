@@ -17,9 +17,10 @@ import { formatDateTime } from '@/lib/datetime/format'
 import { formatMoney } from '@/lib/money/money'
 import { toErrorMessage } from '@/lib/supabase/errors'
 import { cn } from '@/lib/utils/cn'
-import type { Payment, PaymentMethod } from '@/types/database'
+import type { Payment } from '@/types/database'
 
 import { useRentalPayments, useVoidPayment } from '../queries'
+import { PAYMENT_METHOD_LABELS } from '../schemas'
 
 export interface PaymentsPanelProps {
   rentalId: string
@@ -42,15 +43,6 @@ export interface PaymentsPanelProps {
   depositHeldMinor: number
   depositAgreedMinor: number
   balanceDueMinor: number
-}
-
-const METHOD_LABELS: Record<PaymentMethod, string> = {
-  cash: 'Cash',
-  card: 'Card',
-  bank_transfer: 'Bank transfer',
-  cheque: 'Cheque',
-  online: 'Online',
-  other: 'Other',
 }
 
 /**
@@ -199,7 +191,7 @@ export function PaymentsPanel({
                       {isVoided ? <Badge tone="critical">Voided</Badge> : null}
                     </p>
                     <p className="text-ink-subtle mt-0.5 text-[0.75rem]">
-                      {METHOD_LABELS[payment.method]} ·{' '}
+                      {PAYMENT_METHOD_LABELS[payment.method]} ·{' '}
                       {formatDateTime(new Date(payment.paid_at), { locale, timeZone })}
                       {payment.reference ? ` · ${payment.reference}` : ''}
                     </p>

@@ -36,6 +36,7 @@ import { CustomerActivityPanel } from '@/features/customers/components/CustomerA
 import { ArchivedBadge, DriverLicenceBadge } from '@/features/customers/components/CustomerBadges'
 import { CustomerDocumentsPanel } from '@/features/customers/components/CustomerDocumentsPanel'
 import { CustomerForm, customerToFormInput } from '@/features/customers/components/CustomerForm'
+import { CustomerMoneyPanel } from '@/features/customers/components/CustomerMoneyPanel'
 import { CustomerRentalsPanel } from '@/features/customers/components/CustomerRentalsPanel'
 import {
   useArchiveCustomer,
@@ -269,6 +270,14 @@ export function CustomerDetailPage() {
 
           <Card>
             <CustomerRentalsPanel
+              customerId={customer.customer_id}
+              compliance={compliance}
+              locale={organization.locale}
+            />
+          </Card>
+
+          <Card>
+            <CustomerMoneyPanel
               customerId={customer.customer_id}
               compliance={compliance}
               locale={organization.locale}

@@ -197,6 +197,18 @@ export const PAYMENT_METHOD_VALUES = [
   'other',
 ] as const
 
+/** How a payment was taken, as the desk says it. Shared by every screen that lists money. */
+export const PAYMENT_METHOD_LABELS: Readonly<
+  Record<(typeof PAYMENT_METHOD_VALUES)[number], string>
+> = {
+  cash: 'Cash',
+  card: 'Card',
+  bank_transfer: 'Bank transfer',
+  cheque: 'Cheque',
+  online: 'Online',
+  other: 'Other',
+}
+
 export function buildPaymentSchema(currency: string) {
   return z.object({
     direction: z.enum(['inbound', 'outbound']),
