@@ -1,8 +1,16 @@
 # Pevvy — notes for Claude
 
 Pevvy is a multi-tenant car rental SaaS: Vite + React 19 + TypeScript in `src/`, a Supabase
-backend in `supabase/` (61 ordered migrations, five Edge Functions), deployed as a static
-build from `dist/`.
+backend in `supabase/` (ordered migrations and nine Edge Functions), deployed as a static
+build from `dist/`. `npm run setup:check` prints the migration count; a number written here
+is one more thing to keep true, and this one had been wrong by 45 migrations and four
+functions before anybody noticed.
+
+An agency can publish a **public booking page** at `/book/:slug`, linked from its own
+website: the cars it has opted in, real availability, and a form a stranger can send a
+request from. The request lands as a lead for staff to convert. The whole public surface is
+one Edge Function holding the service role -- `anon` is granted nothing -- and both the
+agency switch and every per-vehicle opt-in default to off.
 
 ## Setting Pevvy up
 
