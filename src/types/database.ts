@@ -2807,6 +2807,10 @@ export interface Database {
         Args: { p_lead_id: string; p_customer_overrides?: Json }
         Returns: { customer_id: string; rental_id: string }[]
       }
+      rental_reprice: {
+        Args: { p_rental_id: string }
+        Returns: Json
+      }
       rental_billable_days: {
         Args: { p_starts_at: string; p_ends_at: string }
         Returns: number

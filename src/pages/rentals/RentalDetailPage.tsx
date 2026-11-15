@@ -52,7 +52,8 @@ import {
   primaryAction,
   type RentalAction,
 } from '@/features/rentals/lifecycle'
-import { quoteFromRows } from '@/features/rentals/pricing'
+import { baseChargeMismatch, quoteFromRows } from '@/features/rentals/pricing'
+import { formatMoney } from '@/lib/money/money'
 import {
   useAddCharge,
   useCancelRental,
@@ -61,6 +62,7 @@ import {
   useDeleteRental,
   useRemoveCharge,
   useRental,
+  useRepriceRental,
   useRentalBoardEntry,
   useRentalDrivers,
   useRentalLineItems,
@@ -99,6 +101,7 @@ export function RentalDetailPage() {
   const rentalQuery = useRental(rentalId)
   const boardQuery = useRentalBoardEntry(rentalId)
   const linesQuery = useRentalLineItems(rentalId)
+  const reprice = useRepriceRental(rentalId)
   const driversQuery = useRentalDrivers(rentalId)
   const usageQuery = useRentalUsage(rentalId)
 
@@ -125,6 +128,20 @@ export function RentalDetailPage() {
   const locale = organization.locale
   const timeZone = organization.time_zone
   const when = (iso: string) => formatDateTime(new Date(iso), { locale, timeZone })
+  const money = (amountMinor: number) =>
+    formatMoney(amountMinor, rental?.currency ?? organization.default_currency, { locale })
+
+  /*
+   * The comparison public.rental_reschedule assumes somebody is shown. Both
+   * inputs are maintained -- rescheduling keeps the day count honest, and
+   * substituting a vehicle keeps the day rate honest -- so a difference here
+   * means the charge line is the thing that lagged.
+   */
+  const mismatch = useMemo(
+    () => (rental ? baseChargeMismatch(rental, lines) : null),
+    [rental, lines],
+  )
+  const canReprice = canUpdate
 
   const quote = useMemo(
     () =>
@@ -304,6 +321,47 @@ export function RentalDetailPage() {
       {rental.status === 'cancelled' && rental.cancellation_reason ? (
         <Alert tone="info" title="Cancelled">
           {rental.cancellation_reason}
+        </Alert>
+      ) : null}
+
+      {/*
+       * The warning public.rental_reschedule has always assumed was here.
+       *
+       * Moving a booking's dates updates its day count and deliberately leaves
+       * the charges alone, so that nudging a block on a calendar cannot rewrite
+       * what a customer was quoted; substituting a vehicle now carries the new
+       * car's rate across for the same reason, and likewise does not touch the
+       * money. Both leave the base charge disagreeing with the booking, and
+       * until now nothing said so.
+       *
+       * Repricing stays a decision: this shows both figures and offers a
+       * button, rather than quietly making one of them true.
+       */}
+      {mismatch && canReprice ? (
+        <Alert tone="caution" title="The charge does not match this booking">
+          <p>
+            {mismatch.days} {mismatch.days === 1 ? 'day' : 'days'} at{' '}
+            {money(mismatch.dailyRateMinor)} comes to {money(mismatch.expectedMinor)}; the base
+            charge on this contract is {money(mismatch.chargedMinor)}.
+          </p>
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            <Button
+              size="sm"
+              variant="secondary"
+              isLoading={reprice.isPending}
+              onClick={() => reprice.mutate()}
+            >
+              Reprice to {money(mismatch.expectedMinor)}
+            </Button>
+            <span className="text-ink-subtle text-[0.75rem]">
+              Extensions, extras and discounts are left as they are.
+            </span>
+          </div>
+          {reprice.error ? (
+            <p className="text-critical-700 mt-2 text-[0.8125rem]">
+              {toErrorMessage(reprice.error)}
+            </p>
+          ) : null}
         </Alert>
       ) : null}
 

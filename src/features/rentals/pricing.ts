@@ -219,3 +219,69 @@ export function parseTaxRatePercent(input: string): number | null {
   if (!Number.isFinite(value) || value < 0 || value > 1000) return null
   return Math.round(value * 100)
 }
+
+/**
+ * What the base charge disagrees with, or null when it agrees.
+ *
+ * THE PROMISE THIS KEEPS. public.rental_reschedule moves a booking's dates and
+ * updates its day count, and deliberately leaves the charges alone -- its own
+ * comment says a nudged booking must not silently reprice somebody's contract,
+ * and that the mismatch is instead something "the interface shows and the desk
+ * can correct". Nothing showed it. This is what the interface compares.
+ *
+ * Both inputs are already maintained: rescheduling keeps `billable_days`
+ * honest, and substituting a vehicle now keeps `daily_rate_minor` honest. Only
+ * the charge line lags, which is exactly the thing worth pointing at.
+ *
+ * THE BASE CHARGE IS THE EARLIEST `base_rental` LINE -- lowest sort order, then
+ * oldest -- matching public.rental_reprice. An extension writes its own
+ * `base_rental` line on purpose, and neither it nor any extra or discount is
+ * part of this comparison.
+ */
+export interface BaseChargeMismatch {
+  /** The rate and day count the booking carries, multiplied out. */
+  readonly expectedMinor: number
+  /** What the base line actually charges. Zero when there is no base line. */
+  readonly chargedMinor: number
+  readonly dailyRateMinor: number
+  readonly days: number
+}
+
+export function baseChargeMismatch(
+  rental: {
+    readonly daily_rate_minor: number
+    readonly billable_days: number | null
+    readonly status: string
+  },
+  lines: readonly {
+    readonly kind: RentalChargeKind
+    readonly amount_minor: number
+    readonly sort_order: number
+    readonly created_at: string
+  }[],
+): BaseChargeMismatch | null {
+  // Once the customer has the car, what they were charged is a fact. Offering
+  // to reprice it would be offering to rewrite history.
+  if (rental.status !== 'draft' && rental.status !== 'reserved') return null
+
+  const days = rental.billable_days ?? 0
+  if (days <= 0) return null
+
+  const base = [...lines]
+    .filter((line) => line.kind === 'base_rental')
+    .sort((a, b) => a.sort_order - b.sort_order || a.created_at.localeCompare(b.created_at))[0]
+
+  const chargedMinor = base === undefined ? 0 : Number(base.amount_minor)
+  const expectedMinor = Number(rental.daily_rate_minor) * days
+
+  // A booking deliberately built out of extras, with nothing to compare.
+  if (chargedMinor === 0 && expectedMinor === 0) return null
+  if (chargedMinor === expectedMinor) return null
+
+  return {
+    expectedMinor,
+    chargedMinor,
+    dailyRateMinor: Number(rental.daily_rate_minor),
+    days,
+  }
+}
