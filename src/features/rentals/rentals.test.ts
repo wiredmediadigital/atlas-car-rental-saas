@@ -394,6 +394,7 @@ describe('the base charge mismatch the interface has to show', () => {
     overrides: Partial<{
       kind: string
       amount_minor: number
+      quantity: number
       sort_order: number
       created_at: string
     }> = {},
@@ -401,6 +402,7 @@ describe('the base charge mismatch the interface has to show', () => {
     ({
       kind: 'base_rental',
       amount_minor: 27000,
+      quantity: 3,
       sort_order: 0,
       created_at: '2027-07-01T09:00:00Z',
       ...overrides,
@@ -440,17 +442,65 @@ describe('the base charge mismatch the interface has to show', () => {
     expect(found?.chargedMinor).toBe(27000)
   })
 
-  it('compares the earliest base line, not an extension', () => {
+  it('leaves the extension days to the extension', () => {
     /*
-     * An extension writes its own base_rental line by design. Comparing the
-     * wrong one would report a mismatch on every extended booking.
+     * The bug this exists for, in the numbers it appeared in. Five days at
+     * $102 is a base line of $510; extending by one day adds the day to
+     * billable_days AND writes its own $102 line. Six days are charged, as
+     * $510 + $102, and nothing is wrong.
+     *
+     * Measuring all six days against the $510 line reported a mismatch that
+     * was not there -- and repricing on that reading wrote $612 into the base
+     * line while the extension went on charging for the sixth day: $714 for a
+     * six day hire.
+     *
+     * The version of this test that let that through set billable_days to 3
+     * while holding an extension, which rental_extend cannot produce:
+     * extending always raises the count.
      */
+    const base = line({ amount_minor: 51000, quantity: 5 })
     const extension = line({
-      amount_minor: 9000,
+      amount_minor: 10200,
+      quantity: 1,
       sort_order: 1,
       created_at: '2027-07-02T09:00:00Z',
     })
-    expect(baseChargeMismatch(booking(), [line(), extension])).toBeNull()
+    const extended = booking({ daily_rate_minor: 10200, billable_days: 6 })
+    expect(baseChargeMismatch(extended, [base, extension])).toBeNull()
+  })
+
+  it('still catches a cheaper car on a booking that has been extended', () => {
+    // Only the base period is repriced: five days at the new rate, with the
+    // extension's own charge left exactly as agreed.
+    const base = line({ amount_minor: 51000, quantity: 5 })
+    const extension = line({
+      amount_minor: 10200,
+      quantity: 1,
+      sort_order: 1,
+      created_at: '2027-07-02T09:00:00Z',
+    })
+    const found = baseChargeMismatch(booking({ daily_rate_minor: 8000, billable_days: 6 }), [
+      base,
+      extension,
+    ])
+    expect(found).toEqual({
+      expectedMinor: 40000,
+      chargedMinor: 51000,
+      dailyRateMinor: 8000,
+      days: 5,
+    })
+  })
+
+  it('says nothing when extensions cover the whole hire', () => {
+    // A drift no arithmetic here settles; rental_reprice refuses it outright.
+    const base = line({ amount_minor: 51000, quantity: 5 })
+    const extension = line({
+      amount_minor: 10200,
+      quantity: 6,
+      sort_order: 1,
+      created_at: '2027-07-02T09:00:00Z',
+    })
+    expect(baseChargeMismatch(booking({ billable_days: 6 }), [base, extension])).toBeNull()
   })
 
   it('ignores extras and discounts entirely', () => {

@@ -237,6 +237,15 @@ export function parseTaxRatePercent(input: string): number | null {
  * oldest -- matching public.rental_reprice. An extension writes its own
  * `base_rental` line on purpose, and neither it nor any extra or discount is
  * part of this comparison.
+ *
+ * AND IT COVERS ONLY PART OF THE HIRE once a booking has been extended.
+ * `billable_days` counts the whole of it, extensions included, while the base
+ * line covers what came before them -- so the days compared here are
+ * billable_days less the days every later base_rental line already charges
+ * for. Comparing the whole hire against the original line reports a mismatch
+ * on every extended booking, and repricing on that reading writes the
+ * extension's days into the base charge as well, billing them twice. It did
+ * exactly that before this was fixed.
  */
 export interface BaseChargeMismatch {
   /** The rate and day count the booking carries, multiplied out. */
@@ -256,6 +265,8 @@ export function baseChargeMismatch(
   lines: readonly {
     readonly kind: RentalChargeKind
     readonly amount_minor: number
+    /** Days, for a base_rental line. An extension states its own. */
+    readonly quantity: number
     readonly sort_order: number
     readonly created_at: string
   }[],
@@ -264,12 +275,23 @@ export function baseChargeMismatch(
   // to reprice it would be offering to rewrite history.
   if (rental.status !== 'draft' && rental.status !== 'reserved') return null
 
-  const days = rental.billable_days ?? 0
-  if (days <= 0) return null
+  const totalDays = rental.billable_days ?? 0
+  if (totalDays <= 0) return null
 
-  const base = [...lines]
+  const baseLines = [...lines]
     .filter((line) => line.kind === 'base_rental')
-    .sort((a, b) => a.sort_order - b.sort_order || a.created_at.localeCompare(b.created_at))[0]
+    .sort((a, b) => a.sort_order - b.sort_order || a.created_at.localeCompare(b.created_at))
+
+  const base = baseLines[0]
+  // Every base line after the first is an extension, and states its own days.
+  const extensionDays = baseLines
+    .slice(1)
+    .reduce((total, line) => total + Number(line.quantity ?? 0), 0)
+
+  const days = totalDays - extensionDays
+  // Extensions covering the whole hire is a drift no arithmetic here settles,
+  // and rental_reprice refuses it rather than writing a nonsense charge.
+  if (days <= 0) return null
 
   const chargedMinor = base === undefined ? 0 : Number(base.amount_minor)
   const expectedMinor = Number(rental.daily_rate_minor) * days
