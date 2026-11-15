@@ -10,13 +10,16 @@ import { useOrganization } from '@/features/workspace/workspace-context'
 import type { CustomerDocument } from '@/types/database'
 
 import {
+  type CustomerCreditInput,
   type CustomerQuery,
   type DuplicateProbe,
+  applyCustomerCredit,
   archiveCustomer,
   createCustomer,
   createCustomerDocument,
   deleteCustomer,
   fetchCustomer,
+  fetchCustomerAccountBalance,
   fetchCustomerCountries,
   fetchCustomerDocuments,
   fetchCustomerPayments,
@@ -26,6 +29,7 @@ import {
   fetchFinancialSummary,
   fetchRentalSummary,
   findDuplicates,
+  recordCustomerCredit,
   restoreCustomer,
   updateCustomer,
   updateCustomerNotes,
@@ -62,6 +66,8 @@ export const customerKeys = {
     ['organization', organizationId, 'customers', 'rental-list', customerId] as const,
   payments: (organizationId: string, customerId: string) =>
     ['organization', organizationId, 'customers', 'payments', customerId] as const,
+  accountBalance: (organizationId: string, customerId: string) =>
+    ['organization', organizationId, 'customers', 'account-balance', customerId] as const,
   finance: (organizationId: string, customerId: string) =>
     ['organization', organizationId, 'customers', 'finance', customerId] as const,
   duplicates: (organizationId: string, probe: unknown) =>
@@ -181,6 +187,17 @@ export function useCustomerPayments(customerId: string | undefined) {
   })
 }
 
+export function useCustomerAccountBalance(customerId: string | undefined) {
+  const organization = useOrganization()
+
+  return useQuery({
+    queryKey: customerKeys.accountBalance(organization.id, customerId ?? 'none'),
+    queryFn: () => fetchCustomerAccountBalance(customerId!),
+    enabled: Boolean(customerId),
+    retry: false,
+  })
+}
+
 export function useCustomerFinancialSummary(customerId: string | undefined) {
   const organization = useOrganization()
 
@@ -213,6 +230,44 @@ export function useDuplicateCheck(probe: Omit<DuplicateProbe, 'organizationId'>,
 // -----------------------------------------------------------------------------
 // Mutations
 // -----------------------------------------------------------------------------
+
+/**
+ * Money moving on or off a customer's account.
+ *
+ * Both of these reach further than the customers subtree: applying a credit
+ * writes a payment on a booking, which changes what that rental has been paid
+ * and what the desk's lists say about it. Invalidating the whole organization
+ * prefix is blunt and cannot miss one of them, which is the right trade for a
+ * write this rare.
+ */
+function useCustomerMoneyMutation<Variables>(
+  mutationFn: (variables: Variables) => Promise<unknown>,
+) {
+  const organization = useOrganization()
+  const client = useQueryClient()
+
+  return useMutation({
+    mutationFn,
+    onSuccess: () => client.invalidateQueries({ queryKey: ['organization', organization.id] }),
+  })
+}
+
+export function useRecordCustomerCredit(customerId: string) {
+  return useCustomerMoneyMutation((input: CustomerCreditInput) =>
+    recordCustomerCredit(customerId, input),
+  )
+}
+
+export function useApplyCustomerCredit(customerId: string) {
+  return useCustomerMoneyMutation(({ rentalId, amountMinor }: ApplyCreditVariables) =>
+    applyCustomerCredit(customerId, rentalId, amountMinor),
+  )
+}
+
+export interface ApplyCreditVariables {
+  readonly rentalId: string
+  readonly amountMinor: number
+}
 
 export function useCreateCustomer() {
   const organization = useOrganization()

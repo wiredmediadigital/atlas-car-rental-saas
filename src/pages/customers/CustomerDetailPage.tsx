@@ -74,6 +74,7 @@ export function CustomerDetailPage() {
   const canDelete = usePermission('customers.delete')
   const canManageDocuments = usePermission('customerDocuments.create')
   const canDeleteDocuments = usePermission('customerDocuments.delete')
+  const canRecordPayment = usePermission('payments.create')
 
   const [isEditing, setIsEditing] = useState(false)
   const [isArchiving, setIsArchiving] = useState(false)
@@ -281,6 +282,8 @@ export function CustomerDetailPage() {
               customerId={customer.customer_id}
               compliance={compliance}
               locale={organization.locale}
+              defaultCurrency={organization.default_currency}
+              canRecord={canRecordPayment && !isArchived}
             />
           </Card>
 
@@ -372,15 +375,22 @@ export function CustomerDetailPage() {
             </CardBody>
           </Card>
 
-          {usage ? (
+          {/*
+           * Contracts, payments and identification each have a section of
+           * their own on this page now, listed rather than counted. A card
+           * repeating those three totals was saying the same thing a third
+           * time; what it alone carries is where this customer turns up on
+           * somebody else's contract.
+           */}
+          {usage && usage.driver_on_count > 0 ? (
             <Card>
-              <CardHeader title="References" description="What this customer is attached to." />
+              <CardHeader
+                title="Also linked"
+                description="Where this customer appears outside their own contracts."
+              />
               <CardBody className="p-0">
                 <dl className="divide-line divide-y">
-                  <UsageRow label="Contracts" value={usage.rentals_count} />
                   <UsageRow label="Named as a driver" value={usage.driver_on_count} />
-                  <UsageRow label="Payments" value={usage.payments_count} />
-                  <UsageRow label="Documents" value={usage.documents_count} />
                 </dl>
               </CardBody>
             </Card>

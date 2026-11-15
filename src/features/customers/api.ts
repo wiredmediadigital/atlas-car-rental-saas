@@ -3,12 +3,15 @@ import { AppError, toAppError } from '@/lib/supabase/errors'
 import { collectForExport, type CollectedRows } from '@/lib/export/csv-export'
 import type {
   Customer,
+  CustomerAccountBalanceRow,
   CustomerDirectoryEntry,
   CustomerDocument,
   CustomerDuplicateRow,
   CustomerFinancialSummaryRow,
   CustomerRentalSummaryRow,
   CustomerPaymentEntry,
+  Payment,
+  PaymentMethod,
   CustomerUsageRow,
   RentalBoardEntry,
   TablesUpdate,
@@ -422,6 +425,74 @@ export async function fetchCustomerPayments(customerId: string): Promise<Custome
 
   if (error) throw toAppError(error)
   return data ?? []
+}
+
+/**
+ * What the agency is holding for this customer against no booking, per
+ * currency. A currency that nets to nothing is not reported at all.
+ */
+export async function fetchCustomerAccountBalance(
+  customerId: string,
+): Promise<CustomerAccountBalanceRow[]> {
+  const { data, error } = await getSupabaseClient().rpc('customer_account_balance', {
+    p_customer_id: customerId,
+  })
+
+  if (error) throw toAppError(error)
+  return data ?? []
+}
+
+export interface CustomerCreditInput {
+  readonly amountMinor: number
+  readonly currency: string
+  readonly direction: 'inbound' | 'outbound'
+  readonly method: PaymentMethod
+  readonly paidAt: string | null
+  readonly reference: string | null
+  readonly notes: string | null
+}
+
+/** Takes money onto a customer's account, or hands it back out. */
+export async function recordCustomerCredit(
+  customerId: string,
+  input: CustomerCreditInput,
+): Promise<Payment> {
+  const { data, error } = await getSupabaseClient().rpc('customer_record_credit', {
+    p_customer_id: customerId,
+    p_amount_minor: input.amountMinor,
+    p_currency: input.currency,
+    p_direction: input.direction,
+    p_method: input.method,
+    p_paid_at: input.paidAt,
+    p_reference: input.reference,
+    p_notes: input.notes,
+  })
+
+  if (error) throw toAppError(error)
+  return firstPayment(data)
+}
+
+/** Puts money held on the account against one of the customer's bookings. */
+export async function applyCustomerCredit(
+  customerId: string,
+  rentalId: string,
+  amountMinor: number,
+): Promise<Payment> {
+  const { data, error } = await getSupabaseClient().rpc('customer_apply_credit', {
+    p_customer_id: customerId,
+    p_rental_id: rentalId,
+    p_amount_minor: amountMinor,
+  })
+
+  if (error) throw toAppError(error)
+  return firstPayment(data)
+}
+
+/** PostgREST returns a set for a function returning a composite type. */
+function firstPayment(data: Payment | Payment[] | null): Payment {
+  const row = Array.isArray(data) ? data[0] : data
+  if (!row) throw new AppError('unknown', 'That payment could not be recorded.')
+  return row
 }
 
 export interface DuplicateProbe {

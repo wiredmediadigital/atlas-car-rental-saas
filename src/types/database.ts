@@ -610,6 +610,12 @@ export type CustomerFinancialSummaryRow = {
   to_refund_minor: number
 }
 
+/** One currency's worth of money held for a customer against no booking. */
+export type CustomerAccountBalanceRow = {
+  currency: string
+  on_account_minor: number
+}
+
 export type CustomerDuplicateRow = {
   customer_id: string
   display_name: string
@@ -2820,6 +2826,27 @@ export interface Database {
       customer_usage: {
         Args: { p_customer_id: string }
         Returns: CustomerUsageRow[]
+      }
+      customer_account_balance: {
+        Args: { p_customer_id: string }
+        Returns: CustomerAccountBalanceRow[]
+      }
+      customer_record_credit: {
+        Args: {
+          p_customer_id: string
+          p_amount_minor: number
+          p_currency: string
+          p_direction?: PaymentDirection
+          p_method?: PaymentMethod
+          p_paid_at?: string | null
+          p_reference?: string | null
+          p_notes?: string | null
+        }
+        Returns: PaymentRow
+      }
+      customer_apply_credit: {
+        Args: { p_customer_id: string; p_rental_id: string; p_amount_minor: number }
+        Returns: PaymentRow
       }
       find_customer_duplicates: {
         Args: {

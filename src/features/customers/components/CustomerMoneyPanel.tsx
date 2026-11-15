@@ -1,8 +1,9 @@
-import { ReceiptText } from 'lucide-react'
+import { Plus, ReceiptText, Undo2, Wallet } from 'lucide-react'
+import { useState } from 'react'
 import { Link } from 'react-router-dom'
 
 import { rentalDetailPath } from '@/app/routes/paths'
-import { Badge, CardBody, CardHeader, EmptyState, Skeleton } from '@/components/ui'
+import { Badge, Button, CardBody, CardHeader, EmptyState, Skeleton } from '@/components/ui'
 import { PAYMENT_METHOD_LABELS } from '@/features/rentals/schemas'
 import type { ComplianceOptions } from '@/lib/compliance/expiry'
 import { formatDateTime } from '@/lib/datetime/format'
@@ -10,12 +11,21 @@ import { formatMoney } from '@/lib/money/money'
 import { cn } from '@/lib/utils/cn'
 
 import { CUSTOMER_PAYMENT_LIMIT } from '../api'
-import { useCustomerFinancialSummary, useCustomerPayments } from '../queries'
+import {
+  useCustomerAccountBalance,
+  useCustomerFinancialSummary,
+  useCustomerPayments,
+  useCustomerRentals,
+} from '../queries'
+import { CustomerCreditDialog, type CreditIntent } from './CustomerCreditDialog'
 
 export interface CustomerMoneyPanelProps {
   customerId: string
   compliance: ComplianceOptions
   locale: string
+  /** The agency's own currency, for an account with nothing on it yet. */
+  defaultCurrency: string
+  canRecord: boolean
 }
 
 /**
@@ -31,12 +41,30 @@ export interface CustomerMoneyPanelProps {
  * a table, and it was being asked to fit in a column too narrow to show it
  * without scrolling sideways.
  */
-export function CustomerMoneyPanel({ customerId, compliance, locale }: CustomerMoneyPanelProps) {
+export function CustomerMoneyPanel({
+  customerId,
+  compliance,
+  locale,
+  defaultCurrency,
+  canRecord,
+}: CustomerMoneyPanelProps) {
   const financeQuery = useCustomerFinancialSummary(customerId)
   const paymentsQuery = useCustomerPayments(customerId)
+  const balanceQuery = useCustomerAccountBalance(customerId)
+  const rentals = useCustomerRentals(customerId).data ?? []
 
   const finance = financeQuery.data ?? []
   const payments = paymentsQuery.data ?? []
+  const held = balanceQuery.data ?? []
+
+  /*
+   * One currency at a time, like every other figure here. The account is shown
+   * in whichever currency it actually holds something in; an empty account
+   * takes money in the agency's own.
+   */
+  const [credit, setCredit] = useState<{ intent: CreditIntent; currency: string } | null>(null)
+  const heldIn = (currency: string) =>
+    held.find((row) => row.currency === currency)?.on_account_minor ?? 0
 
   // Money taken against a booking that was called off, which is nobody's
   // charge. The column appears only when there is something in it: an agency
@@ -137,6 +165,64 @@ export function CustomerMoneyPanel({ customerId, compliance, locale }: CustomerM
         )}
       </CardBody>
 
+      {canRecord ? (
+        <div className="border-line flex flex-wrap items-center gap-x-4 gap-y-3 border-t px-5 py-4">
+          <div className="min-w-0">
+            <p className="eyebrow flex items-center gap-1.5">
+              <Wallet className="size-3.5" aria-hidden="true" />
+              Money on account
+            </p>
+            <p data-numeric="" className="text-ink mt-1 text-[0.8125rem] font-medium">
+              {held.length === 0
+                ? 'Nothing held'
+                : held
+                    .map((row) => formatMoney(row.on_account_minor, row.currency, { locale }))
+                    .join(' · ')}
+            </p>
+            <p className="text-ink-subtle mt-0.5 text-[0.75rem]">
+              Money that belongs to no booking yet.
+            </p>
+          </div>
+
+          <div className="ms-auto flex flex-wrap items-center gap-2">
+            {held.map((row) => (
+              <Button
+                key={`apply-${row.currency}`}
+                variant="secondary"
+                size="sm"
+                onClick={() => setCredit({ intent: 'apply', currency: row.currency })}
+              >
+                Use {formatMoney(row.on_account_minor, row.currency, { locale })}
+              </Button>
+            ))}
+            {held.map((row) => (
+              <Button
+                key={`payout-${row.currency}`}
+                variant="ghost"
+                size="sm"
+                leadingIcon={<Undo2 />}
+                onClick={() => setCredit({ intent: 'payout', currency: row.currency })}
+              >
+                Pay back
+              </Button>
+            ))}
+            <Button
+              variant="secondary"
+              size="sm"
+              leadingIcon={<Plus />}
+              onClick={() =>
+                setCredit({
+                  intent: 'take',
+                  currency: held[0]?.currency ?? finance[0]?.currency ?? defaultCurrency,
+                })
+              }
+            >
+              Take on account
+            </Button>
+          </div>
+        </div>
+      ) : null}
+
       <CardHeader
         title="Payments and refunds"
         description={
@@ -222,6 +308,20 @@ export function CustomerMoneyPanel({ customerId, compliance, locale }: CustomerM
           </ul>
         )}
       </CardBody>
+
+      {credit ? (
+        <CustomerCreditDialog
+          open
+          onOpenChange={(open) => (open ? undefined : setCredit(null))}
+          intent={credit.intent}
+          customerId={customerId}
+          currency={credit.currency}
+          locale={locale}
+          timeZone={compliance.timeZone}
+          heldMinor={heldIn(credit.currency)}
+          rentals={rentals}
+        />
+      ) : null}
     </>
   )
 }

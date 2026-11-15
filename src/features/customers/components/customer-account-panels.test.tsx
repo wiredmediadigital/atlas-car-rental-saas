@@ -19,13 +19,23 @@ const useCustomerFinancialSummary = vi.hoisted(() => vi.fn())
 const useCustomerRentalSummary = vi.hoisted(() => vi.fn())
 const useCustomerRentals = vi.hoisted(() => vi.fn())
 const useCustomerPayments = vi.hoisted(() => vi.fn())
+const useCustomerAccountBalance = vi.hoisted(() => vi.fn())
+const useRecordCustomerCredit = vi.hoisted(() => vi.fn())
+const useApplyCustomerCredit = vi.hoisted(() => vi.fn())
 
 vi.mock('../queries', () => ({
   useCustomerFinancialSummary,
   useCustomerRentalSummary,
   useCustomerRentals,
   useCustomerPayments,
+  useCustomerAccountBalance,
+  useRecordCustomerCredit,
+  useApplyCustomerCredit,
 }))
+vi.mock('@/components/ui', async (importOriginal) => {
+  const actual = await importOriginal<Record<string, unknown>>()
+  return { ...actual, useToast: () => ({ success: vi.fn(), error: vi.fn() }) }
+})
 
 const COMPLIANCE: ComplianceOptions = {
   timeZone: 'Europe/Lisbon',
@@ -74,13 +84,24 @@ function renderActivity(cancelledCount = 0): ReturnType<typeof render> {
 function renderMoney(
   finance: CustomerFinancialSummaryRow[],
   payments: CustomerPaymentEntry[] = [],
+  options: { held?: { currency: string; on_account_minor: number }[]; canRecord?: boolean } = {},
 ): ReturnType<typeof render> {
   useCustomerFinancialSummary.mockReturnValue({ data: finance, isPending: false })
   useCustomerPayments.mockReturnValue({ data: payments, isPending: false })
+  useCustomerAccountBalance.mockReturnValue({ data: options.held ?? [] })
+  useCustomerRentals.mockReturnValue({ data: [], isPending: false })
+  useRecordCustomerCredit.mockReturnValue({ mutateAsync: vi.fn(), isPending: false })
+  useApplyCustomerCredit.mockReturnValue({ mutateAsync: vi.fn(), isPending: false })
 
   return render(
     <MemoryRouter>
-      <CustomerMoneyPanel customerId="customer-1" compliance={COMPLIANCE} locale="en" />
+      <CustomerMoneyPanel
+        customerId="customer-1"
+        compliance={COMPLIANCE}
+        locale="en"
+        defaultCurrency="EUR"
+        canRecord={options.canRecord ?? true}
+      />
     </MemoryRouter>,
   )
 }
@@ -112,6 +133,9 @@ beforeEach(() => {
   useCustomerRentalSummary.mockReset()
   useCustomerRentals.mockReset()
   useCustomerPayments.mockReset()
+  useCustomerAccountBalance.mockReset()
+  useRecordCustomerCredit.mockReset()
+  useApplyCustomerCredit.mockReset()
 })
 
 describe('a cancelled booking on the account', () => {
@@ -241,5 +265,46 @@ describe('the money on a customer’s record', () => {
   it('says so plainly when no money has moved', () => {
     renderMoney([money()], [])
     expect(screen.getByText('Nothing recorded yet')).toBeInTheDocument()
+  })
+})
+
+describe('money held on a customer’s account', () => {
+  const held = [{ currency: 'EUR', on_account_minor: 7_000 }]
+
+  it('says what is held and offers to spend it', () => {
+    // payments.rental_id was nullable from the first migration and nothing
+    // ever wrote a row there, so an overpayment could only leave the till.
+    renderMoney([money()], [], { held })
+
+    expect(screen.getByText('Money on account')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /use €70\.00/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /pay back/i })).toBeInTheDocument()
+  })
+
+  it('offers to take money even when nothing is held', () => {
+    renderMoney([money()], [], { held: [] })
+
+    expect(screen.getByText('Nothing held')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /take on account/i })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /pay back/i })).not.toBeInTheDocument()
+  })
+
+  it('shows nothing at all to somebody who may not record money', () => {
+    renderMoney([money()], [], { held, canRecord: false })
+
+    expect(screen.queryByText('Money on account')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /take on account/i })).not.toBeInTheDocument()
+  })
+
+  it('keeps two currencies apart rather than adding them', () => {
+    renderMoney([money()], [], {
+      held: [
+        { currency: 'EUR', on_account_minor: 7_000 },
+        { currency: 'USD', on_account_minor: 2_500 },
+      ],
+    })
+
+    expect(screen.getByRole('button', { name: /use €70\.00/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /use \$25\.00/i })).toBeInTheDocument()
   })
 })
