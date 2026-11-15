@@ -349,3 +349,98 @@ describe('the fee on the customer’s account', () => {
     expect(Number(row.charged_minor) - Number(row.paid_minor)).toBe(Number(row.outstanding_minor))
   })
 })
+
+describe('settling up after a cancellation', () => {
+  const record = (
+    rentalId: string,
+    amountMinor: number,
+    direction: 'inbound' | 'outbound',
+    purpose: 'rental_charge' | 'deposit' = 'rental_charge',
+  ) =>
+    db.asUser(ownerId, (session) =>
+      session.sql(`select public.rental_record_payment($1, $2, $3, $4)`, [
+        rentalId,
+        amountMinor,
+        direction,
+        purpose,
+      ]),
+    )
+
+  async function paidAndDue(rentalId: string) {
+    const [row] = await db.sql<{ amount_paid_minor: number; balance_due_minor: number }>(
+      `select amount_paid_minor, balance_due_minor from public.rentals where id = $1`,
+      [rentalId],
+    )
+    return row!
+  }
+
+  it('takes payment of a cancellation fee the customer owes', async () => {
+    // The receivable this product gained in 20261115100200, and could not
+    // settle: every inbound payment on a cancelled booking was refused.
+    const id = await bookedAt(40_000)
+    await cancel(id, 5_000)
+
+    await record(id, 5_000, 'inbound')
+
+    const after = await paidAndDue(id)
+    expect(Number(after.amount_paid_minor)).toBe(5_000)
+    expect(Number(after.balance_due_minor)).toBe(0)
+  })
+
+  it('refuses more than the booking still charges', async () => {
+    const id = await bookedAt(40_000)
+    await cancel(id, 5_000)
+
+    await db.expectRejection(
+      () => record(id, 6_000, 'inbound'),
+      /only .* is owed on this cancelled reservation/i,
+    )
+  })
+
+  it('refuses payment on a cancellation that charges nothing', async () => {
+    const id = await bookedAt(40_000)
+    await cancel(id)
+
+    await db.expectRejection(() => record(id, 1_000, 'inbound'), /nothing is owed/i)
+  })
+
+  it('refuses a deposit on a car that is not going anywhere', async () => {
+    const id = await bookedAt(40_000)
+    await cancel(id, 5_000)
+
+    await db.expectRejection(
+      () => record(id, 1_000, 'inbound', 'deposit'),
+      /cannot take a deposit/i,
+    )
+  })
+
+  it('refunds what was taken before the booking was called off', async () => {
+    // The whole point: 120 taken, 50 kept, 70 handed back.
+    const id = await bookedAt(40_000)
+    await pay(id, 12_000)
+    await cancel(id, 5_000)
+
+    await record(id, 7_000, 'outbound')
+
+    expect(Number((await paidAndDue(id)).amount_paid_minor)).toBe(5_000)
+  })
+
+  it('refuses a refund larger than what was received', async () => {
+    // The rollup clamps at zero rather than aborting somebody else's write,
+    // which makes this silent unless the function says so.
+    const id = await bookedAt(40_000)
+    await pay(id, 12_000)
+    await cancel(id)
+
+    await db.expectRejection(
+      () => record(id, 15_000, 'outbound'),
+      /only .* has been received on this contract/i,
+    )
+  })
+
+  it('still takes payment normally on a booking that stands', async () => {
+    const id = await bookedAt(40_000)
+    await record(id, 40_000, 'inbound')
+    expect(Number((await paidAndDue(id)).balance_due_minor)).toBe(0)
+  })
+})

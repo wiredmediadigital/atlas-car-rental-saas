@@ -115,7 +115,9 @@ export function RentalDetailPage() {
   const deleteRental = useDeleteRental()
 
   const [handover, setHandover] = useState<'pickup' | 'return' | null>(null)
-  const [payment, setPayment] = useState<'charge' | 'deposit' | 'refund-deposit' | null>(null)
+  const [payment, setPayment] = useState<'charge' | 'deposit' | 'refund-deposit' | 'refund' | null>(
+    null,
+  )
   const [isExtending, setIsExtending] = useState(false)
   const [isSubstituting, setIsSubstituting] = useState(false)
   const [isCancelling, setIsCancelling] = useState(false)
@@ -565,11 +567,13 @@ export function RentalDetailPage() {
             currency={rental.currency}
             locale={locale}
             timeZone={timeZone}
-            canRecord={canRecordPayment && rental.status !== 'cancelled'}
+            canRecord={canRecordPayment}
             canVoid={canVoidPayment}
+            isCancelled={rental.status === 'cancelled'}
             onRecordCharge={() => setPayment('charge')}
             onTakeDeposit={() => setPayment('deposit')}
             onRefundDeposit={() => setPayment('refund-deposit')}
+            onRefund={() => setPayment('refund')}
             depositHeldMinor={rental.deposit_held_minor}
             depositAgreedMinor={rental.deposit_minor}
             balanceDueMinor={rental.balance_due_minor}

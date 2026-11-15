@@ -319,6 +319,44 @@ const CONSTRAINT_MESSAGES: ReadonlyArray<readonly [RegExp, string, AppErrorKind]
     'This reservation was cancelled. Record a refund rather than a new payment.',
     'validation',
   ],
+
+  /*
+   * Settling up on a cancelled booking (20261115100200, 20261115100300).
+   *
+   * Without these the 23514 fallback answers for all of them with "some of the
+   * values entered are not valid", which says nothing about money and sends
+   * the desk looking at the form rather than at the booking.
+   */
+  [
+    /cancelled reservation cannot take a deposit/i,
+    'A cancelled reservation cannot take a deposit. The vehicle is not going anywhere.',
+    'validation',
+  ],
+  [
+    /nothing is owed on this cancelled reservation/i,
+    'Nothing is owed on this cancelled booking. Record a refund rather than a payment.',
+    'validation',
+  ],
+  [
+    /is owed on this cancelled reservation/i,
+    'That is more than this cancelled booking still charges.',
+    'validation',
+  ],
+  [
+    /has been received on this contract/i,
+    'You cannot refund more than has been received.',
+    'validation',
+  ],
+  [
+    /only a cancelled booking can carry a cancellation fee/i,
+    'Only a cancelled booking can carry a cancellation fee.',
+    'conflict',
+  ],
+  [
+    /a cancellation fee cannot be negative/i,
+    'A cancellation fee cannot be negative.',
+    'validation',
+  ],
   [/that payment has already been voided/i, 'That payment has already been voided.', 'conflict'],
   [
     /an extension must end after/i,

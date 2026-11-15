@@ -31,6 +31,14 @@ export interface PaymentsPanelProps {
   onRecordCharge: () => void
   onTakeDeposit: () => void
   onRefundDeposit: () => void
+  onRefund: () => void
+  /**
+   * A cancelled booking has no hire left to pay for. It can still settle a
+   * cancellation fee and still has to give back anything taken above one, so
+   * the controls narrow rather than disappear -- which is what they used to do,
+   * leaving no way to refund a customer at all.
+   */
+  isCancelled: boolean
   depositHeldMinor: number
   depositAgreedMinor: number
   balanceDueMinor: number
@@ -63,6 +71,8 @@ export function PaymentsPanel({
   onRecordCharge,
   onTakeDeposit,
   onRefundDeposit,
+  onRefund,
+  isCancelled,
   depositHeldMinor,
   depositAgreedMinor,
   balanceDueMinor,
@@ -87,6 +97,9 @@ export function PaymentsPanel({
     }
   }
 
+  /** Taken, and no longer charged for: what the customer is owed back. */
+  const refundableMinor = Math.max(-balanceDueMinor, 0)
+
   return (
     <Card>
       <CardHeader
@@ -104,7 +117,7 @@ export function PaymentsPanel({
                 >
                   Return deposit
                 </Button>
-              ) : depositAgreedMinor > 0 ? (
+              ) : depositAgreedMinor > 0 && !isCancelled ? (
                 <Button
                   variant="secondary"
                   size="sm"
@@ -114,9 +127,20 @@ export function PaymentsPanel({
                   Take deposit
                 </Button>
               ) : null}
-              <Button variant="primary" size="sm" leadingIcon={<Plus />} onClick={onRecordCharge}>
-                Record payment
-              </Button>
+
+              {refundableMinor > 0 ? (
+                <Button variant="secondary" size="sm" leadingIcon={<Undo2 />} onClick={onRefund}>
+                  Refund {formatMoney(refundableMinor, currency, { locale })}
+                </Button>
+              ) : null}
+
+              {/* On a cancelled booking there is nothing to pay for unless a
+                  cancellation fee was kept, and that shows up as owed. */}
+              {!isCancelled || balanceDueMinor > 0 ? (
+                <Button variant="primary" size="sm" leadingIcon={<Plus />} onClick={onRecordCharge}>
+                  Record payment
+                </Button>
+              ) : null}
             </div>
           ) : null
         }

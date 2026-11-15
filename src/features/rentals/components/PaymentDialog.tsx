@@ -29,7 +29,7 @@ export interface PaymentDialogProps {
   depositHeldMinor: number
   depositAgreedMinor: number
   /** Opens straight into the case the desk asked for. */
-  intent: 'charge' | 'deposit' | 'refund-deposit'
+  intent: 'charge' | 'deposit' | 'refund-deposit' | 'refund'
 }
 
 const METHODS: { value: PaymentMethod; label: string }[] = [
@@ -64,15 +64,28 @@ export function PaymentDialog({
   const toast = useToast()
   const recordPayment = useRecordPayment(rentalId)
 
-  const isRefund = intent === 'refund-deposit'
-  const purpose: PaymentPurpose = intent === 'charge' ? 'rental_charge' : 'deposit'
+  const isDepositRefund = intent === 'refund-deposit'
+  const isPaymentRefund = intent === 'refund'
+  const isRefund = isDepositRefund || isPaymentRefund
+  const purpose: PaymentPurpose =
+    intent === 'deposit' || isDepositRefund ? 'deposit' : 'rental_charge'
+
+  /*
+   * What there is to give back, on a contract whose charges have fallen below
+   * what was taken for them. A cancelled booking is the ordinary case --
+   * everything paid above the cancellation fee is the customer's -- but an
+   * overpaid contract of any status lands here the same way.
+   */
+  const refundableMinor = Math.max(-balanceDueMinor, 0)
 
   const suggested =
     intent === 'charge'
       ? Math.max(balanceDueMinor, 0)
       : intent === 'deposit'
         ? Math.max(depositAgreedMinor - depositHeldMinor, 0)
-        : depositHeldMinor
+        : isPaymentRefund
+          ? refundableMinor
+          : depositHeldMinor
 
   const [amount, setAmount] = useState(() =>
     suggested > 0 ? minorToDecimalString(suggested, currency) : '',
@@ -89,8 +102,16 @@ export function PaymentDialog({
       setError('Enter an amount above zero.')
       return
     }
-    if (isRefund && minor > depositHeldMinor) {
+    if (isDepositRefund && minor > depositHeldMinor) {
       setError(`Only ${formatMoney(depositHeldMinor, currency, { locale })} is being held.`)
+      return
+    }
+    if (isPaymentRefund && minor > refundableMinor) {
+      setError(
+        refundableMinor > 0
+          ? `Only ${formatMoney(refundableMinor, currency, { locale })} is refundable on this contract.`
+          : 'There is nothing to refund on this contract.',
+      )
       return
     }
 
@@ -113,11 +134,13 @@ export function PaymentDialog({
         notes: notes.trim() || null,
       })
       toast.success(
-        isRefund
+        isDepositRefund
           ? 'Deposit returned'
-          : purpose === 'deposit'
-            ? 'Deposit taken'
-            : 'Payment recorded',
+          : isPaymentRefund
+            ? 'Refund recorded'
+            : purpose === 'deposit'
+              ? 'Deposit taken'
+              : 'Payment recorded',
         formatMoney(minor, currency, { locale }),
       )
       onOpenChange(false)
@@ -126,11 +149,13 @@ export function PaymentDialog({
     }
   }
 
-  const title = isRefund
+  const title = isDepositRefund
     ? 'Return the deposit'
-    : purpose === 'deposit'
-      ? 'Take a deposit'
-      : 'Record a payment'
+    : isPaymentRefund
+      ? 'Refund the customer'
+      : purpose === 'deposit'
+        ? 'Take a deposit'
+        : 'Record a payment'
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
