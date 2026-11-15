@@ -828,3 +828,19 @@ export async function signContract(input: SignContractInput): Promise<RentalCont
   if (error) throw toAppError(error)
   return data
 }
+
+/**
+ * Rewrites the base charge from the rate and the day count the booking carries.
+ *
+ * Deliberately a separate call from rescheduling and from substituting a
+ * vehicle: neither of those reprices on its own, because a reservation is
+ * something a customer has been quoted and rewriting that silently is how an
+ * agency ends up arguing at a counter.
+ */
+export async function repriceRental(rentalId: string): Promise<Rental> {
+  const { data, error } = await getSupabaseClient().rpc('rental_reprice', {
+    p_rental_id: rentalId,
+  })
+  if (error) throw toAppError(error)
+  return firstRow(data as unknown as Rental | Rental[])
+}

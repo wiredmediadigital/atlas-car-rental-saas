@@ -4,6 +4,7 @@ import { RENTAL_DESK_VIEWS, deskViewFilter, isRentalDeskView } from './api'
 import { actionState, canTransition, isTerminal, primaryAction } from './lifecycle'
 import type { RentalSnapshot } from './lifecycle'
 import {
+  baseChargeMismatch,
   baseRentalLine,
   billableDays,
   describeDayRounding,
@@ -385,5 +386,96 @@ describe('desk views', () => {
     for (const view of RENTAL_DESK_VIEWS) {
       expect(Object.keys(deskViewFilter(view, day)).length).toBeGreaterThan(0)
     }
+  })
+})
+
+describe('the base charge mismatch the interface has to show', () => {
+  const line = (
+    overrides: Partial<{
+      kind: string
+      amount_minor: number
+      sort_order: number
+      created_at: string
+    }> = {},
+  ) =>
+    ({
+      kind: 'base_rental',
+      amount_minor: 27000,
+      sort_order: 0,
+      created_at: '2027-07-01T09:00:00Z',
+      ...overrides,
+    }) as Parameters<typeof baseChargeMismatch>[1][number]
+
+  const booking = (
+    overrides: Partial<{
+      daily_rate_minor: number
+      billable_days: number | null
+      status: string
+    }> = {},
+  ) => ({
+    daily_rate_minor: 9000,
+    billable_days: 3,
+    status: 'reserved',
+    ...overrides,
+  })
+
+  it('says nothing when the charge matches the rate and the days', () => {
+    expect(baseChargeMismatch(booking(), [line()])).toBeNull()
+  })
+
+  it('catches a booking shortened without repricing', () => {
+    // Three days charged, two days booked.
+    const found = baseChargeMismatch(booking({ billable_days: 2 }), [line()])
+    expect(found).toEqual({
+      expectedMinor: 18000,
+      chargedMinor: 27000,
+      dailyRateMinor: 9000,
+      days: 2,
+    })
+  })
+
+  it('catches a car swapped for a cheaper one', () => {
+    const found = baseChargeMismatch(booking({ daily_rate_minor: 4000 }), [line()])
+    expect(found?.expectedMinor).toBe(12000)
+    expect(found?.chargedMinor).toBe(27000)
+  })
+
+  it('compares the earliest base line, not an extension', () => {
+    /*
+     * An extension writes its own base_rental line by design. Comparing the
+     * wrong one would report a mismatch on every extended booking.
+     */
+    const extension = line({
+      amount_minor: 9000,
+      sort_order: 1,
+      created_at: '2027-07-02T09:00:00Z',
+    })
+    expect(baseChargeMismatch(booking(), [line(), extension])).toBeNull()
+  })
+
+  it('ignores extras and discounts entirely', () => {
+    const extras = [
+      line(),
+      line({ kind: 'child_seat', amount_minor: 1500, sort_order: 2 }),
+      line({ kind: 'discount', amount_minor: -500, sort_order: 3 }),
+    ]
+    expect(baseChargeMismatch(booking(), extras)).toBeNull()
+  })
+
+  it('offers nothing once the customer has the car', () => {
+    // What they were charged is a fact by then, not a plan.
+    for (const status of ['active', 'completed', 'cancelled']) {
+      expect(baseChargeMismatch(booking({ status, billable_days: 2 }), [line()])).toBeNull()
+    }
+  })
+
+  it('says nothing about a booking with no days and no base charge', () => {
+    expect(baseChargeMismatch(booking({ billable_days: null }), [])).toBeNull()
+    expect(baseChargeMismatch(booking({ daily_rate_minor: 0 }), [])).toBeNull()
+  })
+
+  it('catches a booking that lost its base charge', () => {
+    const found = baseChargeMismatch(booking(), [line({ kind: 'child_seat', amount_minor: 1500 })])
+    expect(found).toEqual({ expectedMinor: 27000, chargedMinor: 0, dailyRateMinor: 9000, days: 3 })
   })
 })

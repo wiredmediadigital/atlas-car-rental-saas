@@ -8,6 +8,7 @@ import {
 import { useMemo } from 'react'
 
 import { useOrganization } from '@/features/workspace/workspace-context'
+import { AppError } from '@/lib/supabase/errors'
 import type { RentalConditionPhoto } from '@/types/database'
 
 import {
@@ -44,6 +45,7 @@ import {
   recordPayment,
   removeCharge,
   signContract,
+  repriceRental,
   substituteVehicle,
   updateRental,
   voidPayment,
@@ -398,6 +400,27 @@ export function useSubstituteVehicle(rentalId: string) {
 
   return useMutation({
     mutationFn: (vehicleId: string) => substituteVehicle(rentalId, vehicleId),
+    onSuccess: () => invalidateRentals(client, organization.id),
+  })
+}
+
+/**
+ * Rewrites the base charge from the booking's current rate and day count.
+ *
+ * Invalidates the whole rentals subtree because repricing moves the lines, the
+ * totals and the figures every list shows.
+ */
+export function useRepriceRental(rentalId: string | undefined) {
+  const organization = useOrganization()
+  const client = useQueryClient()
+
+  return useMutation({
+    mutationFn: () => {
+      // The page builds this hook before the route parameter is read; the
+      // button that calls it never renders without a rental.
+      if (rentalId === undefined) throw new AppError('notFound', 'That rental could not be found.')
+      return repriceRental(rentalId)
+    },
     onSuccess: () => invalidateRentals(client, organization.id),
   })
 }
