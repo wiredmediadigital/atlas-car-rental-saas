@@ -42,10 +42,11 @@ async function lines() {
     kind: string
     description: string
     quantity: string
+    unit_amount_minor: string
     amount_minor: string
     sort_order: number
   }>(
-    `select kind, description, quantity, amount_minor, sort_order
+    `select kind, description, quantity, unit_amount_minor, amount_minor, sort_order
        from public.rental_line_items where rental_id = $1
       order by sort_order, created_at`,
     [rentalId],
@@ -265,8 +266,8 @@ describe('repricing', () => {
   })
 })
 
-describe('a booking that has been extended', () => {
-  /** Extends the way the product does: the day count rises and a line appears. */
+describe('extending a hire', () => {
+  /** Extends the way the product does, through the function the dialog calls. */
   const extend = async (days: number, chargeMinor: number) => {
     const [row] = await db.sql<{ ends_at: string }>(
       `select ends_at from public.rentals where id = $1`,
@@ -284,15 +285,100 @@ describe('a booking that has been extended', () => {
     )
   }
 
-  it('does not charge the extension days twice', async () => {
+  it('lengthens the hire line rather than adding a second one', async () => {
     /*
-     * The bug, in the shape it was reported in. Three days at the premium
-     * rate, extended by one: four days charged, as the base line plus the
-     * extension. Repricing used to write all four days into the base line and
-     * leave the extension charging for the fourth as well.
+     * A separate extension line reads well on a booking that only grows, and
+     * stops reading at all once anybody moves the dates: a nine day hire
+     * extended twice and rescheduled to three showed "7 day hire" with two
+     * extensions attached, on a contract whose own header said three days.
      */
     await extend(1, PREMIUM_RATE)
+
+    const after = await lines()
+    expect(after).toHaveLength(1)
+    expect(after[0]!.description).toBe('4 day hire')
+    expect(Number(after[0]!.amount_minor)).toBe(PREMIUM_RATE * 4)
+    expect(Number(after[0]!.quantity)).toBe(4)
     expect((await rental()).billable_days).toBe(4)
+  })
+
+  it('charges the extended days once', async () => {
+    await extend(1, PREMIUM_RATE)
+    expect(Number((await rental()).subtotal_minor)).toBe(PREMIUM_RATE * 4)
+  })
+
+  it('needs no repricing afterwards, and reprices to the same figure', async () => {
+    // The hire line already says what the dates say, so the warning stays
+    // quiet; pressing the button anyway must not move the money.
+    await extend(1, PREMIUM_RATE)
+    await reprice()
+    const after = await lines()
+    expect(after).toHaveLength(1)
+    expect(Number(after[0]!.amount_minor)).toBe(PREMIUM_RATE * 4)
+  })
+
+  it('reprices the whole hire when the car changes', async () => {
+    // Four days at the new rate, which is what the booking now is.
+    await extend(1, PREMIUM_RATE)
+    const small = await createVehicle(`SML-${seq}`, SMALL_RATE)
+    await substitute(small)
+    await reprice()
+
+    const after = await lines()
+    expect(after).toHaveLength(1)
+    expect(Number(after[0]!.amount_minor)).toBe(SMALL_RATE * 4)
+  })
+
+  it('folds a negotiated extension into the hire and blends the day rate', async () => {
+    /*
+     * The trade this makes, stated as a test. Two extra days agreed at $15
+     * rather than the $90 rate: the amount is kept exactly, added to the hire,
+     * and the per-day figure becomes the blend. What is lost is the itemised
+     * record of what those two days cost -- and repricing afterwards would
+     * normalise them to the day rate, because a single line cannot hold two
+     * prices.
+     */
+    await extend(2, 1500)
+    const [hire] = await lines()
+    expect(Number(hire!.amount_minor)).toBe(PREMIUM_RATE * 3 + 1500)
+    expect(Number(hire!.quantity)).toBe(5)
+    expect(Number(hire!.unit_amount_minor)).toBe(Math.round((PREMIUM_RATE * 3 + 1500) / 5))
+  })
+
+  it('counts the days itself when the caller does not say', async () => {
+    // The calendar extends without a day count. Before, billable_days was left
+    // behind and the booking reported fewer days than it held the car for.
+    const [row] = await db.sql<{ ends_at: string }>(
+      `select ends_at from public.rentals where id = $1`,
+      [rentalId],
+    )
+    const newEnd = new Date(new Date(row!.ends_at).getTime() + 2 * 86_400_000).toISOString()
+    await db.asUser(ownerId, (session) =>
+      session.sql(`select public.rental_extend($1, $2, 0)`, [rentalId, newEnd]),
+    )
+    expect((await rental()).billable_days).toBe(5)
+  })
+})
+
+describe('a booking carrying an extension line from before the change', () => {
+  /*
+   * Lines written by the old rental_extend are left where they are, so an
+   * older contract keeps totalling correctly. rental_reprice still discounts
+   * the days a later base_rental line charges for; a new booking simply never
+   * grows one for it to find.
+   */
+  const legacyExtension = (days: number, amountMinor: number) =>
+    db.sql(
+      `insert into public.rental_line_items
+         (organization_id, rental_id, kind, description, quantity, unit_amount_minor,
+          amount_minor, currency, sort_order)
+       values ($1, $2, 'base_rental', $3, $4, $5, $6, 'EUR', 1)`,
+      [organizationId, rentalId, `Extension — ${days} day`, days, amountMinor / days, amountMinor],
+    )
+
+  it('leaves its days to it when repricing', async () => {
+    await legacyExtension(1, PREMIUM_RATE)
+    await db.sql(`update public.rentals set billable_days = 4 where id = $1`, [rentalId])
 
     await reprice()
 
@@ -300,34 +386,11 @@ describe('a booking that has been extended', () => {
     expect(after[0]!.description).toBe('3 day hire')
     expect(Number(after[0]!.amount_minor)).toBe(PREMIUM_RATE * 3)
     expect(Number(after[1]!.amount_minor)).toBe(PREMIUM_RATE)
-    expect(Number((await rental()).subtotal_minor)).toBe(PREMIUM_RATE * 4)
   })
 
-  it('reprices only the base period when the car changes', async () => {
-    await extend(1, PREMIUM_RATE)
-    const small = await createVehicle(`SML-${seq}`, SMALL_RATE)
-    await substitute(small)
-
-    await reprice()
-
-    const after = await lines()
-    // Three days at the new rate...
-    expect(Number(after[0]!.amount_minor)).toBe(SMALL_RATE * 3)
-    // ...and whatever was agreed for the extension, untouched.
-    expect(Number(after[1]!.amount_minor)).toBe(PREMIUM_RATE)
-  })
-
-  it('keeps an extension charged at a negotiated rate', async () => {
-    // An extension is not the day rate times the days; staff can agree
-    // anything. Repricing must not quietly turn it into the list price.
-    await extend(2, 1500)
-    await reprice()
-    expect(Number((await lines())[1]!.amount_minor)).toBe(1500)
-  })
-
-  it('refuses when the extensions already cover the whole hire', async () => {
-    await extend(1, PREMIUM_RATE)
-    await db.sql(`update public.rentals set billable_days = 1 where id = $1`, [rentalId])
+  it('refuses when those lines already cover the whole hire', async () => {
+    await legacyExtension(4, PREMIUM_RATE * 4)
+    await db.sql(`update public.rentals set billable_days = 4 where id = $1`, [rentalId])
     await db.expectRejection(() => reprice(), /already cover/i)
   })
 })
