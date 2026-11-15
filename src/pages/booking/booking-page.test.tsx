@@ -1,4 +1,5 @@
-import { render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -191,5 +192,111 @@ describe('an agency with nothing to show', () => {
     fetchBookingPage.mockResolvedValue({ status: 'ok', page: page({ vehicles: [] }) })
     renderPage()
     expect(await screen.findByText(/no cars on this page/i)).toBeInTheDocument()
+  })
+})
+
+describe('choosing the dates', () => {
+  /*
+   * The whole value of the page is "do you have a car on MY dates". Without
+   * this it only ever answers for the next three days, which is the agency's
+   * question rather than the visitor's.
+   */
+  it('seeds the inputs from the window the server used, in the agency time zone', async () => {
+    fetchBookingPage.mockResolvedValue({ status: 'ok', page: page() })
+    renderPage()
+
+    // 09:00 UTC on 1 March is 10:00 in Paris, and Paris is where the counter is.
+    expect(await screen.findByLabelText(/pick-up/i)).toHaveValue('2027-03-01T10:00')
+    expect(screen.getByLabelText(/return/i)).toHaveValue('2027-03-04T10:00')
+  })
+
+  it('asks the server again for the window the visitor picked', async () => {
+    fetchBookingPage.mockResolvedValue({ status: 'ok', page: page() })
+    renderPage()
+
+    const pickUp = await screen.findByLabelText(/pick-up/i)
+    fetchBookingPage.mockClear()
+    fireEvent.change(pickUp, { target: { value: '2027-04-10T09:00' } })
+
+    await waitFor(() => expect(fetchBookingPage).toHaveBeenCalled())
+    const [, period] = fetchBookingPage.mock.calls.at(-1) as [string, { from: Date; to: Date }]
+    // Sent as an instant: 09:00 in Paris is 07:00 UTC.
+    expect(period.from.toISOString()).toBe('2027-04-10T07:00:00.000Z')
+  })
+
+  it('carries the return along when the pick-up moves past it', async () => {
+    // Otherwise changing one field is a dead end: the visitor is told the
+    // window is inverted and has to fix something they did not break.
+    fetchBookingPage.mockResolvedValue({ status: 'ok', page: page() })
+    renderPage()
+
+    const pickUp = await screen.findByLabelText(/pick-up/i)
+    fireEvent.change(pickUp, { target: { value: '2027-04-10T09:00' } })
+
+    // The original window was three days; it stays three days.
+    await waitFor(() => expect(screen.getByLabelText(/return/i)).toHaveValue('2027-04-13T09:00'))
+    expect(screen.queryByText(/return has to be after/i)).not.toBeInTheDocument()
+  })
+
+  it('refuses a return before the pick-up without asking the server', async () => {
+    fetchBookingPage.mockResolvedValue({ status: 'ok', page: page() })
+    renderPage()
+
+    const returnAt = await screen.findByLabelText(/return/i)
+    fetchBookingPage.mockClear()
+    fireEvent.change(returnAt, { target: { value: '2027-02-01T10:00' } })
+
+    expect(await screen.findByText(/return has to be after the pick-up/i)).toBeInTheDocument()
+    expect(fetchBookingPage).not.toHaveBeenCalled()
+  })
+
+  it('keeps the fleet on screen when the server refuses the window', async () => {
+    // Somebody who typed a date in the past has made a small mistake. Taking
+    // the page down to tell them is a punishment, not an answer.
+    fetchBookingPage.mockResolvedValue({ status: 'ok', page: page() })
+    renderPage()
+
+    const pickUp = await screen.findByLabelText(/pick-up/i)
+    fetchBookingPage.mockResolvedValue({
+      status: 'unavailable',
+      message: 'Please choose a pick-up date and a return date in the future.',
+    })
+    fireEvent.change(pickUp, { target: { value: '2020-01-01T10:00' } })
+
+    expect(await screen.findByText(/date in the future/i)).toBeInTheDocument()
+    // The server's own sentence, and the cars are still there.
+    expect(screen.getByRole('heading', { name: 'Renault Clio' })).toBeInTheDocument()
+  })
+
+  it('sends the request for the window the fleet was priced against', async () => {
+    // Not what is half-typed into the inputs: the estimate on the card is for
+    // the window the server last answered for, and that is what is asked for.
+    const second = page({
+      window: { from: '2027-04-10T07:00:00.000Z', to: '2027-04-13T07:00:00.000Z' },
+    })
+    fetchBookingPage.mockResolvedValueOnce({ status: 'ok', page: page() })
+    fetchBookingPage.mockResolvedValue({ status: 'ok', page: second })
+
+    const user = userEvent.setup()
+    renderPage()
+
+    const pickUp = await screen.findByLabelText(/pick-up/i)
+    fireEvent.change(pickUp, { target: { value: '2027-04-10T09:00' } })
+
+    await waitFor(() => expect(screen.getByLabelText(/pick-up/i)).toHaveValue('2027-04-10T09:00'))
+    await user.click(await screen.findByRole('button', { name: /request this car/i }))
+    expect(
+      await screen.findByRole('heading', { name: /request renault clio/i }),
+    ).toBeInTheDocument()
+  })
+
+  it('offers no date inputs once the form is open', async () => {
+    // The request is for the dates on the card they pressed.
+    fetchBookingPage.mockResolvedValue({ status: 'ok', page: page() })
+    const user = userEvent.setup()
+    renderPage()
+
+    await user.click(await screen.findByRole('button', { name: /request this car/i }))
+    expect(screen.queryByLabelText(/pick-up/i)).not.toBeInTheDocument()
   })
 })
