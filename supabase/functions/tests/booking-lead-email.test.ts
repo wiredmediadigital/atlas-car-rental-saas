@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest'
 
 import {
+  MAIL_CAP_PER_HOUR,
   agencyNotification,
+  envelopesFor,
   renterAcknowledgement,
   senderFor,
   type AgencySummary,
@@ -172,5 +174,52 @@ describe('who the acknowledgement comes from', () => {
   it('copes with a bare platform address and an empty agency name', () => {
     expect(senderFor(AGENCY, 'no-reply@pevvy.test').from).toContain('no-reply@pevvy.test')
     expect(senderFor({ ...AGENCY, name: '   ' }, PLATFORM_FROM).from).toContain('pevvy')
+  })
+})
+
+describe('the cap on mail', () => {
+  const context = { recentRequests: 1, platformFrom: PLATFORM_FROM }
+  const recipients = ['owner@atlascars.test', 'admin@atlascars.test']
+
+  it('writes to the renter first, then to each owner and administrator', () => {
+    // If anything fails halfway, the person waiting for an answer should be
+    // the one who got theirs; the agency can see the request in the product.
+    const envelopes = envelopesFor(LEAD, AGENCY, recipients, context)
+    expect(envelopes.map((envelope) => envelope.message.to)).toEqual([
+      'grace@example.test',
+      'owner@atlascars.test',
+      'admin@atlascars.test',
+    ])
+  })
+
+  it('sends the acknowledgement as the agency and the rest as the platform', () => {
+    const [acknowledgement, notification] = envelopesFor(LEAD, AGENCY, recipients, context)
+    expect(acknowledgement!.sender?.from).toContain('Atlas Cars')
+    expect(acknowledgement!.sender?.replyTo).toBe('bookings@atlascars.test')
+    expect(notification!.sender).toBeUndefined()
+  })
+
+  it('stops at the cap', () => {
+    const atTheCap = { ...context, recentRequests: MAIL_CAP_PER_HOUR }
+    const overIt = { ...context, recentRequests: MAIL_CAP_PER_HOUR + 1 }
+    expect(envelopesFor(LEAD, AGENCY, recipients, atTheCap)).toHaveLength(3)
+    expect(envelopesFor(LEAD, AGENCY, recipients, overIt)).toEqual([])
+  })
+
+  it('stops the renter acknowledgement too, which is the one that matters', () => {
+    /*
+     * The acknowledgement goes to an address whoever sent the request chose.
+     * That is what turns a flood into spam complaints against the one domain
+     * every agency on this deployment sends from, so the cap cannot spare it.
+     */
+    const envelopes = envelopesFor(LEAD, AGENCY, recipients, {
+      ...context,
+      recentRequests: MAIL_CAP_PER_HOUR + 1,
+    })
+    expect(envelopes.some((envelope) => envelope.message.to === LEAD.renterEmail)).toBe(false)
+  })
+
+  it('still produces the acknowledgement for an agency with nobody to notify', () => {
+    expect(envelopesFor(LEAD, AGENCY, [], context)).toHaveLength(1)
   })
 })
