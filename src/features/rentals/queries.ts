@@ -18,6 +18,7 @@ import {
   type HandoverInput,
   type RecordPaymentInput,
   type RentalQuery,
+  type CancelRentalInput,
   type SignContractInput,
   type UpdateRentalInput,
   addCharge,
@@ -36,6 +37,7 @@ import {
   fetchRentalBoardEntry,
   fetchRentalContracts,
   fetchRentalDrivers,
+  setCancellationFee,
   fetchRentalLineItems,
   fetchRentalPayments,
   fetchRentalUsage,
@@ -378,7 +380,17 @@ export function useCancelRental(rentalId: string) {
   const client = useQueryClient()
 
   return useMutation({
-    mutationFn: (reason: string | null) => cancelRental(rentalId, reason),
+    mutationFn: (input: CancelRentalInput) => cancelRental(rentalId, input),
+    onSuccess: () => invalidateRentals(client, organization.id),
+  })
+}
+
+export function useSetCancellationFee(rentalId: string) {
+  const organization = useOrganization()
+  const client = useQueryClient()
+
+  return useMutation({
+    mutationFn: (feeMinor: number) => setCancellationFee(rentalId, feeMinor),
     onSuccess: () => invalidateRentals(client, organization.id),
   })
 }

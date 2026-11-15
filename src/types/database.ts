@@ -140,6 +140,7 @@ export type RentalChargeKind =
   | 'damage'
   | 'adjustment'
   | 'discount'
+  | 'cancellation_fee'
   | 'other'
 export const RENTAL_CHARGE_KINDS: readonly RentalChargeKind[] = [
   'base_rental',
@@ -154,6 +155,7 @@ export const RENTAL_CHARGE_KINDS: readonly RentalChargeKind[] = [
   'damage',
   'adjustment',
   'discount',
+  'cancellation_fee',
   'other',
 ]
 export type ExpenseAllocation = 'overhead' | 'vehicle' | 'rental'
@@ -3250,7 +3252,11 @@ export interface Database {
         Returns: RentalRow
       }
       rental_cancel: {
-        Args: { p_rental_id: string; p_reason?: string | null }
+        Args: { p_rental_id: string; p_reason?: string | null; p_fee_minor?: number }
+        Returns: RentalRow
+      }
+      rental_set_cancellation_fee: {
+        Args: { p_rental_id: string; p_fee_minor: number }
         Returns: RentalRow
       }
       rental_extend: {

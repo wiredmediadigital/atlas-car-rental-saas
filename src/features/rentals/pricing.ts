@@ -1,4 +1,4 @@
-import { assertSafeMinor } from '@/lib/money/money'
+import { assertSafeMinor, parseMoneyToMinor } from '@/lib/money/money'
 import type { RentalChargeKind, RentalLineItem } from '@/types/database'
 
 /**
@@ -61,6 +61,7 @@ export const CHARGE_KIND_LABELS: Readonly<Record<RentalChargeKind, string>> = {
   damage: 'Damage',
   adjustment: 'Adjustment',
   discount: 'Discount',
+  cancellation_fee: 'Cancellation fee',
   other: 'Other',
 }
 
@@ -89,7 +90,27 @@ export const CHARGE_KIND_PLACEHOLDERS: Readonly<Record<RentalChargeKind, string>
   damage: 'Scratched wing mirror',
   adjustment: 'Agreed reduction',
   discount: 'Returning customer',
+  cancellation_fee: 'Kept when the booking was called off',
   other: 'Toll charges',
+}
+
+/**
+ * Reads what somebody typed into a "what are you keeping" box.
+ *
+ * Empty means nothing is kept, which is what most cancellations are. Text that
+ * is not an amount at all comes back as null for the caller to refuse rather
+ * than being read as nothing, because a field about money quietly becoming a
+ * free cancellation is the one outcome nobody would notice.
+ *
+ * What counts as readable is parseMoneyToMinor's business, deliberately: this
+ * box behaves like every other amount field in the product, down to how it
+ * treats a trailing separator.
+ */
+export function parseKeptAmount(input: string, currency: string): number | null {
+  if (input.trim() === '') return 0
+  const minor = parseMoneyToMinor(input, currency)
+  if (minor === null || minor < 0) return null
+  return minor
 }
 
 /** Kinds a person can add by hand. `base_rental` comes from the period and rate. */

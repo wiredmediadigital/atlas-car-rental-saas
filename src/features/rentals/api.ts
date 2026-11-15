@@ -666,10 +666,32 @@ export async function completeRental(rentalId: string): Promise<Rental> {
   return firstRow(data)
 }
 
-export async function cancelRental(rentalId: string, reason: string | null): Promise<Rental> {
+export interface CancelRentalInput {
+  readonly reason: string | null
+  /** What the agency keeps. Zero is the ordinary case and means nothing is kept. */
+  readonly feeMinor: number
+}
+
+export async function cancelRental(rentalId: string, input: CancelRentalInput): Promise<Rental> {
   const { data, error } = await getSupabaseClient().rpc('rental_cancel', {
     p_rental_id: rentalId,
-    p_reason: reason,
+    p_reason: input.reason,
+    p_fee_minor: input.feeMinor,
+  })
+  if (error) throw toAppError(error)
+  return firstRow(data)
+}
+
+/**
+ * Changes what is kept from a booking that was already cancelled.
+ *
+ * Also the way a booking cancelled before fees existed is brought up to date:
+ * a fee of nothing settles it, clearing a hire charge that is not happening.
+ */
+export async function setCancellationFee(rentalId: string, feeMinor: number): Promise<Rental> {
+  const { data, error } = await getSupabaseClient().rpc('rental_set_cancellation_fee', {
+    p_rental_id: rentalId,
+    p_fee_minor: feeMinor,
   })
   if (error) throw toAppError(error)
   return firstRow(data)

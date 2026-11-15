@@ -52,8 +52,8 @@ import {
   primaryAction,
   type RentalAction,
 } from '@/features/rentals/lifecycle'
-import { baseChargeMismatch, quoteFromRows } from '@/features/rentals/pricing'
-import { formatMoney } from '@/lib/money/money'
+import { baseChargeMismatch, parseKeptAmount, quoteFromRows } from '@/features/rentals/pricing'
+import { formatMoney, minorToDecimalString } from '@/lib/money/money'
 import {
   useAddCharge,
   useCancelRental,
@@ -67,6 +67,7 @@ import {
   useRentalDrivers,
   useRentalLineItems,
   useRentalUsage,
+  useSetCancellationFee,
 } from '@/features/rentals/queries'
 import { useDistanceUnit } from '@/features/workspace/useOrganizationSettings'
 import { useOrganization, usePermission } from '@/features/workspace/workspace-context'
@@ -108,6 +109,7 @@ export function RentalDetailPage() {
   const confirmRental = useConfirmRental(rentalId ?? '')
   const completeRental = useCompleteRental(rentalId ?? '')
   const cancelRental = useCancelRental(rentalId ?? '')
+  const setCancellationFee = useSetCancellationFee(rentalId ?? '')
   const addCharge = useAddCharge(rentalId ?? '')
   const removeCharge = useRemoveCharge()
   const deleteRental = useDeleteRental()
@@ -119,6 +121,9 @@ export function RentalDetailPage() {
   const [isCancelling, setIsCancelling] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
   const [cancelReason, setCancelReason] = useState('')
+  const [cancelFee, setCancelFee] = useState('')
+  const [isSettingFee, setIsSettingFee] = useState(false)
+  const [feeDraft, setFeeDraft] = useState('')
 
   const rental = rentalQuery.data
   const board = boardQuery.data
@@ -128,8 +133,8 @@ export function RentalDetailPage() {
   const locale = organization.locale
   const timeZone = organization.time_zone
   const when = (iso: string) => formatDateTime(new Date(iso), { locale, timeZone })
-  const money = (amountMinor: number) =>
-    formatMoney(amountMinor, rental?.currency ?? organization.default_currency, { locale })
+  const currency = rental?.currency ?? organization.default_currency
+  const money = (amountMinor: number) => formatMoney(amountMinor, currency, { locale })
 
   /*
    * The comparison public.rental_reschedule assumes somebody is shown. Both
@@ -142,6 +147,20 @@ export function RentalDetailPage() {
     [rental, lines],
   )
   const canReprice = canUpdate
+
+  /*
+   * What the agency kept when this booking was called off, read from the
+   * contract rather than from a column of its own: a cancellation fee is a
+   * charge, and charges are lines.
+   *
+   * A cancelled booking with no such line has not been settled at all -- it was
+   * cancelled before any of this existed and is still carrying the hire that
+   * did not happen. That is worth saying out loud, because until somebody
+   * settles it the customer's account reports the whole payment as refundable.
+   */
+  const feeLines = useMemo(() => lines.filter((line) => line.kind === 'cancellation_fee'), [lines])
+  const cancellationFeeMinor = feeLines.reduce((total, line) => total + line.amount_minor, 0)
+  const isSettled = feeLines.length > 0
 
   const quote = useMemo(
     () =>
@@ -205,13 +224,44 @@ export function RentalDetailPage() {
   }
 
   const confirmCancel = async () => {
+    const feeMinor = parseKeptAmount(cancelFee, currency)
+    if (feeMinor === null) {
+      toast.error('Could not cancel this', 'Enter the amount you are keeping, or leave it empty.')
+      return
+    }
+
     try {
-      await cancelRental.mutateAsync(cancelReason.trim() || null)
-      toast.success('Reservation cancelled', 'The vehicle is free again, and the record is kept.')
+      await cancelRental.mutateAsync({ reason: cancelReason.trim() || null, feeMinor })
+      toast.success(
+        'Reservation cancelled',
+        feeMinor > 0
+          ? `The vehicle is free again. ${money(feeMinor)} is kept and the rest is refundable.`
+          : 'The vehicle is free again, and the record is kept.',
+      )
       setIsCancelling(false)
       setCancelReason('')
+      setCancelFee('')
     } catch (error) {
       toast.error('Could not cancel this', toErrorMessage(error))
+    }
+  }
+
+  const confirmFee = async () => {
+    const feeMinor = parseKeptAmount(feeDraft, currency)
+    if (feeMinor === null) {
+      toast.error('Could not save that', 'Enter the amount you are keeping, or leave it empty.')
+      return
+    }
+
+    try {
+      await setCancellationFee.mutateAsync(feeMinor)
+      toast.success(
+        feeMinor > 0 ? `Keeping ${money(feeMinor)}` : 'Nothing kept',
+        'The customer’s account has been updated.',
+      )
+      setIsSettingFee(false)
+    } catch (error) {
+      toast.error('Could not save that', toErrorMessage(error))
     }
   }
 
@@ -318,9 +368,37 @@ export function RentalDetailPage() {
         </Alert>
       ) : null}
 
-      {rental.status === 'cancelled' && rental.cancellation_reason ? (
-        <Alert tone="info" title="Cancelled">
-          {rental.cancellation_reason}
+      {rental.status === 'cancelled' ? (
+        <Alert
+          tone="info"
+          title="Cancelled"
+          actions={
+            canUpdate ? (
+              <Button
+                size="sm"
+                variant="secondary"
+                onClick={() => {
+                  setFeeDraft(
+                    cancellationFeeMinor > 0
+                      ? minorToDecimalString(cancellationFeeMinor, currency)
+                      : '',
+                  )
+                  setIsSettingFee(true)
+                }}
+              >
+                {isSettled ? 'Change what is kept' : 'Set what is kept'}
+              </Button>
+            ) : null
+          }
+        >
+          {rental.cancellation_reason ? <p>{rental.cancellation_reason}</p> : null}
+          <p>
+            {!isSettled
+              ? 'This booking still carries the hire that did not happen, so the customer’s account shows everything paid as refundable. Settling it clears the charge.'
+              : cancellationFeeMinor > 0
+                ? `${money(cancellationFeeMinor)} is kept. Anything paid above that is refundable.`
+                : 'Nothing is kept, so everything paid is refundable.'}
+          </p>
         </Alert>
       ) : null}
 
@@ -640,20 +718,57 @@ export function RentalDetailPage() {
         open={isCancelling}
         onOpenChange={(open) => {
           setIsCancelling(open)
-          if (!open) setCancelReason('')
+          if (!open) {
+            setCancelReason('')
+            setCancelFee('')
+          }
         }}
         title="Cancel this reservation"
-        description="The vehicle is released for these dates. The contract, its charges and any money already taken stay on the record."
+        description="The vehicle is released for these dates. The contract and any money already taken stay on the record; the hire charge is cleared, because it is not happening."
         confirmLabel="Cancel reservation"
         isPending={cancelRental.isPending}
         onConfirm={() => void confirmCancel()}
       >
-        <Field label="Why" hint="Kept with the contract so the history explains itself.">
+        <div className="space-y-3">
+          <Field label="Why" hint="Kept with the contract so the history explains itself.">
+            <Input
+              value={cancelReason}
+              onChange={(event) => setCancelReason(event.target.value)}
+              maxLength={500}
+              placeholder="Customer's flight was cancelled"
+            />
+          </Field>
+
+          <Field
+            label="Keeping"
+            hint="Leave empty if you are keeping nothing. Anything paid above this is refundable."
+          >
+            <Input
+              value={cancelFee}
+              onChange={(event) => setCancelFee(event.target.value)}
+              inputMode="decimal"
+              placeholder="0.00"
+            />
+          </Field>
+        </div>
+      </ConfirmDialog>
+
+      <ConfirmDialog
+        open={isSettingFee}
+        onOpenChange={setIsSettingFee}
+        title="What is kept from this booking?"
+        description="It goes on the contract as a cancellation fee and counts as charged on the customer’s account. Everything paid above it is theirs to get back."
+        confirmLabel="Save"
+        isPending={setCancellationFee.isPending}
+        onConfirm={() => void confirmFee()}
+      >
+        <Field label="Keeping" hint="Leave empty to keep nothing.">
           <Input
-            value={cancelReason}
-            onChange={(event) => setCancelReason(event.target.value)}
-            maxLength={500}
-            placeholder="Customer's flight was cancelled"
+            value={feeDraft}
+            onChange={(event) => setFeeDraft(event.target.value)}
+            inputMode="decimal"
+            placeholder="0.00"
+            autoFocus
           />
         </Field>
       </ConfirmDialog>

@@ -9,6 +9,7 @@ import {
   billableDays,
   describeDayRounding,
   formatTaxRate,
+  parseKeptAmount,
   parseTaxRatePercent,
   quoteFromLines,
 } from './pricing'
@@ -527,5 +528,35 @@ describe('the base charge mismatch the interface has to show', () => {
   it('catches a booking that lost its base charge', () => {
     const found = baseChargeMismatch(booking(), [line({ kind: 'child_seat', amount_minor: 1500 })])
     expect(found).toEqual({ expectedMinor: 27000, chargedMinor: 0, dailyRateMinor: 9000, days: 3 })
+  })
+})
+
+describe('what an agency keeps when a booking is called off', () => {
+  it('reads nothing as keeping nothing', () => {
+    // Most cancellations keep nothing, so the box is usually left alone.
+    expect(parseKeptAmount('', 'EUR')).toBe(0)
+    expect(parseKeptAmount('   ', 'EUR')).toBe(0)
+  })
+
+  it('reads an amount into minor units', () => {
+    expect(parseKeptAmount('50', 'EUR')).toBe(5000)
+    expect(parseKeptAmount('50.00', 'EUR')).toBe(5000)
+  })
+
+  it('refuses something that is not an amount rather than keeping nothing', () => {
+    // The failure that matters: text in a field about money must not quietly
+    // become a free cancellation.
+    expect(parseKeptAmount('fifty', 'EUR')).toBeNull()
+    expect(parseKeptAmount('--', 'EUR')).toBeNull()
+  })
+
+  it('tolerates a half-typed separator the way every other amount field does', () => {
+    // parseMoneyToMinor reads a trailing separator as the end of the whole
+    // part. Keeping that consistent matters more than being strict here.
+    expect(parseKeptAmount('50,', 'EUR')).toBe(5000)
+  })
+
+  it('refuses a negative amount', () => {
+    expect(parseKeptAmount('-50', 'EUR')).toBeNull()
   })
 })
