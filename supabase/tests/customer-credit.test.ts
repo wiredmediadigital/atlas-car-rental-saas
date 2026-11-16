@@ -308,3 +308,54 @@ describe('keeping an overpayment instead of refunding it', () => {
     expect(rows.some((row) => row.notes?.includes('Moved to the customer'))).toBe(true)
   })
 })
+
+describe('two people spending the same balance', () => {
+  /*
+   * A single-connection PGlite cannot open two real transactions, so the race
+   * itself cannot be run here -- scripts/live-smoke-test.mjs does that over
+   * separate connections. What is asserted is the property that makes the
+   * race safe: the customer row is locked before the balance is read, so a
+   * second caller waits and then re-reads a balance that includes the first
+   * caller's write.
+   *
+   * Checking the body rather than the behaviour is unusual and deliberate.
+   * Without it, somebody tidying these functions later removes a `for update`
+   * that looks decorative and nothing anywhere fails.
+   */
+  const bodyOf = async (signature: string): Promise<string> => {
+    const [row] = await db.sql<{ src: string }>(
+      `select pg_get_functiondef($1::regprocedure) as src`,
+      [signature],
+    )
+    return row!.src.toLowerCase()
+  }
+
+  it('locks the customer before paying money out of the account', async () => {
+    const src = await bodyOf(
+      'public.customer_record_credit(uuid, bigint, public.currency_code,' +
+        ' public.payment_direction, public.payment_method, timestamptz, text, text)',
+    )
+    expect(src).toMatch(/from public\.customers[\s\S]*?for update/)
+  })
+
+  it('locks the customer before spending the account on a booking', async () => {
+    const src = await bodyOf('public.customer_apply_credit(uuid, uuid, bigint)')
+    expect(src).toMatch(/from public\.customers[\s\S]*?for update/)
+  })
+
+  it('takes the customer before the rental, so the pair cannot deadlock', async () => {
+    // Nothing in the schema takes these two the other way round. A later
+    // function that needs both has to take them in this order.
+    // The two locking statements, not the declare block above them -- which
+    // names public.rentals first and says nothing about order.
+    const src = await bodyOf('public.customer_apply_credit(uuid, uuid, bigint)')
+    expect(src.indexOf('from public.customers')).toBeLessThan(src.indexOf('from public.rentals'))
+  })
+
+  it('still refuses to spend more than is held', async () => {
+    // The lock must not have changed what the arithmetic says.
+    await credit(3_000)
+    const id = await bookingOf(30_000)
+    await db.expectRejection(() => apply(id, 99_000), /only .* is held/i)
+  })
+})
