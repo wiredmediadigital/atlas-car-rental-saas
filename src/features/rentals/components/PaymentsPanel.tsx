@@ -2,6 +2,7 @@ import { Ban, Plus, ShieldCheck, Undo2, Wallet } from 'lucide-react'
 import { useState } from 'react'
 
 import {
+  Alert,
   Badge,
   Button,
   Card,
@@ -242,11 +243,26 @@ export function PaymentsPanel({
           }
         }}
         title="Void this payment"
-        description="The entry stays on the record, marked as voided, and stops counting towards what has been paid."
+        description="Voiding says the payment never happened — it was entered in error. The entry stays on the record, marked, and stops counting, so the customer owes the money again."
         confirmLabel="Void payment"
         isPending={voidPayment.isPending}
         onConfirm={() => void confirmVoid()}
       >
+        {/*
+         * The distinction that sends people down the wrong path. Somebody
+         * looking for "give this money back" finds Void first, because it is
+         * the control sitting on the payment itself -- and voiding a payment
+         * that really was received leaves the agency holding money the system
+         * believes it never took.
+         */}
+        <Alert tone="caution" title="Did you receive this money?">
+          If you did, this is the wrong action: voiding will say you never took it, and the customer
+          will owe it again.
+          {refundableMinor > 0
+            ? ` To give back what is owed to them, close this and use Refund ${formatMoney(refundableMinor, currency, { locale })} instead.`
+            : ' To give money back, reduce what the booking charges and then refund it.'}
+        </Alert>
+
         <Field label="Why" hint="Kept with the entry so the reason survives the correction.">
           <Input
             value={reason}

@@ -361,3 +361,74 @@ describe('two people spending the same balance', () => {
     await db.expectRejection(() => apply(id, 99_000), /only .* is held/i)
   })
 })
+
+describe('voiding money on the account', () => {
+  /*
+   * Money with no booking has no rollup to clamp it: customer_account_balance
+   * simply sums, so voiding a credit that had already been spent would leave
+   * the customer's own page reporting a negative balance.
+   *
+   * Its own customer, because the guard asks whether the BALANCE would go
+   * negative, not whether this particular credit funded that particular
+   * spend -- money on account is fungible and nothing traces one to the other.
+   * The first version of this test shared the file's customer, whose balance
+   * from earlier tests covered the void, and it failed for the right reason.
+   */
+  let lone: string
+
+  beforeAll(async () => {
+    const [row] = await db.sql<{ id: string }>(
+      `insert into public.customers (organization_id, first_name, last_name)
+       values ($1, 'Lone', 'Account') returning id`,
+      [organizationId],
+    )
+    lone = row!.id
+  })
+
+  const creditLone = async (amountMinor: number): Promise<string> => {
+    const [row] = await db.asUser(ownerId, (session) =>
+      session.sql<{ id: string }>(
+        `select (public.customer_record_credit($1, $2, 'EUR')).id as id`,
+        [lone, amountMinor],
+      ),
+    )
+    return row!.id
+  }
+
+  const loneBalance = async (): Promise<number> => {
+    const rows = await db.asUser(ownerId, (session) =>
+      session.sql<{ on_account_minor: number }>(
+        `select * from public.customer_account_balance($1)`,
+        [lone],
+      ),
+    )
+    return Number(rows[0]?.on_account_minor ?? 0)
+  }
+
+  const voidIt = (paymentId: string) =>
+    db.asUser(ownerId, (session) =>
+      session.sql(`select public.rental_void_payment($1, 'entered in error')`, [paymentId]),
+    )
+
+  it('refuses when the money has already been spent on a booking', async () => {
+    const id = await creditLone(9_000)
+    const booking = await bookingOf(30_000)
+    await db.sql(`update public.rentals set customer_id = $2 where id = $1`, [booking, lone])
+    await db.asUser(ownerId, (session) =>
+      session.sql(`select public.customer_apply_credit($1, $2, $3)`, [lone, booking, 9_000]),
+    )
+    expect(await loneBalance()).toBe(0)
+
+    await db.expectRejection(() => voidIt(id), /less than nothing/i)
+    expect(await loneBalance()).toBe(0)
+  })
+
+  it('voids a credit that is still sitting there', async () => {
+    const id = await creditLone(4_000)
+    expect(await loneBalance()).toBe(4_000)
+
+    await voidIt(id)
+
+    expect(await loneBalance()).toBe(0)
+  })
+})

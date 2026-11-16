@@ -557,3 +557,76 @@ describe('a booking that is still standing can be overpaid', () => {
     expect(Number(row.paid_minor)).toBe(33_000 + 5_000 + 12_000)
   })
 })
+
+describe('voiding has to leave the books standing', () => {
+  const record = (
+    rentalId: string,
+    amountMinor: number,
+    direction: 'inbound' | 'outbound',
+    purpose: 'rental_charge' | 'deposit' = 'rental_charge',
+  ) =>
+    db.asUser(ownerId, (session) =>
+      session.sql<{ id: string }>(
+        `select (public.rental_record_payment($1, $2, $3, $4)).id as id`,
+        [rentalId, amountMinor, direction, purpose],
+      ),
+    )
+
+  const voidIt = (paymentId: string) =>
+    db.asUser(ownerId, (session) =>
+      session.sql(`select public.rental_void_payment($1, 'entered in error')`, [paymentId]),
+    )
+
+  const paidOn = async (rentalId: string): Promise<number> => {
+    const [row] = await db.sql<{ amount_paid_minor: number }>(
+      `select amount_paid_minor from public.rentals where id = $1`,
+      [rentalId],
+    )
+    return Number(row!.amount_paid_minor)
+  }
+
+  it('refuses to void the receipt a refund was drawn from', async () => {
+    /*
+     * 330 taken against a hire later repriced to 247.50, then 82.50 refunded.
+     * Voiding the 330 leaves the refund on the ledger, paid out against money
+     * the system would then believe was never received -- and the rollup
+     * clamps the negative away without a word.
+     */
+    const id = await bookedAt(24_750)
+    const [receipt] = await record(id, 33_000, 'inbound')
+    await record(id, 8_250, 'outbound')
+
+    await db.expectRejection(() => voidIt(receipt!.id), /more than was received/i)
+    expect(await paidOn(id)).toBe(24_750)
+  })
+
+  it('still voids a mistaken extra payment the rest can cover', async () => {
+    // The case the function exists for. Two receipts, one refund: voiding
+    // either still leaves enough to have funded what went out.
+    const id = await bookedAt(24_750)
+    await record(id, 33_000, 'inbound')
+    const [mistake] = await record(id, 20_000, 'inbound')
+    await record(id, 8_250, 'outbound')
+
+    await voidIt(mistake!.id)
+
+    expect(await paidOn(id)).toBe(24_750)
+  })
+
+  it('refuses to void a deposit that has been given back', async () => {
+    const id = await bookedAt(24_750)
+    const [taken] = await record(id, 15_000, 'inbound', 'deposit')
+    await record(id, 15_000, 'outbound', 'deposit')
+
+    await db.expectRejection(() => voidIt(taken!.id), /more than was taken/i)
+  })
+
+  it('voids an ordinary payment with nothing drawn against it', async () => {
+    const id = await bookedAt(24_750)
+    const [only] = await record(id, 10_000, 'inbound')
+
+    await voidIt(only!.id)
+
+    expect(await paidOn(id)).toBe(0)
+  })
+})

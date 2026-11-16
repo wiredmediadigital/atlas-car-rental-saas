@@ -1,5 +1,8 @@
 import { render, screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type { Payment } from '@/types/database'
 
 import { PaymentsPanel, type PaymentsPanelProps } from './PaymentsPanel'
 
@@ -12,8 +15,34 @@ vi.mock('@/components/ui', async (importOriginal) => {
   return { ...actual, useToast: () => ({ success: vi.fn(), error: vi.fn() }) }
 })
 
-function renderPanel(overrides: Partial<PaymentsPanelProps> = {}) {
-  useRentalPayments.mockReturnValue({ data: [], isPending: false })
+/** One received payment, enough for the row that carries the Void control. */
+function paid(amountMinor: number): Payment {
+  return {
+    id: 'payment-1',
+    organization_id: 'org-1',
+    rental_id: 'rental-1',
+    customer_id: 'customer-1',
+    direction: 'inbound',
+    purpose: 'rental_charge',
+    method: 'card',
+    amount_minor: amountMinor,
+    currency: 'EUR',
+    paid_at: '2026-11-16T10:00:00Z',
+    reference: null,
+    notes: null,
+    recorded_by: null,
+    voided_at: null,
+    voided_by: null,
+    void_reason: null,
+    idempotency_key: null,
+    created_at: '2026-11-16T10:00:00Z',
+    updated_at: '2026-11-16T10:00:00Z',
+  }
+}
+
+function renderPanel(overrides: Partial<PaymentsPanelProps> & { payments?: Payment[] } = {}) {
+  const { payments = [], ...props } = overrides
+  useRentalPayments.mockReturnValue({ data: payments, isPending: false })
   useVoidPayment.mockReturnValue({ mutateAsync: vi.fn(), isPending: false })
 
   return render(
@@ -33,7 +62,7 @@ function renderPanel(overrides: Partial<PaymentsPanelProps> = {}) {
       depositHeldMinor={0}
       depositAgreedMinor={0}
       balanceDueMinor={0}
-      {...overrides}
+      {...props}
     />,
   )
 }
@@ -108,5 +137,39 @@ describe('money on a booking that stands', () => {
   it('shows nothing at all to somebody who may not record money', () => {
     renderPanel({ canRecord: false, balanceDueMinor: 40_000 })
     expect(button('Record payment')).not.toBeInTheDocument()
+  })
+})
+
+describe('what voiding means', () => {
+  const openVoid = async () => {
+    const user = userEvent.setup()
+    await user.click(screen.getByRole('button', { name: /void/i }))
+  }
+
+  it('says voiding means the payment never happened', async () => {
+    /*
+     * The confusion this closes, reported from live use: somebody owed a
+     * customer money, reached for Void because it sits on the payment itself,
+     * and ended up telling the system it had never taken the money at all.
+     */
+    renderPanel({ balanceDueMinor: 0, payments: [paid(33_000)] })
+    await openVoid()
+
+    expect(screen.getByText(/Did you receive this money\?/i)).toBeInTheDocument()
+    expect(screen.getByText(/customer will owe it again/i)).toBeInTheDocument()
+  })
+
+  it('names the refund, and its amount, when there is one to make', async () => {
+    renderPanel({ balanceDueMinor: -8_250, payments: [paid(33_000)] })
+    await openVoid()
+
+    expect(screen.getByText(/use Refund €82\.50 instead/i)).toBeInTheDocument()
+  })
+
+  it('points at reducing the charge when nothing is refundable yet', async () => {
+    renderPanel({ balanceDueMinor: 5_000, payments: [paid(33_000)] })
+    await openVoid()
+
+    expect(screen.getByText(/reduce what the booking charges/i)).toBeInTheDocument()
   })
 })
