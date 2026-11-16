@@ -824,8 +824,12 @@ describe('a cancelled booking on the account', () => {
     const row = await summary()
 
     expect(Number(row.charged_minor)).toBe(60_000)
-    expect(Number(row.paid_minor)).toBe(60_000)
     expect(Number(row.outstanding_minor)).toBe(0)
+
+    // Received is everything they handed over -- the 600 for the hire that
+    // happened and the 100 taken against the one that did not. The 100 is not
+    // a charge, which is what the refundable figure beside it says.
+    expect(Number(row.paid_minor)).toBe(70_000)
   })
 
   it('reports what was taken against it as money still held', async () => {

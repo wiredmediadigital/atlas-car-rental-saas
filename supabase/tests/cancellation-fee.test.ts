@@ -281,6 +281,30 @@ describe('changing what is kept afterwards', () => {
 })
 
 describe('the fee on the customer’s account', () => {
+  /*
+   * Its own customer, and absolute figures rather than deltas from a baseline.
+   * The delta version hid what it was really asserting: when `paid` changed
+   * meaning, three of these failed with numbers that could not be reasoned
+   * about without replaying every booking the file had made.
+   */
+  let feeCustomer: string
+
+  beforeAll(async () => {
+    const [row] = await db.sql<{ id: string }>(
+      `insert into public.customers (organization_id, first_name, last_name)
+       values ($1, 'Fee', 'Payer') returning id`,
+      [organizationId],
+    )
+    feeCustomer = row!.id
+  })
+
+  /** A booking charging `amountMinor`, on this describe's own customer. */
+  const booked = async (amountMinor: number): Promise<string> => {
+    const id = await bookedAt(amountMinor)
+    await db.sql(`update public.rentals set customer_id = $2 where id = $1`, [id, feeCustomer])
+    return id
+  }
+
   const summary = async () => {
     const [row] = await db.asUser(ownerId, (session) =>
       session.sql<{
@@ -289,46 +313,37 @@ describe('the fee on the customer’s account', () => {
         outstanding_minor: number
         cancelled_count: number
         to_refund_minor: number
-      }>(`select * from public.customer_financial_summary($1)`, [customerId]),
+      }>(`select * from public.customer_financial_summary($1)`, [feeCustomer]),
     )
     return row!
   }
 
-  /** Each test works from one booking, so the figures are the booking's own. */
-  let baseline: Awaited<ReturnType<typeof summary>>
-
-  beforeAll(async () => {
-    baseline = await summary()
-  })
-
-  it('counts a kept fee as charged, not as refundable', async () => {
-    const id = await bookedAt(40_000)
+  it('counts a kept fee as charged, and the rest as refundable', async () => {
+    const id = await booked(40_000)
     await pay(id, 12_000)
     await cancel(id, 5_000)
 
     const row = await summary()
-    expect(Number(row.charged_minor) - Number(baseline.charged_minor)).toBe(5_000)
-    // Of the 120 taken, 50 paid for the fee and 70 is theirs to get back.
-    expect(Number(row.paid_minor) - Number(baseline.paid_minor)).toBe(5_000)
-    expect(Number(row.to_refund_minor) - Number(baseline.to_refund_minor)).toBe(7_000)
-
-    baseline = row
+    expect(Number(row.charged_minor)).toBe(5_000)
+    // Everything taken, whatever became of the booking: 120 in, 50 of it
+    // earned as the fee, 70 to go back.
+    expect(Number(row.paid_minor)).toBe(12_000)
+    expect(Number(row.to_refund_minor)).toBe(7_000)
+    expect(Number(row.outstanding_minor)).toBe(0)
   })
 
   it('reports a fee nobody has paid as outstanding', async () => {
-    const id = await bookedAt(40_000)
+    const id = await booked(40_000)
     await cancel(id, 5_000)
 
     const row = await summary()
-    expect(Number(row.charged_minor) - Number(baseline.charged_minor)).toBe(5_000)
-    expect(Number(row.outstanding_minor) - Number(baseline.outstanding_minor)).toBe(5_000)
-    expect(Number(row.to_refund_minor) - Number(baseline.to_refund_minor)).toBe(0)
-
-    baseline = row
+    expect(Number(row.charged_minor)).toBe(10_000)
+    expect(Number(row.outstanding_minor)).toBe(5_000)
+    expect(Number(row.to_refund_minor)).toBe(7_000)
   })
 
   it('charges nothing for a booking nobody has settled', async () => {
-    const id = await bookedAt(40_000)
+    const id = await booked(40_000)
     await pay(id, 12_000)
     await db.sql(
       `update public.rentals set status = 'cancelled', cancelled_at = now() where id = $1`,
@@ -336,17 +351,23 @@ describe('the fee on the customer’s account', () => {
     )
 
     const row = await summary()
-    expect(Number(row.charged_minor) - Number(baseline.charged_minor)).toBe(0)
-    expect(Number(row.to_refund_minor) - Number(baseline.to_refund_minor)).toBe(12_000)
-
-    baseline = row
+    expect(Number(row.charged_minor)).toBe(10_000)
+    expect(Number(row.paid_minor)).toBe(24_000)
+    expect(Number(row.to_refund_minor)).toBe(19_000)
   })
 
-  it('keeps charged less paid equal to outstanding', async () => {
-    // The arithmetic the table invites has to come out, whatever mixture of
-    // cancelled and standing bookings this customer has accumulated above.
+  it('keeps charged less paid equal to outstanding less what must go back', async () => {
+    /*
+     * The identity, in the only form that is true. The previous version
+     * asserted `charged - paid = outstanding`, which holds only while nobody
+     * has overpaid -- and passed, because every booking this described had
+     * been cancelled. A live booking repriced below what was paid for it broke
+     * it in production.
+     */
     const row = await summary()
-    expect(Number(row.charged_minor) - Number(row.paid_minor)).toBe(Number(row.outstanding_minor))
+    expect(Number(row.charged_minor) - Number(row.paid_minor)).toBe(
+      Number(row.outstanding_minor) - Number(row.to_refund_minor),
+    )
   })
 })
 
@@ -442,5 +463,97 @@ describe('settling up after a cancellation', () => {
     const id = await bookedAt(40_000)
     await record(id, 40_000, 'inbound')
     expect(Number((await paidAndDue(id)).balance_due_minor)).toBe(0)
+  })
+})
+
+describe('a booking that is still standing can be overpaid', () => {
+  /*
+   * Reported from live use: a hire repriced downwards after it had been paid
+   * in full left money to go back, and the account said nothing. to_refund
+   * was filtered to cancelled bookings, which is not the only way to end up
+   * holding more than you charge.
+   */
+  let payer: string
+
+  const summary = async () => {
+    const [row] = await db.asUser(ownerId, (session) =>
+      session.sql<{
+        charged_minor: number
+        paid_minor: number
+        outstanding_minor: number
+        to_refund_minor: number
+      }>(`select * from public.customer_financial_summary($1)`, [payer]),
+    )
+    return row!
+  }
+
+  /** Charges a booking by rewriting its hire line, the way repricing does. */
+  const chargeIt = (rentalId: string, amountMinor: number) =>
+    db.sql(
+      `update public.rental_line_items set amount_minor = $2, unit_amount_minor = $2
+             where rental_id = $1 and kind = 'base_rental'`,
+      [rentalId, amountMinor],
+    )
+
+  beforeAll(async () => {
+    const [row] = await db.sql<{ id: string }>(
+      `insert into public.customers (organization_id, first_name, last_name)
+       values ($1, 'Over', 'Paid') returning id`,
+      [organizationId],
+    )
+    payer = row!.id
+  })
+
+  const bookingFor = async (amountMinor: number): Promise<string> => {
+    const id = await createReservation()
+    await db.sql(`update public.rentals set customer_id = $2 where id = $1`, [id, payer])
+    await addLine(id, { amountMinor })
+    return id
+  }
+
+  it('reports what has to go back when the charge drops below the payment', async () => {
+    // 330 taken, then repriced to 280.50: 49.50 is theirs.
+    const id = await bookingFor(33_000)
+    await pay(id, 33_000)
+    await chargeIt(id, 28_050)
+
+    const row = await summary()
+    expect(Number(row.charged_minor)).toBe(28_050)
+    expect(Number(row.paid_minor)).toBe(33_000)
+    expect(Number(row.outstanding_minor)).toBe(0)
+    expect(Number(row.to_refund_minor)).toBe(4_950)
+  })
+
+  it('holds the identity across a mixture, not one shape', async () => {
+    /*
+     * The test that was missing. The old one asserted charged less paid equals
+     * outstanding and passed, because the customer it ran against had only
+     * cancelled bookings -- the case already in mind. This one carries an
+     * overpaid live booking, an underpaid live booking and a cancelled one at
+     * the same time.
+     */
+    const owing = await bookingFor(20_000)
+    await pay(owing, 5_000)
+
+    const called_off = await bookingFor(30_000)
+    await pay(called_off, 12_000)
+    await db.asUser(ownerId, (session) =>
+      session.sql(`select public.rental_cancel($1, 'changed plans', 5000)`, [called_off]),
+    )
+
+    const row = await summary()
+    expect(Number(row.charged_minor) - Number(row.paid_minor)).toBe(
+      Number(row.outstanding_minor) - Number(row.to_refund_minor),
+    )
+    // And the parts are the per-booking split, not a net across bookings.
+    expect(Number(row.outstanding_minor)).toBe(15_000)
+    expect(Number(row.to_refund_minor)).toBe(4_950 + 7_000)
+  })
+
+  it('counts everything received, including against a cancelled booking', async () => {
+    // Paid used to mean "what the charges have been paid" for a cancelled
+    // booking and "everything received" for the rest. It now means one thing.
+    const row = await summary()
+    expect(Number(row.paid_minor)).toBe(33_000 + 5_000 + 12_000)
   })
 })

@@ -108,8 +108,11 @@ export function CustomerMoneyPanel({
                   <th scope="col" className="eyebrow px-3 py-2 text-end font-semibold">
                     Charged
                   </th>
+                  {/* "Received", not "Paid": it is everything this customer
+                      has handed over, which on an overpaid booking is more
+                      than the charges it was taken against. */}
                   <th scope="col" className="eyebrow px-3 py-2 text-end font-semibold">
-                    Paid
+                    Received
                   </th>
                   <th scope="col" className="eyebrow px-3 py-2 text-end font-semibold">
                     Outstanding
