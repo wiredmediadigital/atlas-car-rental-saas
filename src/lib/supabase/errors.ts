@@ -328,6 +328,11 @@ const CONSTRAINT_MESSAGES: ReadonlyArray<readonly [RegExp, string, AppErrorKind]
    * the desk looking at the form rather than at the booking.
    */
   [
+    /already been used for a different payment/i,
+    'This payment may already have been recorded. Close this and check the list before trying again.',
+    'conflict',
+  ],
+  [
     /cancelled reservation cannot take a deposit/i,
     'A cancelled reservation cannot take a deposit. The vehicle is not going anywhere.',
     'validation',

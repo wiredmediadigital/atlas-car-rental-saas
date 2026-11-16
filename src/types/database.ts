@@ -1010,6 +1010,8 @@ type PaymentRow = {
   voided_at: string | null
   voided_by: string | null
   void_reason: string | null
+  /** Set by the client so a retried request cannot become a second payment. */
+  idempotency_key: string | null
   created_at: string
   updated_at: string
 }
@@ -2841,6 +2843,8 @@ export interface Database {
           p_paid_at?: string | null
           p_reference?: string | null
           p_notes?: string | null
+          /** One per payment the person is making, not one per attempt. */
+          p_idempotency_key?: string | null
         }
         Returns: PaymentRow
       }
@@ -3339,6 +3343,8 @@ export interface Database {
           p_paid_at?: string | null
           p_reference?: string | null
           p_notes?: string | null
+          /** One per payment the person is making, not one per attempt. */
+          p_idempotency_key?: string | null
         }
         Returns: PaymentRow
       }

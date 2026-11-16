@@ -332,8 +332,10 @@ describe('two people spending the same balance', () => {
 
   it('locks the customer before paying money out of the account', async () => {
     const src = await bodyOf(
+      // The trailing uuid is the idempotency key added by 20261115100900.
+      // Pinning a function by its signature means this test has to follow it.
       'public.customer_record_credit(uuid, bigint, public.currency_code,' +
-        ' public.payment_direction, public.payment_method, timestamptz, text, text)',
+        ' public.payment_direction, public.payment_method, timestamptz, text, text, uuid)',
     )
     expect(src).toMatch(/from public\.customers[\s\S]*?for update/)
   })

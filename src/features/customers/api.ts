@@ -450,6 +450,8 @@ export interface CustomerCreditInput {
   readonly paidAt: string | null
   readonly reference: string | null
   readonly notes: string | null
+  /** One per payment the person is making, not one per attempt. */
+  readonly idempotencyKey: string | null
 }
 
 /** Takes money onto a customer's account, or hands it back out. */
@@ -466,6 +468,7 @@ export async function recordCustomerCredit(
     p_paid_at: input.paidAt,
     p_reference: input.reference,
     p_notes: input.notes,
+    p_idempotency_key: input.idempotencyKey,
   })
 
   if (error) throw toAppError(error)

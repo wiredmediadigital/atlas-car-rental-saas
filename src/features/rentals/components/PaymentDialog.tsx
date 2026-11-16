@@ -96,6 +96,18 @@ export function PaymentDialog({
   const [notes, setNotes] = useState('')
   const [error, setError] = useState<string | null>(null)
 
+  /*
+   * One key for this payment, generated when the dialog opens and used by
+   * every attempt made from it.
+   *
+   * The button disables itself while a request is in flight, so this is not
+   * about double clicks. It is about a connection that drops after the insert
+   * committed but before the answer got home: the retry then carries the same
+   * key, and the server answers with the payment it already recorded instead
+   * of writing a second one.
+   */
+  const [idempotencyKey] = useState(() => crypto.randomUUID())
+
   const submit = async () => {
     const minor = parseMoneyToMinor(amount, currency)
     if (minor === null || minor <= 0) {
@@ -132,6 +144,7 @@ export function PaymentDialog({
         paidAt: instant.toISOString(),
         reference: reference.trim() || null,
         notes: notes.trim() || null,
+        idempotencyKey,
       })
       toast.success(
         isDepositRefund

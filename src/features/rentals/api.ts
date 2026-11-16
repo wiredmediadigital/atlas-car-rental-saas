@@ -803,6 +803,14 @@ export interface RecordPaymentInput {
   readonly paidAt: string
   readonly reference: string | null
   readonly notes: string | null
+  /**
+   * One per payment the person is making, not one per attempt.
+   *
+   * Sending the same key twice records one payment and answers with it, so a
+   * connection that drops after the insert committed cannot turn one payment
+   * into two when the client retries.
+   */
+  readonly idempotencyKey: string | null
 }
 
 export async function recordPayment(input: RecordPaymentInput): Promise<Payment> {
@@ -815,6 +823,7 @@ export async function recordPayment(input: RecordPaymentInput): Promise<Payment>
     p_paid_at: input.paidAt,
     p_reference: input.reference,
     p_notes: input.notes,
+    p_idempotency_key: input.idempotencyKey,
   })
   if (error) throw toAppError(error)
   return firstRow(data)
