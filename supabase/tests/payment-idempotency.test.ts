@@ -275,3 +275,36 @@ describe('a key used for something else', () => {
     expect(await paymentCount(id)).toBe(1)
   })
 })
+
+describe('a key whose payment was voided', () => {
+  /*
+   * The lookup matches on agency and key alone, so a payment that was recorded
+   * and then voided still matched -- and the answer was "recorded" for money
+   * that counts nowhere, since voided entries are excluded from every rollup.
+   *
+   * Refused rather than ignored: ignoring voided rows would send the insert
+   * into the unique index, whose conflict path reads the same voided row back,
+   * which is a loop.
+   */
+  it('refuses rather than reporting a success', async () => {
+    const id = await bookingOf(30_000)
+    const key = nextKey()
+
+    const [payment] = await pay(id, 10_000, key)
+    await db.asUser(ownerId, (session) =>
+      session.sql(`select public.rental_void_payment($1, 'entered twice')`, [payment!.id]),
+    )
+
+    await db.expectRejection(() => pay(id, 10_000, key), /recorded and then voided/i)
+  })
+
+  it('refuses a voided credit the same way', async () => {
+    const key = nextKey()
+    const [credited] = await credit(customerId, 4_000, key)
+    await db.asUser(ownerId, (session) =>
+      session.sql(`select public.rental_void_payment($1, 'entered twice')`, [credited!.id]),
+    )
+
+    await db.expectRejection(() => credit(customerId, 4_000, key), /recorded and then voided/i)
+  })
+})

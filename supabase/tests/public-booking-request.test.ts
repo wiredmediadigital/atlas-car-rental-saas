@@ -459,3 +459,40 @@ describe('the same request at the same instant', () => {
     }
   })
 })
+
+describe('the lock key', () => {
+  /*
+   * timestamptz::text renders through the session's TimeZone, so the same
+   * instant hashed differently on two connections configured differently:
+   * different lock, and the race the lock exists to close open again between
+   * them. The duplicate check below it compares timestamptz directly, which is
+   * absolute, so the two disagreed about what makes a request identical.
+   */
+  const source = async (): Promise<string> => {
+    const [row] = await db.sql<{ src: string }>(
+      `select pg_get_functiondef(
+         'app.public_booking_create_lead(uuid, uuid, timestamptz, timestamptz,
+                                         text, text, text, text)'::regprocedure) as src`,
+    )
+    return row!.src.toLowerCase()
+  }
+
+  it('reads the period the same way from every session', async () => {
+    const src = await source()
+    expect(src).toContain('extract(epoch from p_from)')
+    expect(src).toContain('extract(epoch from p_to)')
+  })
+
+  it('does not render the period through the session time zone', async () => {
+    const src = await source()
+    expect(src).not.toContain('p_from::text')
+    expect(src).not.toContain('p_to::text')
+  })
+
+  it('still collapses an identical request that arrives twice', async () => {
+    // The key changed; what it guards did not.
+    const [first] = await request()
+    const [again] = await request()
+    expect(again!.reference).toBe(first!.reference)
+  })
+})
