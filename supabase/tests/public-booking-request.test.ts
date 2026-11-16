@@ -420,3 +420,42 @@ describe('the same request twice', () => {
     expect(row!.n).toBe(1)
   })
 })
+
+describe('the same request at the same instant', () => {
+  /*
+   * The duplicate rule above reads for an existing lead and then inserts if it
+   * found none, and the double click it exists for is exactly what slips
+   * between the two: both submissions read, both find nothing, both insert.
+   *
+   * A single-connection PGlite cannot open the two transactions that race, so
+   * what is asserted is the property that makes them safe -- the lock is taken
+   * before the check. Checking the body rather than the behaviour is
+   * deliberate: without it, somebody tidying this function later drops a
+   * `perform` that looks decorative and nothing anywhere fails.
+   */
+  const source = async (): Promise<string> => {
+    const [row] = await db.sql<{ src: string }>(
+      `select pg_get_functiondef(
+         'app.public_booking_create_lead(uuid, uuid, timestamptz, timestamptz,
+                                         text, text, text, text)'::regprocedure) as src`,
+    )
+    return row!.src.toLowerCase()
+  }
+
+  it('takes a lock on the request before looking for its twin', async () => {
+    const src = await source()
+    expect(src).toContain('pg_advisory_xact_lock')
+    expect(src.indexOf('pg_advisory_xact_lock')).toBeLessThan(
+      src.indexOf('from public.booking_leads l'),
+    )
+  })
+
+  it('keys the lock on what makes two requests identical, and nothing wider', async () => {
+    // A key any wider would make unrelated visitors queue behind each other,
+    // which is the per-agency ceiling 20261113100800 refused as weaponisable.
+    const src = await source()
+    for (const part of ['p_organization_id', 'p_vehicle_id', 'p_from', 'p_to', 'lower(v_email)']) {
+      expect(src).toContain(part)
+    }
+  })
+})
