@@ -29,6 +29,7 @@ function renderPanel(overrides: Partial<PaymentsPanelProps> = {}) {
       onTakeDeposit={vi.fn()}
       onRefundDeposit={vi.fn()}
       onRefund={vi.fn()}
+      onKeepOnAccount={vi.fn()}
       depositHeldMinor={0}
       depositAgreedMinor={0}
       balanceDueMinor={0}
@@ -76,9 +77,18 @@ describe('money on a booking that was called off', () => {
     expect(button(/refund/i)).toHaveTextContent('€70.00')
   })
 
+  it('offers to keep the money on the account instead of refunding it', () => {
+    // The same money going the other way: against their next hire rather than
+    // out of the till. Before this, doing that meant two unrelated actions and
+    // the booking went on reporting money it no longer held.
+    renderPanel({ isCancelled: true, balanceDueMinor: -7_000 })
+    expect(button(/keep on account/i)).toBeInTheDocument()
+  })
+
   it('offers no refund when nothing is owed back', () => {
     renderPanel({ isCancelled: true, balanceDueMinor: 5_000 })
     expect(button(/^refund/i)).not.toBeInTheDocument()
+    expect(button(/keep on account/i)).not.toBeInTheDocument()
   })
 })
 

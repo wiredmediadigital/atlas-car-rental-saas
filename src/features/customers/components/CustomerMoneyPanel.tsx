@@ -297,6 +297,10 @@ export function CustomerMoneyPanel({
                     {entry.reference ? ` · ${entry.reference}` : ''}
                   </p>
 
+                  {entry.notes ? (
+                    <p className="text-ink-subtle mt-0.5 text-[0.75rem]">{entry.notes}</p>
+                  ) : null}
+
                   {isVoided && entry.void_reason ? (
                     <p className="text-ink-subtle mt-0.5 text-[0.75rem] italic">
                       {entry.void_reason}

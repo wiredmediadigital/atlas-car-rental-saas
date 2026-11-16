@@ -232,3 +232,79 @@ describe('handing it back', () => {
     await db.expectRejection(() => credit(1_000, 'outbound', 'USD'), /nothing is held/i)
   })
 })
+
+describe('keeping an overpayment instead of refunding it', () => {
+  const moveToAccount = (rentalId: string, amountMinor: number) =>
+    db.asUser(ownerId, (session) =>
+      session.sql(`select public.rental_move_to_account($1, $2)`, [rentalId, amountMinor]),
+    )
+
+  /** Paid in full, then cancelled keeping a fee: the shape that started this. */
+  async function overpaidCancellation(): Promise<string> {
+    const id = await bookingOf(30_000)
+    await db.sql(`select public.rental_record_payment($1, 30000, 'inbound', 'rental_charge')`, [id])
+    await db.asUser(ownerId, (session) =>
+      session.sql(`select public.rental_cancel($1, 'called off', 5000)`, [id]),
+    )
+    return id
+  }
+
+  it('takes it off the booking and puts it on the account in one go', async () => {
+    const before = await balance()
+    const id = await overpaidCancellation()
+
+    await moveToAccount(id, 25_000)
+
+    // The booking now holds exactly what it charges, and the account has
+    // the rest. Nothing was invented and nothing went missing.
+    expect(await paidOn(id)).toBe(5_000)
+    expect(await balance()).toBe(before + 25_000)
+  })
+
+  it('stops the booking reporting a refund it is no longer holding', async () => {
+    /*
+     * The bug this closes. Taking money on account without taking it off the
+     * booking left the booking still reporting it as refundable, and the
+     * agency recording more received than the customer ever handed over.
+     */
+    const id = await overpaidCancellation()
+    await moveToAccount(id, 25_000)
+
+    const [row] = await db.asUser(ownerId, (session) =>
+      session.sql<{ to_refund_minor: number }>(
+        `select * from public.customer_financial_summary($1)`,
+        [customerId],
+      ),
+    )
+    expect(Number(row!.to_refund_minor)).toBe(0)
+  })
+
+  it('refuses more than the booking is holding over its charge', async () => {
+    const id = await overpaidCancellation()
+    await db.expectRejection(() => moveToAccount(id, 30_000), /only .* is held over/i)
+  })
+
+  it('refuses a booking holding nothing spare', async () => {
+    const id = await bookingOf(30_000)
+    await db.expectRejection(() => moveToAccount(id, 1_000), /not holding anything over/i)
+  })
+
+  it('says on both entries where the other one went', async () => {
+    // No column joins a payment to its pair. Two notes that name each other
+    // are what somebody with the customer on the phone actually reads.
+    const id = await overpaidCancellation()
+    await moveToAccount(id, 25_000)
+
+    const rows = await db.asUser(ownerId, (session) =>
+      session.sql<{ rental_id: string | null; notes: string | null }>(
+        `select rental_id, notes from public.payments
+          where notes is not null and (rental_id = $1 or rental_id is null)
+          order by created_at desc limit 2`,
+        [id],
+      ),
+    )
+
+    expect(rows.some((row) => row.notes?.includes('Moved from'))).toBe(true)
+    expect(rows.some((row) => row.notes?.includes('Moved to the customer'))).toBe(true)
+  })
+})

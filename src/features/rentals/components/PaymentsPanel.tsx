@@ -1,4 +1,4 @@
-import { Ban, Plus, ShieldCheck, Undo2 } from 'lucide-react'
+import { Ban, Plus, ShieldCheck, Undo2, Wallet } from 'lucide-react'
 import { useState } from 'react'
 
 import {
@@ -33,6 +33,7 @@ export interface PaymentsPanelProps {
   onTakeDeposit: () => void
   onRefundDeposit: () => void
   onRefund: () => void
+  onKeepOnAccount: () => void
   /**
    * A cancelled booking has no hire left to pay for. It can still settle a
    * cancellation fee and still has to give back anything taken above one, so
@@ -64,6 +65,7 @@ export function PaymentsPanel({
   onTakeDeposit,
   onRefundDeposit,
   onRefund,
+  onKeepOnAccount,
   isCancelled,
   depositHeldMinor,
   depositAgreedMinor,
@@ -121,9 +123,21 @@ export function PaymentsPanel({
               ) : null}
 
               {refundableMinor > 0 ? (
-                <Button variant="secondary" size="sm" leadingIcon={<Undo2 />} onClick={onRefund}>
-                  Refund {formatMoney(refundableMinor, currency, { locale })}
-                </Button>
+                <>
+                  <Button variant="secondary" size="sm" leadingIcon={<Undo2 />} onClick={onRefund}>
+                    Refund {formatMoney(refundableMinor, currency, { locale })}
+                  </Button>
+                  {/* The same money, going the other way: onto the customer's
+                      account instead of out of the till. */}
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    leadingIcon={<Wallet />}
+                    onClick={onKeepOnAccount}
+                  >
+                    Keep on account
+                  </Button>
+                </>
               ) : null}
 
               {/* On a cancelled booking there is nothing to pay for unless a

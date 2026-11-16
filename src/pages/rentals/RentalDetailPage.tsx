@@ -57,6 +57,7 @@ import { formatMoney, minorToDecimalString } from '@/lib/money/money'
 import {
   useAddCharge,
   useCancelRental,
+  useMoveToAccount,
   useCompleteRental,
   useConfirmRental,
   useDeleteRental,
@@ -110,6 +111,7 @@ export function RentalDetailPage() {
   const completeRental = useCompleteRental(rentalId ?? '')
   const cancelRental = useCancelRental(rentalId ?? '')
   const setCancellationFee = useSetCancellationFee(rentalId ?? '')
+  const moveToAccount = useMoveToAccount(rentalId ?? '')
   const addCharge = useAddCharge(rentalId ?? '')
   const removeCharge = useRemoveCharge()
   const deleteRental = useDeleteRental()
@@ -126,6 +128,8 @@ export function RentalDetailPage() {
   const [cancelFee, setCancelFee] = useState('')
   const [isSettingFee, setIsSettingFee] = useState(false)
   const [feeDraft, setFeeDraft] = useState('')
+  const [isKeeping, setIsKeeping] = useState(false)
+  const [keepDraft, setKeepDraft] = useState('')
 
   const rental = rentalQuery.data
   const board = boardQuery.data
@@ -245,6 +249,25 @@ export function RentalDetailPage() {
       setCancelFee('')
     } catch (error) {
       toast.error('Could not cancel this', toErrorMessage(error))
+    }
+  }
+
+  const confirmKeep = async () => {
+    const minor = parseKeptAmount(keepDraft, currency)
+    if (minor === null || minor <= 0) {
+      toast.error('Could not do that', 'Enter the amount to keep on the account.')
+      return
+    }
+
+    try {
+      await moveToAccount.mutateAsync(minor)
+      toast.success(
+        `${money(minor)} kept on account`,
+        'It is off this booking and against this customer, ready for their next hire.',
+      )
+      setIsKeeping(false)
+    } catch (failure) {
+      toast.error('Could not do that', toErrorMessage(failure))
     }
   }
 
@@ -574,6 +597,10 @@ export function RentalDetailPage() {
             onTakeDeposit={() => setPayment('deposit')}
             onRefundDeposit={() => setPayment('refund-deposit')}
             onRefund={() => setPayment('refund')}
+            onKeepOnAccount={() => {
+              setKeepDraft(minorToDecimalString(Math.max(-rental.balance_due_minor, 0), currency))
+              setIsKeeping(true)
+            }}
             depositHeldMinor={rental.deposit_held_minor}
             depositAgreedMinor={rental.deposit_minor}
             balanceDueMinor={rental.balance_due_minor}
@@ -755,6 +782,26 @@ export function RentalDetailPage() {
             />
           </Field>
         </div>
+      </ConfirmDialog>
+
+      <ConfirmDialog
+        open={isKeeping}
+        onOpenChange={setIsKeeping}
+        title="Keep this on the customer’s account"
+        description="It comes off this booking and is held against this customer instead, ready to go on their next hire. No money leaves the till."
+        confirmLabel="Keep on account"
+        isPending={moveToAccount.isPending}
+        onConfirm={() => void confirmKeep()}
+      >
+        <Field label="Amount" hint="Anything you do not keep stays on this booking to refund.">
+          <Input
+            value={keepDraft}
+            onChange={(event) => setKeepDraft(event.target.value)}
+            inputMode="decimal"
+            placeholder="0.00"
+            autoFocus
+          />
+        </Field>
       </ConfirmDialog>
 
       <ConfirmDialog

@@ -697,6 +697,25 @@ export async function setCancellationFee(rentalId: string, feeMinor: number): Pr
   return firstRow(data)
 }
 
+/**
+ * Moves what a booking holds over its charge onto the customer's account.
+ *
+ * The alternative to refunding it, for a customer who would rather it went
+ * against their next hire. One transaction: off the booking and onto the
+ * account, or neither.
+ */
+export async function moveRentalMoneyToAccount(
+  rentalId: string,
+  amountMinor: number,
+): Promise<Payment> {
+  const { data, error } = await getSupabaseClient().rpc('rental_move_to_account', {
+    p_rental_id: rentalId,
+    p_amount_minor: amountMinor,
+  })
+  if (error) throw toAppError(error)
+  return firstRow(data)
+}
+
 export interface ExtendRentalInput {
   readonly rentalId: string
   readonly newEndsAt: string

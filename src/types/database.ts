@@ -3307,6 +3307,10 @@ export interface Database {
         Args: { p_rental_id: string; p_reason?: string | null; p_fee_minor?: number }
         Returns: RentalRow
       }
+      rental_move_to_account: {
+        Args: { p_rental_id: string; p_amount_minor: number }
+        Returns: PaymentRow
+      }
       rental_set_cancellation_fee: {
         Args: { p_rental_id: string; p_fee_minor: number }
         Returns: RentalRow

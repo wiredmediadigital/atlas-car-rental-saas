@@ -262,6 +262,14 @@ describe('the money on a customer’s record', () => {
     expect(screen.getByText('On account')).toBeInTheDocument()
   })
 
+  it('says what each entry was for, which is how a transfer is followed', () => {
+    // The note was being recorded from the first credit and rendered nowhere,
+    // so money moving between a booking and the account left no trail anybody
+    // could read.
+    renderMoney([money()], [payment({ notes: 'Moved from RNT-0003' })])
+    expect(screen.getByText('Moved from RNT-0003')).toBeInTheDocument()
+  })
+
   it('says so plainly when no money has moved', () => {
     renderMoney([money()], [])
     expect(screen.getByText('Nothing recorded yet')).toBeInTheDocument()

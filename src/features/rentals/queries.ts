@@ -37,6 +37,7 @@ import {
   fetchRentalBoardEntry,
   fetchRentalContracts,
   fetchRentalDrivers,
+  moveRentalMoneyToAccount,
   setCancellationFee,
   fetchRentalLineItems,
   fetchRentalPayments,
@@ -382,6 +383,21 @@ export function useCancelRental(rentalId: string) {
   return useMutation({
     mutationFn: (input: CancelRentalInput) => cancelRental(rentalId, input),
     onSuccess: () => invalidateRentals(client, organization.id),
+  })
+}
+
+/**
+ * Writes on the booking and on the customer's account at once, so the whole
+ * organization prefix is invalidated rather than the rentals subtree: the
+ * customer's money section is reading the other half of this.
+ */
+export function useMoveToAccount(rentalId: string) {
+  const organization = useOrganization()
+  const client = useQueryClient()
+
+  return useMutation({
+    mutationFn: (amountMinor: number) => moveRentalMoneyToAccount(rentalId, amountMinor),
+    onSuccess: () => client.invalidateQueries({ queryKey: ['organization', organization.id] }),
   })
 }
 
