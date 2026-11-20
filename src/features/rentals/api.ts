@@ -2,6 +2,8 @@ import { getSupabaseClient } from '@/lib/supabase/client'
 import { toAppError } from '@/lib/supabase/errors'
 import { collectForExport, EXPORT_ROW_LIMIT, type CollectedRows } from '@/lib/export/csv-export'
 import type {
+  RentalAssignmentHistoryRow,
+  RentalAssignmentReason,
   Payment,
   PaymentDirection,
   PaymentMethod,
@@ -743,6 +745,47 @@ export async function substituteVehicle(rentalId: string, vehicleId: string): Pr
   })
   if (error) throw toAppError(error)
   return firstRow(data)
+}
+
+export interface ActiveSwapInput {
+  readonly organizationId: string
+  readonly rentalId: string
+  readonly vehicleId: string
+  readonly reason: Exclude<RentalAssignmentReason, 'initial' | 'pre_checkout_swap' | 'active_swap'>
+  readonly reasonNotes: string
+  readonly swapAt: string
+  readonly odometer: number
+  readonly fuelPercent: number | null
+  readonly consentReference: string | null
+  readonly operationKey: string
+}
+
+export async function swapActiveVehicle(input: ActiveSwapInput): Promise<Rental> {
+  const { data, error } = await getSupabaseClient().rpc('rental_swap_vehicle', {
+    p_rental_id: input.rentalId,
+    p_vehicle_id: input.vehicleId,
+    p_reason: input.reason,
+    p_reason_notes: input.reasonNotes,
+    p_swap_at: input.swapAt,
+    p_odometer: input.odometer,
+    p_fuel_percent: input.fuelPercent,
+    p_consent_reference: input.consentReference,
+    p_operation_key: input.operationKey,
+  })
+  if (error) throw toAppError(error)
+  return firstRow(data)
+}
+
+export async function fetchRentalAssignmentHistory(
+  organizationId: string,
+  rentalId: string,
+): Promise<RentalAssignmentHistoryRow[]> {
+  void organizationId
+  const { data, error } = await getSupabaseClient().rpc('rental_assignment_history', {
+    p_rental_id: rentalId,
+  })
+  if (error) throw toAppError(error)
+  return data ?? []
 }
 
 // -----------------------------------------------------------------------------

@@ -127,6 +127,24 @@ export type FinancingInstallmentState =
 export type PaymentPurpose = 'rental_charge' | 'deposit'
 export type ContractStatus = 'issued' | 'signed' | 'superseded' | 'voided'
 export type RentalConditionPhase = 'pickup' | 'return'
+export type RentalAssignmentReason =
+  | 'initial'
+  | 'pre_checkout_swap'
+  | 'active_swap'
+  | 'breakdown'
+  | 'damage'
+  | 'customer_request'
+  | 'maintenance'
+  | 'availability'
+  | 'other'
+export type RentalAssignmentState =
+  | 'planned'
+  | 'reserved'
+  | 'in_custody'
+  | 'swap_pending'
+  | 'released'
+  | 'superseded_before_pickup'
+  | 'cancelled'
 export type RentalChargeKind =
   | 'base_rental'
   | 'additional_driver'
@@ -910,6 +928,26 @@ type RentalConflictRow = {
   starts_at: string
   ends_at: string
   customer_name: string
+}
+
+export type RentalAssignmentHistoryRow = {
+  assignment_id: string
+  vehicle_id: string
+  registration_plate: string
+  state: RentalAssignmentState
+  reason: RentalAssignmentReason
+  scheduled_starts_at: string
+  scheduled_ends_at: string
+  started_at: string | null
+  ended_at: string | null
+  blocks_availability: boolean
+  inspection_count: number
+}
+
+export type AssignmentFeatureEligibilityRow = {
+  enabled: boolean
+  can_view_history: boolean
+  can_swap: boolean
 }
 
 export type RentalUsageRow = {
@@ -2766,6 +2804,14 @@ export interface Database {
       }
     }
     Functions: {
+      assignment_feature_eligibility: {
+        Args: { p_organization_id: string }
+        Returns: AssignmentFeatureEligibilityRow[]
+      }
+      set_assignment_feature_enabled: {
+        Args: { p_organization_id: string; p_enabled: boolean }
+        Returns: undefined
+      }
       organization_request_closure: {
         Args: { p_organization_id: string }
         Returns: OrganizationRow
@@ -3332,6 +3378,24 @@ export interface Database {
       rental_substitute_vehicle: {
         Args: { p_rental_id: string; p_vehicle_id: string }
         Returns: RentalRow
+      }
+      rental_swap_vehicle: {
+        Args: {
+          p_rental_id: string
+          p_vehicle_id: string
+          p_reason: RentalAssignmentReason
+          p_reason_notes: string
+          p_swap_at: string
+          p_odometer: number
+          p_fuel_percent: number | null
+          p_consent_reference: string | null
+          p_operation_key: string
+        }
+        Returns: RentalRow
+      }
+      rental_assignment_history: {
+        Args: { p_rental_id: string }
+        Returns: RentalAssignmentHistoryRow[]
       }
       rental_record_payment: {
         Args: {

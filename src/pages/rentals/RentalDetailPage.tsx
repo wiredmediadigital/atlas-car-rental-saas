@@ -32,6 +32,8 @@ import {
 } from '@/components/ui'
 import { RentalCostPanel } from '@/features/expenses/components/RentalCostPanel'
 import { AddChargeForm } from '@/features/rentals/components/AddChargeForm'
+import { ActiveSwapDialog } from '@/features/rentals/components/ActiveSwapDialog'
+import { AssignmentHistoryPanel } from '@/features/rentals/components/AssignmentHistoryPanel'
 import { ConditionPhotos } from '@/features/rentals/components/ConditionPhotos'
 import { ContractPanel } from '@/features/rentals/components/ContractPanel'
 import { ExtendDialog } from '@/features/rentals/components/ExtendDialog'
@@ -66,6 +68,8 @@ import {
   useRepriceRental,
   useRentalBoardEntry,
   useRentalDrivers,
+  useRentalAssignmentHistory,
+  useAssignmentFeatureEligibility,
   useRentalLineItems,
   useRentalUsage,
   useSetCancellationFee,
@@ -87,6 +91,7 @@ import { toErrorMessage } from '@/lib/supabase/errors'
 export function RentalDetailPage() {
   const { rentalId } = useParams<{ rentalId: string }>()
   const organization = useOrganization()
+  const assignmentAccess = useAssignmentFeatureEligibility()
   const distanceUnit = useDistanceUnit()
   const navigate = useNavigate()
   const toast = useToast()
@@ -105,6 +110,7 @@ export function RentalDetailPage() {
   const linesQuery = useRentalLineItems(rentalId)
   const reprice = useRepriceRental(rentalId)
   const driversQuery = useRentalDrivers(rentalId)
+  const assignmentHistoryQuery = useRentalAssignmentHistory(rentalId ?? '')
   const usageQuery = useRentalUsage(rentalId)
 
   const confirmRental = useConfirmRental(rentalId ?? '')
@@ -122,6 +128,7 @@ export function RentalDetailPage() {
   )
   const [isExtending, setIsExtending] = useState(false)
   const [isSubstituting, setIsSubstituting] = useState(false)
+  const [isSwapping, setIsSwapping] = useState(false)
   const [isCancelling, setIsCancelling] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
   const [cancelReason, setCancelReason] = useState('')
@@ -363,6 +370,13 @@ export function RentalDetailPage() {
                     )
                   })}
 
+                  {assignmentAccess.canSwap && rental.status === 'active' ? (
+                    <DropdownMenuItem onSelect={() => setIsSwapping(true)}>
+                      <Repeat className="size-4" />
+                      Swap active vehicle
+                    </DropdownMenuItem>
+                  ) : null}
+
                   {canDelete && usageQuery.data?.can_delete ? (
                     <DropdownMenuItem onSelect={() => setIsDeleting(true)}>
                       <Trash2 className="size-4" />
@@ -391,6 +405,10 @@ export function RentalDetailPage() {
         <Alert tone="caution" title={`Cannot ${ACTION_LABELS[next].toLowerCase()} yet`}>
           {state(next).reason}
         </Alert>
+      ) : null}
+
+      {assignmentAccess.canViewHistory ? (
+        <AssignmentHistoryPanel rows={assignmentHistoryQuery.data ?? []} formatDate={when} />
       ) : null}
 
       {rental.status === 'cancelled' ? (
@@ -741,6 +759,19 @@ export function RentalDetailPage() {
           currentVehicleLabel={vehicleLabel}
           startsAt={rental.starts_at}
           endsAt={rental.ends_at}
+          locale={locale}
+        />
+      ) : null}
+
+      {isSwapping && assignmentAccess.canSwap ? (
+        <ActiveSwapDialog
+          open
+          onOpenChange={setIsSwapping}
+          rentalId={rentalId}
+          currentVehicleLabel={vehicleLabel}
+          startsAt={rental.starts_at}
+          endsAt={rental.ends_at}
+          timeZone={timeZone}
           locale={locale}
         />
       ) : null}

@@ -7,8 +7,14 @@ import {
 } from '@tanstack/react-query'
 import { useMemo } from 'react'
 
-import { useOrganization } from '@/features/workspace/workspace-context'
+import { useAuth } from '@/features/auth/auth-context'
+import { useOrganization, useWorkspace } from '@/features/workspace/workspace-context'
+import {
+  deniedAssignmentFeatureEligibility,
+  type AssignmentFeatureEligibility,
+} from './assignment-access'
 import { AppError } from '@/lib/supabase/errors'
+import { getSupabaseClient } from '@/lib/supabase/client'
 import type { RentalConditionPhoto } from '@/types/database'
 
 import {
@@ -38,6 +44,7 @@ import {
   fetchRentalContracts,
   fetchRentalDrivers,
   moveRentalMoneyToAccount,
+  fetchRentalAssignmentHistory,
   setCancellationFee,
   fetchRentalLineItems,
   fetchRentalPayments,
@@ -50,6 +57,7 @@ import {
   signContract,
   repriceRental,
   substituteVehicle,
+  swapActiveVehicle,
   updateRental,
   voidPayment,
 } from './api'
@@ -90,6 +98,48 @@ export const rentalKeys = {
     ['organization', organizationId, 'rentals', 'conflicts', vehicleId, from, to] as const,
   photoUrls: (organizationId: string, paths: readonly string[]) =>
     ['organization', organizationId, 'rentals', 'photo-urls', paths] as const,
+  assignmentHistory: (organizationId: string, rentalId: string) =>
+    ['organization', organizationId, 'rentals', 'assignment-history', rentalId] as const,
+}
+
+export const assignmentKeys = {
+  eligibility: (organizationId: string, userId: string) =>
+    ['organization', organizationId, 'assignment-eligibility', userId] as const,
+}
+
+/** Server-owned, organization-scoped activation. Missing or failed reads deny access. */
+export function useAssignmentFeatureEligibility(): AssignmentFeatureEligibility & {
+  isLoading: boolean
+  isError: boolean
+} {
+  const { user } = useAuth()
+  const workspace = useWorkspace()
+  const organizationId = workspace.organization?.id ?? null
+  const userId = user?.id ?? null
+  const query = useQuery({
+    queryKey: assignmentKeys.eligibility(organizationId ?? 'none', userId ?? 'anonymous'),
+    queryFn: async (): Promise<AssignmentFeatureEligibility> => {
+      if (!organizationId) return deniedAssignmentFeatureEligibility
+      const { data, error } = await getSupabaseClient().rpc('assignment_feature_eligibility', {
+        p_organization_id: organizationId,
+      })
+      if (error) throw error
+      const row = Array.isArray(data) ? data[0] : data
+      return {
+        enabled: row?.enabled === true,
+        canViewHistory: row?.can_view_history === true,
+        canSwap: row?.can_swap === true,
+      }
+    },
+    enabled: Boolean(userId && organizationId && workspace.status === 'ready'),
+    staleTime: 60_000,
+    retry: false,
+  })
+  return {
+    ...(query.data ?? deniedAssignmentFeatureEligibility),
+    isLoading: query.isPending,
+    isError: query.isError,
+  }
 }
 
 /**
@@ -373,6 +423,44 @@ export function useCompleteRental(rentalId: string) {
   return useMutation({
     mutationFn: () => completeRental(rentalId),
     onSuccess: () => invalidateRentals(client, organization.id),
+  })
+}
+
+export function useRentalAssignmentHistory(rentalId: string) {
+  const workspace = useWorkspace()
+  const organizationId = workspace.organization?.id ?? null
+  const access = useAssignmentFeatureEligibility()
+  return useQuery({
+    queryKey: rentalKeys.assignmentHistory(organizationId ?? 'none', rentalId),
+    queryFn: () => fetchRentalAssignmentHistory(organizationId!, rentalId),
+    enabled: Boolean(organizationId && rentalId && access.canViewHistory),
+  })
+}
+
+export function useSwapActiveVehicle(rentalId: string) {
+  const organization = useOrganization()
+  const client = useQueryClient()
+  const access = useAssignmentFeatureEligibility()
+  return useMutation({
+    mutationFn: (
+      input: Omit<Parameters<typeof swapActiveVehicle>[0], 'rentalId' | 'organizationId'>,
+    ) => {
+      if (!access.canSwap) {
+        throw new AppError(
+          'permission',
+          'Active vehicle swaps are not enabled for this organization.',
+        )
+      }
+      return swapActiveVehicle({ ...input, rentalId, organizationId: organization.id })
+    },
+    onSuccess: async () => {
+      await Promise.all([
+        invalidateRentals(client, organization.id),
+        client.invalidateQueries({
+          queryKey: rentalKeys.assignmentHistory(organization.id, rentalId),
+        }),
+      ])
+    },
   })
 }
 
