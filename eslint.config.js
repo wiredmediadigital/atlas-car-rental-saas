@@ -8,6 +8,7 @@ export default tseslint.config(
   {
     ignores: [
       'dist/**',
+      'dist-staging/**',
       'node_modules/**',
       'coverage/**',
       'supabase/.temp/**',

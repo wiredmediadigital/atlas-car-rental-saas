@@ -8,6 +8,7 @@ import react from '@vitejs/plugin-react'
 import { defineConfig, loadEnv, type Plugin } from 'vite'
 
 import { TEST_EXCLUDE, TEST_INCLUDE } from './scripts/test-include.mjs'
+import { STAGING_BUILD_INTENT, validateStagingEnvironment } from './scripts/staging-build-guard.mjs'
 import { PRODUCT_BRAND } from './src/lib/config/brand.ts'
 
 /**
@@ -28,10 +29,22 @@ function htmlAppNamePlugin(appName: string): Plugin {
 }
 
 export default defineConfig(({ mode }) => {
-  const env = loadEnv(mode, process.cwd(), 'VITE_')
+  // Staging reads process variables only. In particular, it cannot inherit the
+  // production-targeting .env.local or the database runner's .env.staging.local.
+  const env = loadEnv(mode, mode === 'staging' ? false : process.cwd(), 'VITE_')
+  if (mode === 'staging') {
+    const errors = validateStagingEnvironment({
+      ...env,
+      PEVVY_STAGING_BUILD_INTENT: process.env.PEVVY_STAGING_BUILD_INTENT,
+    })
+    if (process.env.PEVVY_STAGING_BUILD_INTENT !== STAGING_BUILD_INTENT || errors.length > 0) {
+      throw new Error(`Staging build blocked: ${errors.join(', ') || 'explicit-intent-required'}`)
+    }
+  }
   const appName = env.VITE_APP_NAME || PRODUCT_BRAND.name
 
   return {
+    envDir: mode === 'staging' ? false : undefined,
     plugins: [react(), tailwindcss(), htmlAppNamePlugin(appName)],
     /*
      * The version the About panel shows, taken from package.json at build time.
@@ -55,7 +68,7 @@ export default defineConfig(({ mode }) => {
     },
     build: {
       // Hostinger serves the built `dist/` directory as static assets.
-      outDir: 'dist',
+      outDir: mode === 'staging' ? 'dist-staging' : 'dist',
       /*
        * No source maps in the production bundle.
        *
