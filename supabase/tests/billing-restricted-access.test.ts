@@ -698,6 +698,26 @@ describe('the gate, structurally', () => {
     expect(row!.pub).toBe(false)
   })
 
+  it.each(['rental_substitute_vehicle', 'rental_reschedule', 'rental_swap_vehicle'])(
+    '%s keeps tenant authorization before the billing gate',
+    async (proname) => {
+      const [row] = await db.sql<{
+        security_definer: boolean
+        body: string
+      }>(
+        `select p.prosecdef as security_definer, pg_get_functiondef(p.oid) as body
+           from pg_proc p
+           join pg_namespace n on n.oid = p.pronamespace
+          where n.nspname = 'public' and p.proname = $1
+          order by p.oid desc limit 1`,
+        [proname],
+      )
+      expect(row?.security_definer, proname).toBe(true)
+      expect(row?.body, proname).toMatch(/billing_require_write\s*\(/)
+      expect(row?.body, proname).toMatch(/has_min_role|current_setting\('role'/)
+    },
+  )
+
   it('leaves no SECURITY DEFINER write path ungated and unexplained', async () => {
     /*
      * The same derivation the migration performs, repeated as a test so the

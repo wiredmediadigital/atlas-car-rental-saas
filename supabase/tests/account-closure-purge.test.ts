@@ -128,6 +128,43 @@ async function seed(agency: Agency): Promise<Seeded> {
      returning id`,
     [org, vehicle.id, customer.id],
   )
+  // Keep this purge fixture representative of the assignment schema. The
+  // correction is intentionally meaningful: purge isolation must prove that
+  // assignment corrections for both the target and control agencies vanish.
+  const assignment = await one<{ id: string }>(
+    `insert into public.rental_vehicle_assignments
+       (organization_id, rental_id, vehicle_id, sequence_no, state, reason,
+        scheduled_starts_at, scheduled_ends_at, started_at)
+     values ($1, $2, $3, 1, 'in_custody', 'initial',
+             now() - interval '2 days', now() + interval '2 days',
+             now() - interval '2 days')
+     returning id`,
+    [org, rental.id, vehicle.id],
+  )
+  await db.sql(
+    `insert into public.rental_assignment_corrections
+       (organization_id, assignment_id, field_name, original_value,
+        proposed_value, reason, evidence_reference, recorded_by)
+     values ($1, $2, 'vehicle_id', jsonb_build_object('vehicle_id', $3::text),
+             jsonb_build_object('vehicle_id', $3::text),
+             'seeded purge correction fixture', 'test-fixture', $4)`,
+    [org, assignment.id, vehicle.id, agency.owner],
+  )
+  await db.sql(
+    `insert into public.rental_vehicle_inspections
+       (organization_id, rental_id, assignment_id, phase, odometer,
+        fuel_percent, notes, recorded_by)
+     values ($1, $2, $3, 'pickup', 10000, 75,
+             'seeded purge inspection fixture', $4)`,
+    [org, rental.id, assignment.id, agency.owner],
+  )
+  await db.sql(
+    `insert into public.rental_assignment_backfill_anomalies
+       (organization_id, rental_id, anomaly_code, severity, details)
+     values ($1, $2, 'existing_assignment_mismatch', 'warning',
+             jsonb_build_object('source', 'purge-fixture'))`,
+    [org, rental.id],
+  )
   await db.sql(
     `insert into public.rental_line_items (organization_id, rental_id, description, amount_minor, currency)
      values ($1, $2, 'Extra driver', 1500, 'EUR')`,

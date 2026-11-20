@@ -175,9 +175,19 @@ describe('nothing in the schema can bypass RLS', () => {
      * acceptance back and makes a first stamp say what the server knows.
      *
      * Anything else appearing in this list is a leak.
+     *
+     * Assignment lifecycle functions are also deliberate definer entry points:
+     * rental_substitute_vehicle and rental_reschedule check staff membership
+     * and tenant ownership; rental_swap_vehicle checks manager membership and
+     * assignment invariants;
+     * assignment_feature_eligibility is a read-only tenant-scoped projection;
+     * set_assignment_feature_enabled checks organization admin membership and
+     * records the activation audit. Their public privileges are explicitly
+     * constrained by their migrations and their callers are authenticated.
      */
     expect(definerFunctions.map((row) => row.proname).sort()).toEqual([
       'accept_team_invitation',
+      'assignment_feature_eligibility',
       'billing_access',
       'billing_available_plans',
       'billing_history',
@@ -210,8 +220,12 @@ describe('nothing in the schema can bypass RLS', () => {
       'record_invitation_delivery',
       'record_terms_acceptance',
       'remove_team_member',
+      'rental_reschedule',
+      'rental_substitute_vehicle',
+      'rental_swap_vehicle',
       'resend_team_invitation',
       'revoke_team_invitation',
+      'set_assignment_feature_enabled',
       'team_directory',
       'team_events',
       'team_invitation_message',
