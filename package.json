@@ -11,7 +11,7 @@
   },
   "scripts": {
     "dev": "vite",
-    "build": "tsc -b && vite build",
+    "build": "node scripts/build-staging.mjs",
     "build:staging": "node scripts/build-staging.mjs",
     "preview": "vite preview",
     "typecheck": "tsc -b --noEmit",
