@@ -16,7 +16,7 @@ import type { BillingConfig } from './stripe-config.ts'
 
 /** The part of a Supabase client the refresh writes through. */
 export interface CatalogueStore {
-  schema(name: 'app'): {
+  schema(name: 'public'): {
     rpc(fn: string, args: Record<string, unknown>): PromiseLike<{ data: unknown; error: unknown }>
   }
 }
@@ -129,8 +129,8 @@ export async function refreshCatalogue(
   }
 
   const { data, error } = await service
-    .schema('app')
-    .rpc('billing_replace_catalogue', { p_plans: plans })
+    .schema('public')
+    .rpc('billing_replace_catalogue_service', { p_plans: plans })
   /*
    * A failed replace must not look like a successful one. Reporting
    * `plans.length` here would leave visitors on stale prices with nothing in any

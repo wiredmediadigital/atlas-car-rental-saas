@@ -134,8 +134,21 @@ describe('priceToPlanRow: cadences the table cannot hold', () => {
 })
 
 describe('refreshCatalogue', () => {
-  function store(result: { data: unknown; error: unknown }): CatalogueStore {
-    return { schema: () => ({ rpc: () => Promise.resolve(result) }) }
+  function store(
+    result: { data: unknown; error: unknown },
+    observed: { schema?: string; rpc?: string } = {},
+  ): CatalogueStore {
+    return {
+      schema: (name) => {
+        observed.schema = name
+        return {
+          rpc: (fn) => {
+            observed.rpc = fn
+            return Promise.resolve(result)
+          },
+        }
+      },
+    }
   }
   const stripe = {
     request: () => Promise.resolve(price()),
@@ -147,6 +160,12 @@ describe('refreshCatalogue', () => {
 
   it('returns the count the database reports', async () => {
     expect(await refreshCatalogue(store({ data: 1, error: null }), stripe, config)).toBe(1)
+  })
+
+  it('calls the exposed public service wrapper, not the private app schema', async () => {
+    const observed: { schema?: string; rpc?: string } = {}
+    await refreshCatalogue(store({ data: 1, error: null }, observed), stripe, config)
+    expect(observed).toEqual({ schema: 'public', rpc: 'billing_replace_catalogue_service' })
   })
 
   it('throws when the replace fails, instead of reporting success', async () => {
