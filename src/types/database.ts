@@ -56,6 +56,10 @@ export const CUSTOMER_DOCUMENT_TYPES: readonly CustomerDocumentType[] = [
   'other',
 ]
 export type RentalStatus = 'draft' | 'reserved' | 'active' | 'completed' | 'cancelled'
+export type IncidentType = 'breakdown' | 'accident' | 'vehicle_damage' | 'theft' | 'other'
+export type IncidentStatus = 'open' | 'in_progress' | 'resolved'
+export type IncidentResponsibility = 'customer' | 'agency' | 'third_party' | 'undetermined'
+export type IncidentAttachmentKind = 'photo' | 'document'
 
 /** public.booking_lead_status: see 20261113100200. */
 export type BookingLeadStatus = 'new' | 'contacted' | 'converted' | 'declined' | 'lapsed'
@@ -1108,6 +1112,44 @@ type ExpenseRow = {
   created_at: string
   updated_by: string | null
   updated_at: string
+}
+
+export type IncidentRow = {
+  id: string
+  organization_id: string
+  reference: string
+  incident_type: IncidentType
+  status: IncidentStatus
+  vehicle_id: string
+  rental_id: string | null
+  customer_id: string | null
+  occurred_at: string
+  location: string | null
+  description: string
+  reported_by: string
+  responsibility: IncidentResponsibility
+  towing_provider: string | null
+  towing_reference: string | null
+  insurance_provider: string | null
+  insurance_claim_reference: string | null
+  resolution_notes: string | null
+  resolved_at: string | null
+  resolved_by: string | null
+  created_at: string
+  updated_at: string
+}
+
+export type IncidentAttachmentRow = {
+  id: string
+  organization_id: string
+  incident_id: string
+  kind: IncidentAttachmentKind
+  storage_path: string
+  file_name: string
+  content_type: string
+  byte_size: number
+  uploaded_by: string
+  created_at: string
 }
 
 type ExpenseCategoryRow = {
@@ -2607,6 +2649,18 @@ export interface Database {
         >
         Relationships: []
       }
+      incidents: {
+        Row: IncidentRow
+        Insert: Insertable<IncidentRow, 'organization_id' | 'vehicle_id' | 'description', 'id' | 'reference' | 'reported_by' | ManagedColumns>
+        Update: Updatable<IncidentRow, 'id' | 'organization_id' | 'vehicle_id' | 'rental_id' | 'customer_id' | 'reference' | 'reported_by' | ManagedColumns>
+        Relationships: []
+      }
+      incident_attachments: {
+        Row: IncidentAttachmentRow
+        Insert: Insertable<IncidentAttachmentRow, 'organization_id' | 'incident_id' | 'kind' | 'storage_path' | 'file_name' | 'content_type' | 'byte_size' | 'uploaded_by', 'id' | ManagedColumns>
+        Update: never
+        Relationships: []
+      }
       expense_categories: {
         Row: ExpenseCategoryRow
         Insert: Insertable<ExpenseCategoryRow, 'organization_id' | 'name', 'id' | ManagedColumns>
@@ -2815,6 +2869,43 @@ export interface Database {
       organization_request_closure: {
         Args: { p_organization_id: string }
         Returns: OrganizationRow
+      }
+      incident_create: {
+        Args: {
+          p_organization_id: string
+          p_vehicle_id: string
+          p_rental_id?: string | null
+          p_incident_type?: IncidentType
+          p_occurred_at?: string
+          p_location?: string | null
+          p_description?: string
+          p_responsibility?: IncidentResponsibility
+          p_towing_provider?: string | null
+          p_towing_reference?: string | null
+          p_insurance_provider?: string | null
+          p_insurance_claim_reference?: string | null
+        }
+        Returns: IncidentRow
+      }
+      incident_update: {
+        Args: {
+          p_incident_id: string
+          p_incident_type: IncidentType
+          p_occurred_at: string
+          p_location: string | null
+          p_description: string
+          p_responsibility: IncidentResponsibility
+          p_towing_provider: string | null
+          p_towing_reference: string | null
+          p_insurance_provider: string | null
+          p_insurance_claim_reference: string | null
+          p_status: IncidentStatus
+        }
+        Returns: IncidentRow
+      }
+      incident_resolve: {
+        Args: { p_incident_id: string; p_resolution_notes: string | null }
+        Returns: IncidentRow
       }
       organization_restore: {
         Args: { p_organization_id: string }

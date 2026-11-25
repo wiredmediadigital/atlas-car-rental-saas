@@ -75,6 +75,9 @@ const ExpenseDetailPage = lazy(() =>
     default: module.ExpenseDetailPage,
   })),
 )
+const IncidentsPage = lazy(() => import('@/pages/incidents/IncidentsPage').then((module) => ({ default: module.IncidentsPage })))
+const IncidentNewPage = lazy(() => import('@/pages/incidents/IncidentNewPage').then((module) => ({ default: module.IncidentNewPage })))
+const IncidentDetailPage = lazy(() => import('@/pages/incidents/IncidentDetailPage').then((module) => ({ default: module.IncidentDetailPage })))
 
 const FinancingPage = lazy(() =>
   import('@/pages/financing/FinancingPage').then((module) => ({ default: module.FinancingPage })),
@@ -405,6 +408,14 @@ export function AppRouter() {
                       <Route path={paths.expenseDetail} element={<ExpenseDetailPage />} />
                       <Route element={<RequirePermission permission="expenses.create" />}>
                         <Route path={paths.expenseNew} element={<ExpenseNewPage />} />
+                      </Route>
+                    </Route>
+
+                    <Route element={<RequirePermission permission="incidents.view" />}>
+                      <Route path={paths.incidents} element={<IncidentsPage />} />
+                      <Route path={paths.incidentDetail} element={<IncidentDetailPage />} />
+                      <Route element={<RequirePermission permission="incidents.create" />}>
+                        <Route path={paths.incidentNew} element={<IncidentNewPage />} />
                       </Route>
                     </Route>
 

@@ -30,6 +30,9 @@ export const paths = {
   expenseNew: '/expenses/new',
   /** Detail route; build with `expenseDetailPath(id)`. */
   expenseDetail: '/expenses/:expenseId',
+  incidents: '/incidents',
+  incidentNew: '/incidents/new',
+  incidentDetail: '/incidents/:incidentId',
   financing: '/financing',
   financingNew: '/financing/new',
   /** Detail route; build with `financingDetailPath(id)`. */
@@ -104,6 +107,10 @@ export function rentalDetailPath(rentalId: string): string {
 
 export function expenseDetailPath(expenseId: string): string {
   return `/expenses/${expenseId}`
+}
+
+export function incidentDetailPath(incidentId: string): string {
+  return `/incidents/${incidentId}`
 }
 
 export function financingDetailPath(agreementId: string): string {

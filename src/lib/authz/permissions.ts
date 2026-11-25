@@ -150,6 +150,10 @@ export const PERMISSIONS = {
   'expenses.void': 'manager',
   'expenses.delete': 'admin',
 
+  'incidents.view': 'staff',
+  'incidents.create': 'staff',
+  'incidents.update': 'staff',
+
   // A supplier is operational: a manager recording a repair must be able to add
   // the garage they just used. The category list is structural — renaming one
   // changes how every historical cost reads — so it belongs to an administrator.
