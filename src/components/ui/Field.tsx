@@ -6,6 +6,8 @@ import { FieldContext } from './field-context'
 
 export interface FieldProps {
   label: ReactNode
+  /** Optional compatibility id for simple forms; the context owns the generated control id. */
+  id?: string
   /** Guidance shown beneath the control. Always visible — not a tooltip. */
   hint?: ReactNode
   error?: string | undefined

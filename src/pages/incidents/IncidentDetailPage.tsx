@@ -1,13 +1,13 @@
 import { Check, Paperclip, X } from 'lucide-react'
 import { useRef, useState } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useParams } from 'react-router-dom'
 import { paths } from '@/app/routes/paths'
-import { Badge, Button, ButtonLink, Card, CardBody, Field, Input, PageHeader, Textarea, useToast } from '@/components/ui'
+import { Badge, Button, ButtonLink, Card, CardBody, Field, PageHeader, Textarea, useToast } from '@/components/ui'
 import { createIncidentSignedUrl } from '@/features/incidents/api'
 import { useIncident, useIncidentAttachments, useResolveIncident, useUploadIncidentAttachment } from '@/features/incidents/queries'
 import { usePermission } from '@/features/workspace/workspace-context'
 export function IncidentDetailPage() {
-  const { incidentId } = useParams(); const navigate = useNavigate(); const toast = useToast(); const incident = useIncident(incidentId); const attachments = useIncidentAttachments(incidentId); const [notes, setNotes] = useState(''); const resolve = useResolveIncident(incidentId ?? ''); const upload = useUploadIncidentAttachment(incidentId ?? ''); const fileRef = useRef<HTMLInputElement>(null); const canEdit = usePermission('incidents.update')
+  const { incidentId } = useParams(); const toast = useToast(); const incident = useIncident(incidentId); const attachments = useIncidentAttachments(incidentId); const [notes, setNotes] = useState(''); const resolve = useResolveIncident(incidentId ?? ''); const upload = useUploadIncidentAttachment(incidentId ?? ''); const fileRef = useRef<HTMLInputElement>(null); const canEdit = usePermission('incidents.update')
   if (incident.isLoading) return <p>Loading incident…</p>; if (incident.isError || !incident.data) return <p role="alert">Incident not found.</p>; const row = incident.data
   async function resolveNow() { try { await resolve.mutateAsync(notes); toast.success('Incident resolved'); } catch (e) { toast.error(e instanceof Error ? e.message : 'Unable to resolve incident') } }
   async function uploadFile(file: File) { try { await upload.mutateAsync({ file, kind: file.type.startsWith('image/') ? 'photo' : 'document' }); toast.success('Attachment added') } catch (e) { toast.error(e instanceof Error ? e.message : 'Unable to upload attachment') } }

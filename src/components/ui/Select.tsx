@@ -7,8 +7,8 @@ import { controlBaseClasses, controlStateClasses } from './control-styles'
 import { useFieldControlProps } from './field-context'
 
 export interface SelectOption {
-  readonly value: string
-  readonly label: string
+  readonly value: string | undefined
+  readonly label: string | undefined
   readonly disabled?: boolean
 }
 

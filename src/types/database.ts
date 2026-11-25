@@ -2657,7 +2657,7 @@ export interface Database {
       }
       incident_attachments: {
         Row: IncidentAttachmentRow
-        Insert: Insertable<IncidentAttachmentRow, 'organization_id' | 'incident_id' | 'kind' | 'storage_path' | 'file_name' | 'content_type' | 'byte_size' | 'uploaded_by', 'id' | ManagedColumns>
+        Insert: Insertable<IncidentAttachmentRow, 'organization_id' | 'incident_id' | 'kind' | 'storage_path' | 'file_name' | 'content_type' | 'byte_size' | 'uploaded_by', 'id' | 'created_at'>
         Update: never
         Relationships: []
       }

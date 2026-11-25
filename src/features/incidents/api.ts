@@ -62,13 +62,15 @@ export async function fetchIncidentAttachments(id: string): Promise<IncidentAtta
 
 export async function uploadIncidentAttachment(organizationId: string, incidentId: string, file: File, kind: 'photo' | 'document') {
   const supabase = client()
+  const { data: auth } = await supabase.auth.getUser()
+  if (!auth.user) throw new Error('You must be signed in to upload an attachment.')
   const bucket = kind === 'photo' ? 'incident-photos' : 'incident-documents'
   const path = `${organizationId}/${incidentId}/${crypto.randomUUID()}-${file.name.replace(/[^a-zA-Z0-9._-]/g, '_')}`
   const upload = await supabase.storage.from(bucket).upload(path, file, { upsert: false, contentType: file.type })
   if (upload.error) throw upload.error
   const { data, error } = await supabase.from('incident_attachments').insert({
     organization_id: organizationId, incident_id: incidentId, kind, storage_path: path,
-    file_name: file.name, content_type: file.type, byte_size: file.size,
+    file_name: file.name, content_type: file.type, byte_size: file.size, uploaded_by: auth.user.id,
   }).select('*').single()
   if (error) { await supabase.storage.from(bucket).remove([path]); throw error }
   return data
