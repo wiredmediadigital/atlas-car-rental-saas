@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access */
 import { getSupabaseClient } from '@/lib/supabase/client'
 export type MaintenanceStatus = 'scheduled' | 'in_progress' | 'completed' | 'cancelled'
 export type MaintenanceCategory = 'preventive' | 'oil_filter' | 'tire_service' | 'brake_service' | 'battery_electrical' | 'mechanical_repair' | 'bodywork_collision' | 'vehicle_inspection' | 'recall' | 'cleaning_detailing' | 'other'

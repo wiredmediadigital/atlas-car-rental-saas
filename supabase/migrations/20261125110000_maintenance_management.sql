@@ -55,6 +55,44 @@ do $$ begin
 exception when duplicate_object then null; end $$;
 create index if not exists expenses_maintenance_idx on public.expenses(organization_id, maintenance_id) where maintenance_id is not null;
 
+alter table public.maintenance_records add column if not exists service_interval_days integer check (service_interval_days is null or service_interval_days > 0);
+alter table public.maintenance_records add column if not exists service_interval_odometer integer check (service_interval_odometer is null or service_interval_odometer > 0);
+alter table public.maintenance_records add column if not exists next_service_on date;
+alter table public.maintenance_records add column if not exists next_service_odometer integer check (next_service_odometer is null or next_service_odometer >= 0);
+
+create table if not exists public.maintenance_documents (
+  id uuid primary key default gen_random_uuid(),
+  organization_id uuid not null references public.organizations(id) on delete cascade,
+  maintenance_id uuid not null,
+  storage_path text not null check (char_length(storage_path) between 1 and 512),
+  file_name text not null check (char_length(file_name) between 1 and 240),
+  content_type text not null,
+  byte_size integer not null check (byte_size > 0 and byte_size <= 10485760),
+  uploaded_by uuid not null references auth.users(id),
+  created_at timestamptz not null default now(),
+  constraint maintenance_documents_tenant_fkey foreign key (maintenance_id, organization_id) references public.maintenance_records(id, organization_id) on delete cascade,
+  constraint maintenance_documents_path_key unique (storage_path)
+);
+create index if not exists maintenance_documents_record_idx on public.maintenance_documents(maintenance_id, created_at);
+revoke all on table public.maintenance_documents from anon, authenticated;
+grant select, insert, delete on table public.maintenance_documents to authenticated;
+alter table public.maintenance_documents enable row level security;
+drop policy if exists maintenance_documents_select on public.maintenance_documents;
+create policy maintenance_documents_select on public.maintenance_documents for select to authenticated using (app.is_org_member(organization_id));
+drop policy if exists maintenance_documents_insert on public.maintenance_documents;
+create policy maintenance_documents_insert on public.maintenance_documents for insert to authenticated with check (app.has_min_role(organization_id, 'staff') and uploaded_by = auth.uid());
+drop policy if exists maintenance_documents_delete on public.maintenance_documents;
+create policy maintenance_documents_delete on public.maintenance_documents for delete to authenticated using (app.has_min_role(organization_id, 'manager'));
+insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+values ('maintenance-documents', 'maintenance-documents', false, 10485760, array['application/pdf','image/png','image/jpeg','image/webp'])
+on conflict (id) do update set public = excluded.public, file_size_limit = excluded.file_size_limit, allowed_mime_types = excluded.allowed_mime_types;
+drop policy if exists "maintenance documents readable by members" on storage.objects;
+create policy "maintenance documents readable by members" on storage.objects for select to authenticated using (bucket_id = 'maintenance-documents' and app.is_org_member(app.organization_id_from_storage_path(name)));
+drop policy if exists "maintenance documents writable by staff" on storage.objects;
+create policy "maintenance documents writable by staff" on storage.objects for insert to authenticated with check (bucket_id = 'maintenance-documents' and app.has_min_role(app.organization_id_from_storage_path(name), 'staff'));
+drop policy if exists "maintenance documents removable by managers" on storage.objects;
+create policy "maintenance documents removable by managers" on storage.objects for delete to authenticated using (bucket_id = 'maintenance-documents' and app.has_min_role(app.organization_id_from_storage_path(name), 'manager'));
+
 create or replace function app.set_maintenance_reference() returns trigger language plpgsql security definer set search_path = '' as $$
 begin
   if new.reference is null or btrim(new.reference) = '' then
@@ -123,7 +161,7 @@ begin
   if p_incident_id is not null and not exists (select 1 from public.incidents where id = p_incident_id and organization_id = p_organization_id and vehicle_id = p_vehicle_id) then raise exception 'Incident not found for vehicle.' using errcode = 'P0002'; end if;
   select currency into v_currency from public.vehicles where id = p_vehicle_id and organization_id = p_organization_id;
   insert into public.maintenance_records(organization_id, vehicle_id, title, category, priority, status, scheduled_start, expected_completion, actual_start, start_odometer, description, reported_issue, service_provider, technician, provider_reference, estimated_cost_minor, currency, incident_id, notes, created_by)
-  values (p_organization_id, p_vehicle_id, btrim(p_title), p_category, p_priority, case when p_start_immediately then 'in_progress' else 'scheduled' end, p_scheduled_start, p_expected_completion, case when p_start_immediately then now() end, p_start_odometer, nullif(btrim(p_description),''), nullif(btrim(p_reported_issue),''), nullif(btrim(p_service_provider),''), nullif(btrim(p_technician),''), nullif(btrim(p_provider_reference),''), p_estimated_cost_minor, coalesce(p_currency, v_currency), p_incident_id, nullif(btrim(p_notes),''), auth.uid()) returning * into v_row;
+  values (p_organization_id, p_vehicle_id, btrim(p_title), p_category, p_priority, (case when p_start_immediately then 'in_progress' else 'scheduled' end)::public.maintenance_status, p_scheduled_start, p_expected_completion, case when p_start_immediately then now() end, p_start_odometer, nullif(btrim(p_description),''), nullif(btrim(p_reported_issue),''), nullif(btrim(p_service_provider),''), nullif(btrim(p_technician),''), nullif(btrim(p_provider_reference),''), p_estimated_cost_minor, coalesce(p_currency, v_currency), p_incident_id, nullif(btrim(p_notes),''), auth.uid()) returning * into v_row;
   return v_row;
 end $$;
 
@@ -191,16 +229,54 @@ begin
   return v_e;
 end $$;
 
-create or replace function public.vehicles_available_between(p_organization_id uuid, p_from timestamptz, p_to timestamptz, p_exclude_rental_id uuid default null) returns setof public.vehicles language plpgsql security definer set search_path = public, pg_temp as $$
+create or replace function public.maintenance_set_service_plan(p_maintenance_id uuid, p_interval_days integer, p_interval_odometer integer, p_next_service_on date, p_next_service_odometer integer) returns public.maintenance_records language plpgsql security definer set search_path = public, pg_temp as $$
+declare v_row public.maintenance_records;
+begin
+  select * into v_row from public.maintenance_records where id=p_maintenance_id for update;
+  if v_row.id is null or not app.has_min_role(v_row.organization_id,'manager') then raise exception 'Maintenance record not found.' using errcode='P0002'; end if;
+  if p_interval_days is null and p_interval_odometer is null and p_next_service_on is null and p_next_service_odometer is null then raise exception 'At least one service reminder is required.' using errcode='22023'; end if;
+  update public.maintenance_records set service_interval_days=p_interval_days, service_interval_odometer=p_interval_odometer, next_service_on=p_next_service_on, next_service_odometer=p_next_service_odometer where id=p_maintenance_id returning * into v_row;
+  return v_row;
+end $$;
+
+create or replace function public.maintenance_due_summary(p_organization_id uuid, p_as_of date default current_date) returns table(maintenance_id uuid, vehicle_id uuid, reference text, title text, status public.maintenance_status, overdue boolean, due_by_date boolean, due_by_odometer boolean, next_service_on date, next_service_odometer integer) language sql security definer set search_path = public, pg_temp as $$
+  select m.id, m.vehicle_id, m.reference, m.title, m.status,
+    (m.status in ('scheduled','in_progress') and ((m.next_service_on is not null and m.next_service_on < p_as_of) or (m.next_service_odometer is not null and v.odometer >= m.next_service_odometer))) as overdue,
+    (m.next_service_on is not null and m.next_service_on <= p_as_of + 30) as due_by_date,
+    (m.next_service_odometer is not null and v.odometer >= m.next_service_odometer - 500) as due_by_odometer,
+    m.next_service_on, m.next_service_odometer
+  from public.maintenance_records m join public.vehicles v on v.id=m.vehicle_id and v.organization_id=m.organization_id
+  where m.organization_id=p_organization_id and app.is_org_member(p_organization_id)
+    and m.status in ('scheduled','in_progress','completed');
+$$;
+
+create or replace function public.maintenance_actual_cost(p_maintenance_id uuid) returns bigint language sql stable security definer set search_path = public, pg_temp as $$
+  select coalesce(sum(e.amount_minor), 0)::bigint from public.expenses e join public.maintenance_records m on m.id=e.maintenance_id and m.organization_id=e.organization_id where e.maintenance_id=p_maintenance_id and e.status <> 'voided' and app.is_org_member(m.organization_id);
+$$;
+
+create or replace function public.maintenance_vehicle_downtime(p_vehicle_id uuid, p_from timestamptz, p_to timestamptz) returns integer language sql stable security definer set search_path = public, pg_temp as $$
+  with clipped as (
+    select greatest(coalesce(m.actual_start,m.scheduled_start),p_from) as started, least(coalesce(m.actual_completion,m.expected_completion,p_to),p_to) as ended
+    from public.maintenance_records m where m.vehicle_id=p_vehicle_id and m.status in ('scheduled','in_progress','completed')
+      and coalesce(m.actual_start,m.scheduled_start) < p_to and coalesce(m.actual_completion,m.expected_completion,p_to) > p_from
+  ), ordered as (
+    select *, max(ended) over (order by started rows between unbounded preceding and 1 preceding) as prior_end from clipped
+  ), grouped as (
+    select *, sum(case when prior_end is null or started > prior_end then 1 else 0 end) over (order by started) as grp from ordered
+  )
+  select coalesce(round(extract(epoch from sum(ended-started))/60)::integer,0) from (select min(started) started, max(ended) ended from grouped group by grp) merged;
+$$;
+
+create or replace function public.vehicles_available_between(p_organization_id uuid, p_from timestamptz, p_to timestamptz, p_exclude_rental_id uuid default null) returns setof uuid language plpgsql stable set search_path = public, pg_temp as $$
 begin
   if not app.is_org_member(p_organization_id) then raise exception 'Not permitted.' using errcode='42501'; end if;
   if p_to <= p_from then raise exception 'End must be after start.' using errcode='22023'; end if;
-  return query select v.* from public.vehicles v where v.organization_id=p_organization_id and v.archived_at is null and v.status='available'
+  return query select v.id from public.vehicles v where v.organization_id=p_organization_id and v.archived_at is null and v.status='available'
     and not exists (select 1 from public.rentals r where r.organization_id=v.organization_id and r.vehicle_id=v.id and r.status in ('reserved','active') and r.id is distinct from p_exclude_rental_id and r.starts_at < p_to and r.ends_at > p_from)
     and not exists (select 1 from public.maintenance_records m where m.organization_id=v.organization_id and m.vehicle_id=v.id and (m.status='in_progress' or (m.status='scheduled' and m.scheduled_start is not null and m.expected_completion is not null and m.scheduled_start < p_to and m.expected_completion > p_from)));
 end $$;
 
 revoke all on function public.maintenance_create(uuid,uuid,text,public.maintenance_category,public.maintenance_priority,timestamptz,timestamptz,text,text,text,text,text,bigint,public.currency_code,uuid,text,boolean,integer) from public;
-revoke all on function public.maintenance_start(uuid,timestamptz,integer), public.maintenance_complete(uuid,timestamptz,text,text,integer), public.maintenance_cancel(uuid,text), public.maintenance_reschedule(uuid,timestamptz,timestamptz), public.maintenance_conflicts(uuid), public.maintenance_link_expense(uuid,uuid), public.maintenance_unlink_expense(uuid) from public;
+revoke all on function public.maintenance_start(uuid,timestamptz,integer), public.maintenance_complete(uuid,timestamptz,text,text,integer), public.maintenance_cancel(uuid,text), public.maintenance_reschedule(uuid,timestamptz,timestamptz), public.maintenance_conflicts(uuid), public.maintenance_link_expense(uuid,uuid), public.maintenance_unlink_expense(uuid), public.maintenance_set_service_plan(uuid,integer,integer,date,integer), public.maintenance_due_summary(uuid,date), public.maintenance_actual_cost(uuid), public.maintenance_vehicle_downtime(uuid,timestamptz,timestamptz) from public;
 grant execute on function public.maintenance_create(uuid,uuid,text,public.maintenance_category,public.maintenance_priority,timestamptz,timestamptz,text,text,text,text,text,bigint,public.currency_code,uuid,text,boolean,integer) to authenticated;
-grant execute on function public.maintenance_start(uuid,timestamptz,integer), public.maintenance_complete(uuid,timestamptz,text,text,integer), public.maintenance_cancel(uuid,text), public.maintenance_reschedule(uuid,timestamptz,timestamptz), public.maintenance_conflicts(uuid), public.maintenance_link_expense(uuid,uuid), public.maintenance_unlink_expense(uuid) to authenticated;
+grant execute on function public.maintenance_start(uuid,timestamptz,integer), public.maintenance_complete(uuid,timestamptz,text,text,integer), public.maintenance_cancel(uuid,text), public.maintenance_reschedule(uuid,timestamptz,timestamptz), public.maintenance_conflicts(uuid), public.maintenance_link_expense(uuid,uuid), public.maintenance_unlink_expense(uuid), public.maintenance_set_service_plan(uuid,integer,integer,date,integer), public.maintenance_due_summary(uuid,date), public.maintenance_actual_cost(uuid), public.maintenance_vehicle_downtime(uuid,timestamptz,timestamptz) to authenticated;

@@ -132,4 +132,31 @@ describe('maintenance management', () => {
       /vehicle not found|foreign key|not permitted/i,
     )
   })
+
+  it('exposes guarded reminders, cost, downtime and private documents without a second ledger', async () => {
+    const [contract] = await db.sql<{ records_rls: boolean; documents_rls: boolean; bucket_private: boolean; expense_link: boolean; due_rpc: boolean; downtime_rpc: boolean }>(`
+      select
+        (select relrowsecurity from pg_class where oid = 'public.maintenance_records'::regclass) as records_rls,
+        (select relrowsecurity from pg_class where oid = 'public.maintenance_documents'::regclass) as documents_rls,
+        (select not public from storage.buckets where id = 'maintenance-documents') as bucket_private,
+        exists (select 1 from information_schema.columns where table_schema='public' and table_name='expenses' and column_name='maintenance_id') as expense_link,
+        exists (select 1 from pg_proc where oid = 'public.maintenance_due_summary(uuid,date)'::regprocedure) as due_rpc,
+        exists (select 1 from pg_proc where oid = 'public.maintenance_vehicle_downtime(uuid,timestamptz,timestamptz)'::regprocedure) as downtime_rpc
+    `)
+    expect(contract).toEqual({ records_rls: true, documents_rls: true, bucket_private: true, expense_link: true, due_rpc: true, downtime_rpc: true })
+
+    const [created] = await db.asUser(ownerId, (session) => session.sql<{ id: string }>(
+      `select id from public.maintenance_create($1, $2, 'Reminder service', 'preventive', 'normal', null, null, 'Reminder', null, null, null, null, null, 'EUR', null, null, false, null)`,
+      [organizationId, vehicleId],
+    ))
+    await db.asUser(ownerId, (session) => session.sql(
+      `select public.maintenance_set_service_plan($1, 180, 5000, current_date - 1, 100)`,
+      [created!.id],
+    ))
+    const [due] = await db.asUser(ownerId, (session) => session.sql<{ overdue: boolean; due_by_date: boolean; due_by_odometer: boolean }>(
+      `select overdue, due_by_date, due_by_odometer from public.maintenance_due_summary($1, current_date) where maintenance_id=$2`,
+      [organizationId, created!.id],
+    ))
+    expect(due).toEqual({ overdue: true, due_by_date: true, due_by_odometer: true })
+  })
 })
