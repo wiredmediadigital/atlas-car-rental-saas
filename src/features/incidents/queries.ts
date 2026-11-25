@@ -1,6 +1,19 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useOrganization } from '@/features/workspace/workspace-context'
-import { createIncident, fetchIncident, fetchIncidentAttachments, fetchIncidents, resolveIncident, uploadIncidentAttachment, type IncidentFilters, type IncidentInput } from './api'
+import {
+  createIncident,
+  fetchIncident,
+  fetchIncidentAttachments,
+  fetchIncidentRentalOption,
+  fetchIncidentRentalOptions,
+  fetchIncidents,
+  resolveIncident,
+  updateIncident,
+  uploadIncidentAttachment,
+  type IncidentFilters,
+  type IncidentInput,
+  type IncidentUpdateInput,
+} from './api'
 
 export const incidentKeys = {
   all: (org: string) => ['organization', org, 'incidents'] as const,
@@ -21,6 +34,26 @@ export function useIncidentAttachments(id: string | undefined) {
   const org = useOrganization()
   return useQuery({ queryKey: incidentKeys.attachments(org.id, id ?? 'none'), queryFn: () => fetchIncidentAttachments(id!), enabled: Boolean(id) })
 }
+
+export function useIncidentRentalOptions(vehicleId: string | undefined) {
+  const org = useOrganization()
+  return useQuery({
+    queryKey: [...incidentKeys.all(org.id), 'rental-options', vehicleId ?? 'none'] as const,
+    queryFn: () => fetchIncidentRentalOptions(org.id, vehicleId!),
+    enabled: Boolean(vehicleId),
+    staleTime: 30_000,
+  })
+}
+
+export function useIncidentRentalOption(id: string | undefined) {
+  const org = useOrganization()
+  return useQuery({
+    queryKey: [...incidentKeys.all(org.id), 'rental-option', id ?? 'none'] as const,
+    queryFn: () => fetchIncidentRentalOption(id!),
+    enabled: Boolean(id),
+    staleTime: 30_000,
+  })
+}
 export function useCreateIncident() {
   const org = useOrganization(); const qc = useQueryClient()
   return useMutation({ mutationFn: (input: IncidentInput) => createIncident(org.id, input), onSuccess: () => qc.invalidateQueries({ queryKey: incidentKeys.all(org.id) }) })
@@ -28,6 +61,14 @@ export function useCreateIncident() {
 export function useResolveIncident(id: string) {
   const org = useOrganization(); const qc = useQueryClient()
   return useMutation({ mutationFn: (notes: string) => resolveIncident(id, notes), onSuccess: () => qc.invalidateQueries({ queryKey: incidentKeys.all(org.id) }) })
+}
+
+export function useUpdateIncident(id: string) {
+  const org = useOrganization(); const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (input: IncidentUpdateInput) => updateIncident(id, input),
+    onSuccess: () => qc.invalidateQueries({ queryKey: incidentKeys.all(org.id) }),
+  })
 }
 export function useUploadIncidentAttachment(id: string) {
   const org = useOrganization(); const qc = useQueryClient()
