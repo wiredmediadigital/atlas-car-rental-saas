@@ -78,6 +78,9 @@ const ExpenseDetailPage = lazy(() =>
 const IncidentsPage = lazy(() => import('@/pages/incidents/IncidentsPage').then((module) => ({ default: module.IncidentsPage })))
 const IncidentNewPage = lazy(() => import('@/pages/incidents/IncidentNewPage').then((module) => ({ default: module.IncidentNewPage })))
 const IncidentDetailPage = lazy(() => import('@/pages/incidents/IncidentDetailPage').then((module) => ({ default: module.IncidentDetailPage })))
+const MaintenancePage = lazy(() => import('@/pages/maintenance/MaintenancePage').then((module) => ({ default: module.MaintenancePage })))
+const MaintenanceNewPage = lazy(() => import('@/pages/maintenance/MaintenanceNewPage').then((module) => ({ default: module.MaintenanceNewPage })))
+const MaintenanceDetailPage = lazy(() => import('@/pages/maintenance/MaintenanceDetailPage').then((module) => ({ default: module.MaintenanceDetailPage })))
 
 const FinancingPage = lazy(() =>
   import('@/pages/financing/FinancingPage').then((module) => ({ default: module.FinancingPage })),
@@ -416,6 +419,14 @@ export function AppRouter() {
                       <Route path={paths.incidentDetail} element={<IncidentDetailPage />} />
                       <Route element={<RequirePermission permission="incidents.create" />}>
                         <Route path={paths.incidentNew} element={<IncidentNewPage />} />
+                      </Route>
+                    </Route>
+
+                    <Route element={<RequirePermission permission="maintenance.view" />}>
+                      <Route path={paths.maintenance} element={<MaintenancePage />} />
+                      <Route path={paths.maintenanceDetail} element={<MaintenanceDetailPage />} />
+                      <Route element={<RequirePermission permission="maintenance.create" />}>
+                        <Route path={paths.maintenanceNew} element={<MaintenanceNewPage />} />
                       </Route>
                     </Route>
 

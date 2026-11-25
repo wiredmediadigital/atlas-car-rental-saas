@@ -153,6 +153,11 @@ export const PERMISSIONS = {
   'incidents.view': 'staff',
   'incidents.create': 'staff',
   'incidents.update': 'staff',
+  'maintenance.view': 'staff',
+  'maintenance.create': 'manager',
+  'maintenance.update': 'manager',
+  'maintenance.complete': 'manager',
+  'maintenance.cancel': 'manager',
 
   // A supplier is operational: a manager recording a repair must be able to add
   // the garage they just used. The category list is structural — renaming one

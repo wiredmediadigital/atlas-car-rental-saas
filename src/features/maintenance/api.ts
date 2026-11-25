@@ -1,0 +1,10 @@
+import { getSupabaseClient } from '@/lib/supabase/client'
+export type MaintenanceStatus = 'scheduled' | 'in_progress' | 'completed' | 'cancelled'
+export type MaintenanceCategory = 'preventive' | 'oil_filter' | 'tire_service' | 'brake_service' | 'battery_electrical' | 'mechanical_repair' | 'bodywork_collision' | 'vehicle_inspection' | 'recall' | 'cleaning_detailing' | 'other'
+export type MaintenancePriority = 'low' | 'normal' | 'high' | 'urgent'
+export interface MaintenanceRow { id: string; organization_id: string; vehicle_id: string; reference: string; title: string; category: MaintenanceCategory; priority: MaintenancePriority; status: MaintenanceStatus; scheduled_start: string | null; expected_completion: string | null; actual_start: string | null; actual_completion: string | null; description: string | null; reported_issue: string | null; work_performed: string | null; service_provider: string | null; technician: string | null; estimated_cost_minor: number | null; currency: string; incident_id: string | null; created_at: string; vehicle?: { make: string; model: string; registration_plate: string } | null }
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const db = getSupabaseClient() as any
+export async function fetchMaintenance(organizationId: string): Promise<MaintenanceRow[]> { const { data, error } = await db.from('maintenance_records').select('*, vehicle:vehicles(make,model,registration_plate)').eq('organization_id', organizationId).order('scheduled_start', { ascending: true, nullsFirst: false }); if (error) throw error; return (data ?? []) as MaintenanceRow[] }
+export async function createMaintenance(values: Record<string, unknown>): Promise<MaintenanceRow> { const { data, error } = await db.rpc('maintenance_create', values); if (error) throw error; return data as MaintenanceRow }
+export async function changeMaintenance(action: 'maintenance_start' | 'maintenance_complete' | 'maintenance_cancel', values: Record<string, unknown>): Promise<MaintenanceRow> { const { data, error } = await db.rpc(action, values); if (error) throw error; return data as MaintenanceRow }
