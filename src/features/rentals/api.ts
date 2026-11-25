@@ -465,6 +465,36 @@ export async function fetchPeriodConflicts(
   return data ?? []
 }
 
+export interface DriverAvailabilityRow {
+  customer_id: string
+  available: boolean
+  conflict_reference: string | null
+  conflict_vehicle_plate: string | null
+  conflict_vehicle_make: string | null
+  conflict_vehicle_model: string | null
+  conflict_starts_at: string | null
+  conflict_ends_at: string | null
+  conflict_is_custody: boolean | null
+}
+
+export async function fetchDriverAvailability(
+  organizationId: string,
+  customerIds: readonly string[],
+  from: string,
+  to: string,
+  excludeRentalId?: string,
+): Promise<DriverAvailabilityRow[]> {
+  const { data, error } = await getSupabaseClient().rpc('driver_availability', {
+    p_organization_id: organizationId,
+    p_customer_ids: [...customerIds],
+    p_starts_at: from,
+    p_ends_at: to,
+    p_exclude_rental_id: excludeRentalId ?? null,
+  })
+  if (error) throw toAppError(error)
+  return data ?? []
+}
+
 // -----------------------------------------------------------------------------
 // Creating a rental
 // -----------------------------------------------------------------------------

@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { Input, Skeleton } from '@/components/ui'
 import { DriverLicenceBadge } from '@/features/customers/components/CustomerBadges'
 import { useCustomerList } from '@/features/customers/queries'
+import { useDriverAvailability } from '@/features/rentals/queries'
 import type { ComplianceOptions } from '@/lib/compliance/expiry'
 import { cn } from '@/lib/utils/cn'
 import type { CustomerDirectoryEntry } from '@/types/database'
@@ -16,6 +17,7 @@ export interface CustomerPickerProps {
   /** Shows each person's licence state — used wherever the choice is a driver. */
   showLicence?: boolean
   emptyHint?: string
+  driverPeriod?: { from: string | null; to: string | null }
 }
 
 /** Below this, a term narrows nothing: "J" returns the first eight of hundreds. */
@@ -51,6 +53,7 @@ export function CustomerPicker({
   compliance,
   showLicence = false,
   emptyHint = 'No customer matches that name.',
+  driverPeriod,
 }: CustomerPickerProps) {
   const [draft, setDraft] = useState('')
   const [search, setSearch] = useState('')
@@ -68,6 +71,14 @@ export function CustomerPicker({
     { enabled: isSearching },
   )
   const customers = isSearching ? (query.data?.rows ?? []) : []
+  const availabilityQuery = useDriverAvailability(
+    showLicence ? customers.map((customer) => customer.customer_id) : [],
+    driverPeriod?.from ?? null,
+    driverPeriod?.to ?? null,
+  )
+  const availability = new Map(
+    (availabilityQuery.data ?? []).map((entry) => [entry.customer_id, entry]),
+  )
   const total = query.data?.total ?? 0
   const hiddenMatches = isSearching && total > customers.length
 
@@ -110,33 +121,60 @@ export function CustomerPicker({
 
               return (
                 <li key={customer.customer_id}>
-                  <button
-                    type="button"
-                    onClick={() => onSelect(customer)}
-                    className={cn(
-                      'hover:bg-surface-muted flex w-full items-center gap-3 px-3 py-2.5 text-start transition-colors',
-                      'focus-visible:outline-brand-500 focus-visible:outline-2 focus-visible:-outline-offset-2',
-                      isSelected && 'bg-brand-50/50',
-                    )}
-                  >
-                    <UserRound className="text-ink-subtle size-4 shrink-0" aria-hidden="true" />
-                    <span className="min-w-0 flex-1">
-                      <span className="text-ink block truncate text-[0.8125rem] font-medium">
-                        {customer.display_name}
-                      </span>
-                      <span className="text-ink-subtle block truncate text-[0.75rem]">
-                        {customer.phone?.trim() ||
-                          customer.email?.trim() ||
-                          'No phone or email on file'}
-                      </span>
-                    </span>
-                    {showLicence ? (
-                      <DriverLicenceBadge customer={customer} compliance={compliance} />
-                    ) : null}
-                    {isSelected ? (
-                      <Check className="text-brand-600 size-4 shrink-0" aria-hidden="true" />
-                    ) : null}
-                  </button>
+                  {(() => {
+                    const driverStatus = availability.get(customer.customer_id)
+                    const driverUnavailable = showLicence && driverStatus && !driverStatus.available
+                    const driverPending = showLicence && availabilityQuery.isPending
+                    const driverError = showLicence && availabilityQuery.isError
+                    return (
+                      <button
+                        type="button"
+                        onClick={() => onSelect(customer)}
+                        disabled={Boolean(driverUnavailable || driverPending || driverError)}
+                        title={
+                          driverUnavailable
+                            ? `Unavailable: assigned to ${driverStatus?.conflict_reference ?? 'another rental'}`
+                            : driverError
+                              ? 'Availability could not be verified.'
+                              : undefined
+                        }
+                        className={cn(
+                          'hover:bg-surface-muted flex w-full items-center gap-3 px-3 py-2.5 text-start transition-colors',
+                          'focus-visible:outline-brand-500 focus-visible:outline-2 focus-visible:-outline-offset-2',
+                          isSelected && 'bg-brand-50/50',
+                        )}
+                      >
+                        <UserRound className="text-ink-subtle size-4 shrink-0" aria-hidden="true" />
+                        <span className="min-w-0 flex-1">
+                          <span className="text-ink block truncate text-[0.8125rem] font-medium">
+                            {customer.display_name}
+                          </span>
+                          <span className="text-ink-subtle block truncate text-[0.75rem]">
+                            {customer.phone?.trim() ||
+                              customer.email?.trim() ||
+                              'No phone or email on file'}
+                          </span>
+                        </span>
+                        {showLicence ? (
+                          <span className="flex shrink-0 items-center gap-2">
+                            <DriverLicenceBadge customer={customer} compliance={compliance} />
+                            <span className="text-[0.6875rem] text-ink-subtle">
+                              {driverPending
+                                ? 'Checking availability…'
+                                : driverError
+                                  ? 'Unable to verify'
+                                  : driverUnavailable
+                                    ? 'Unavailable'
+                                    : 'Available'}
+                            </span>
+                          </span>
+                        ) : null}
+                        {isSelected ? (
+                          <Check className="text-brand-600 size-4 shrink-0" aria-hidden="true" />
+                        ) : null}
+                      </button>
+                    )
+                  })()}
                 </li>
               )
             })}

@@ -1,5 +1,5 @@
 import { ArrowLeft, ArrowRight, Check, TriangleAlert, X } from 'lucide-react'
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 
 import { paths, rentalDetailPath } from '@/app/routes/paths'
@@ -33,6 +33,7 @@ import {
 import {
   useAvailableVehicles,
   useCreateRental,
+  useDriverAvailability,
   usePeriodConflicts,
 } from '@/features/rentals/queries'
 import { useVehicle } from '@/features/vehicles/queries'
@@ -233,9 +234,50 @@ export function RentalNewPage() {
   )
   const conflicts = conflictsQuery.data ?? []
 
+  const selectedDriverIds = useMemo(
+    () =>
+      [primaryDriver?.customer_id, ...additionalDrivers.map((driver) => driver.customer_id)].filter(
+        (id): id is string => Boolean(id),
+      ),
+    [additionalDrivers, primaryDriver],
+  )
+  const driverAvailabilityQuery = useDriverAvailability(
+    selectedDriverIds,
+    startsAt?.toISOString() ?? null,
+    endsAt?.toISOString() ?? null,
+  )
+  const driverAvailability = new Map(
+    (driverAvailabilityQuery.data ?? []).map((entry) => [entry.customer_id, entry]),
+  )
+  const driverAvailabilityPending =
+    selectedDriverIds.length > 0 && driverAvailabilityQuery.isPending
+  const driverAvailabilityBlocked = selectedDriverIds.some(
+    (id) => driverAvailability.get(id)?.available === false,
+  )
+  const renterAvailabilityQuery = useDriverAvailability(
+    renter ? [renter.customer_id] : [],
+    startsAt?.toISOString() ?? null,
+    endsAt?.toISOString() ?? null,
+  )
+
+  useEffect(() => {
+    if (
+      renter &&
+      !primaryDriver &&
+      renterAvailabilityQuery.data?.[0]?.available === true
+    ) {
+      setPrimaryDriver(renter)
+    }
+  }, [primaryDriver, renter, renterAvailabilityQuery.data])
+
   const canLeavePeriod = periodIsValid
   const canLeaveVehicle = vehicle !== null
-  const canLeavePeople = renter !== null && primaryDriver !== null
+  const canLeavePeople =
+    renter !== null &&
+    primaryDriver !== null &&
+    !driverAvailabilityPending &&
+    !driverAvailabilityQuery.isError &&
+    !driverAvailabilityBlocked
   const canLeavePricing = quote.totalMinor >= 0 && days > 0
 
   const stepIndex = STEPS.findIndex((entry) => entry.key === step)
@@ -433,9 +475,8 @@ export function RentalNewPage() {
                       compliance={compliance}
                       onSelect={(customer) => {
                         setRenter(customer)
-                        // Most of the time the renter drives. Offering that as
-                        // the default saves a search and stays overridable.
-                        if (!primaryDriver) setPrimaryDriver(customer)
+                        // Most of the time the renter drives. The availability
+                        // query below applies that convenience only when safe.
                       }}
                     />
                   )}
@@ -460,6 +501,10 @@ export function RentalNewPage() {
                       selectedIds={[]}
                       compliance={compliance}
                       showLicence
+                      driverPeriod={{
+                        from: startsAt?.toISOString() ?? null,
+                        to: endsAt?.toISOString() ?? null,
+                      }}
                       onSelect={setPrimaryDriver}
                     />
                   )}
@@ -495,6 +540,10 @@ export function RentalNewPage() {
                     selectedIds={additionalDrivers.map((driver) => driver.customer_id)}
                     compliance={compliance}
                     showLicence
+                    driverPeriod={{
+                      from: startsAt?.toISOString() ?? null,
+                      to: endsAt?.toISOString() ?? null,
+                    }}
                     onSelect={(customer) =>
                       setAdditionalDrivers((current) =>
                         current.some((entry) => entry.customer_id === customer.customer_id) ||

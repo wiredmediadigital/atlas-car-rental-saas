@@ -39,6 +39,7 @@ import {
   fetchAvailableVehicleIds,
   fetchConditionPhotos,
   fetchPeriodConflicts,
+  fetchDriverAvailability,
   fetchRental,
   fetchRentalBoardEntry,
   fetchRentalContracts,
@@ -338,6 +339,33 @@ export function usePeriodConflicts(
     queryKey: rentalKeys.conflicts(organization.id, vehicleId ?? '', from ?? '', to ?? ''),
     queryFn: () => fetchPeriodConflicts(vehicleId!, from!, to!, excludeRentalId),
     enabled: Boolean(vehicleId && from && to && from < to),
+  })
+}
+
+export function useDriverAvailability(
+  customerIds: readonly string[],
+  from: string | null,
+  to: string | null,
+  excludeRentalId?: string,
+) {
+  const organization = useOrganization()
+  const ids = useMemo(() => [...new Set(customerIds)].sort(), [customerIds])
+
+  return useQuery({
+    queryKey: [
+      'organization',
+      organization.id,
+      'rentals',
+      'driver-availability',
+      ids,
+      from ?? '',
+      to ?? '',
+      excludeRentalId ?? null,
+    ],
+    queryFn: () => fetchDriverAvailability(organization.id, ids, from!, to!, excludeRentalId),
+    enabled: ids.length > 0 && Boolean(from && to && from < to),
+    staleTime: 5_000,
+    retry: false,
   })
 }
 

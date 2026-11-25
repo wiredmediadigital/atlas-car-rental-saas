@@ -3420,6 +3420,26 @@ export interface Database {
         Args: { p_rental_id: string }
         Returns: RentalRow
       }
+      driver_availability: {
+        Args: {
+          p_organization_id: string
+          p_customer_ids: string[]
+          p_starts_at: string
+          p_ends_at: string
+          p_exclude_rental_id?: string | null
+        }
+        Returns: {
+          customer_id: string
+          available: boolean
+          conflict_reference: string | null
+          conflict_vehicle_plate: string | null
+          conflict_vehicle_make: string | null
+          conflict_vehicle_model: string | null
+          conflict_starts_at: string | null
+          conflict_ends_at: string | null
+          conflict_is_custody: boolean | null
+        }[]
+      }
       rental_check_out: {
         Args: {
           p_rental_id: string
