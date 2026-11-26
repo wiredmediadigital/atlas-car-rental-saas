@@ -77,7 +77,10 @@ export const expenseKeys = {
  * line and cannot miss a key; a hand-written list goes stale the first time
  * somebody adds a query.
  */
-async function invalidateExpenses(client: QueryClient, organizationId: string): Promise<void> {
+export async function invalidateExpenses(
+  client: QueryClient,
+  organizationId: string,
+): Promise<void> {
   await Promise.all([
     client.invalidateQueries({ queryKey: expenseKeys.all(organizationId) }),
     client.invalidateQueries({ queryKey: ['organization', organizationId, 'overview'] }),

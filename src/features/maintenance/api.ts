@@ -180,6 +180,48 @@ export async function fetchMaintenanceExpenses(
   return (data ?? []) as MaintenanceExpense[]
 }
 
+export interface LinkableExpense {
+  id: string
+  reference: string | null
+  description: string | null
+  amount_minor: number
+  currency: string
+  incurred_on: string | null
+}
+
+/** How many unattached vehicle costs the picker will offer at once. */
+const LINKABLE_EXPENSE_LIMIT = 50
+
+/**
+ * Vehicle costs this maintenance record could still be given.
+ *
+ * Read from `expenses` rather than the `expense_ledger` view, which predates
+ * maintenance and does not carry `maintenance_id`. The filters are the ones
+ * `maintenance_link_expense` enforces — same vehicle, vehicle allocation, same
+ * tenant — plus two the RPC has no opinion about. A cost already attached to a
+ * record is left out, so linking cannot quietly move one off another
+ * maintenance record or re-offer one already listed below. A voided cost is
+ * left out too, because `maintenance_actual_cost` ignores it and linking it
+ * would add nothing to the figure the operator is looking at.
+ */
+export async function fetchLinkableExpenses(
+  organizationId: string,
+  vehicleId: string,
+): Promise<LinkableExpense[]> {
+  const { data, error } = await db
+    .from('expenses')
+    .select('id, reference, description, amount_minor, currency, incurred_on')
+    .eq('organization_id', organizationId)
+    .eq('vehicle_id', vehicleId)
+    .eq('allocation', 'vehicle')
+    .eq('status', 'recorded')
+    .is('maintenance_id', null)
+    .order('incurred_on', { ascending: false })
+    .limit(LINKABLE_EXPENSE_LIMIT)
+  if (error) throw error
+  return (data ?? []) as LinkableExpense[]
+}
+
 export async function linkMaintenanceExpense(
   maintenanceId: string,
   expenseId: string,

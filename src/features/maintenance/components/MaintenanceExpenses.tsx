@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Link2, Unlink } from 'lucide-react'
+import { Link2, Plus, Unlink } from 'lucide-react'
 
 import { paths } from '@/app/routes/paths'
 import {
@@ -13,7 +13,9 @@ import {
   Select,
   useToast,
 } from '@/components/ui'
+import { RecordMaintenanceCost } from '@/features/maintenance/components/RecordMaintenanceCost'
 import {
+  useLinkableMaintenanceExpenses,
   useLinkMaintenanceExpense,
   useMaintenanceActualCost,
   useMaintenanceExpenses,
@@ -23,20 +25,31 @@ import { formatDate } from '@/lib/datetime/format'
 import { formatMoney } from '@/lib/money/money'
 import { toErrorMessage } from '@/lib/supabase/errors'
 
+import type { LinkableExpense, MaintenanceCategory } from '../api'
+
 /**
  * What this repair actually cost, read from the expense ledger.
  *
- * There is no second ledger here and no money is created: an expense already
- * recorded against the vehicle is pointed at this record, and the actual cost
- * is the sum of those. Estimated cost stays separate because it is a guess
- * somebody made beforehand, and conflating the two is how a vehicle ends up
- * counted twice in a report.
+ * There is no second ledger here and no money is created. A cost is either
+ * recorded from this card — through the same form, the same validation and the
+ * same `expenses` table as Finance → Record a cost — or an existing vehicle
+ * cost is pointed at this record; the actual cost is the sum of those.
+ * Estimated cost stays separate because it is a guess somebody made
+ * beforehand, and conflating the two is how a vehicle ends up counted twice in
+ * a report.
+ *
+ * Nothing on this card is gated on the record's status. A garage invoice
+ * routinely arrives after the work is signed off, and a record that will not
+ * accept it is a record whose actual cost is permanently wrong.
  */
 export interface MaintenanceExpensesProps {
   maintenanceId: string
+  vehicleId: string
+  reference: string
+  title: string
+  category: MaintenanceCategory
   currency: string
   estimatedCostMinor: number | null
-  linkableExpenses: Array<{ id: string; label: string }>
   canManage: boolean
   locale: string
   timeZone: string
@@ -44,9 +57,12 @@ export interface MaintenanceExpensesProps {
 
 export function MaintenanceExpenses({
   maintenanceId,
+  vehicleId,
+  reference,
+  title,
+  category,
   currency,
   estimatedCostMinor,
-  linkableExpenses,
   canManage,
   locale,
   timeZone,
@@ -54,9 +70,11 @@ export function MaintenanceExpenses({
   const toast = useToast()
   const [selected, setSelected] = useState('')
   const [error, setError] = useState<string | null>(null)
+  const [isRecording, setIsRecording] = useState(false)
 
   const expenses = useMaintenanceExpenses(maintenanceId)
   const cost = useMaintenanceActualCost(maintenanceId)
+  const linkable = useLinkableMaintenanceExpenses(vehicleId, canManage)
   const link = useLinkMaintenanceExpense(maintenanceId)
   const unlink = useUnlinkMaintenanceExpense(maintenanceId)
 
@@ -83,12 +101,20 @@ export function MaintenanceExpenses({
   }
 
   const rows = expenses.data ?? []
+  const options = linkable.data ?? []
 
   return (
     <Card>
       <CardHeader
         title="Costs"
-        description="Linked from the expense ledger. Nothing here charges a customer."
+        description="Recorded in the expense ledger. Nothing here charges a customer."
+        actions={
+          canManage ? (
+            <Button variant="secondary" leadingIcon={<Plus />} onClick={() => setIsRecording(true)}>
+              Record a cost
+            </Button>
+          ) : null
+        }
       />
       <CardBody className="space-y-4">
         <dl className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -117,8 +143,8 @@ export function MaintenanceExpenses({
         {rows.length === 0 ? (
           <EmptyState
             size="sm"
-            title="No expenses linked"
-            description="Record the invoice as a vehicle expense, then link it here."
+            title="No costs recorded"
+            description="Record the invoice here, or link a vehicle cost already in the ledger."
           />
         ) : (
           <ul className="divide-line divide-y">
@@ -161,32 +187,63 @@ export function MaintenanceExpenses({
           </ul>
         )}
 
-        {canManage && linkableExpenses.length > 0 ? (
-          <div className="border-line flex flex-wrap items-end gap-3 border-t pt-4">
-            <Field label="Link an existing vehicle expense" id="link-expense" className="min-w-64">
-              <Select
-                id="link-expense"
-                value={selected}
-                placeholder="Choose an expense"
-                options={linkableExpenses.map((expense) => ({
-                  value: expense.id,
-                  label: expense.label,
-                }))}
-                onChange={(event) => setSelected(event.target.value)}
-              />
-            </Field>
-            <Button
-              variant="secondary"
-              leadingIcon={<Link2 />}
-              disabled={!selected}
-              isLoading={link.isPending}
-              onClick={() => void attach()}
-            >
-              Link expense
-            </Button>
+        {canManage ? (
+          <div className="border-line border-t pt-4">
+            {options.length > 0 ? (
+              <div className="flex flex-wrap items-end gap-3">
+                <Field label="Link an existing vehicle expense" className="min-w-64">
+                  <Select
+                    value={selected}
+                    placeholder="Choose an expense"
+                    options={options.map((expense) => ({
+                      value: expense.id,
+                      label: linkableLabel(expense),
+                    }))}
+                    onChange={(event) => setSelected(event.target.value)}
+                  />
+                </Field>
+                <Button
+                  variant="secondary"
+                  leadingIcon={<Link2 />}
+                  disabled={!selected}
+                  isLoading={link.isPending}
+                  onClick={() => void attach()}
+                >
+                  Link expense
+                </Button>
+              </div>
+            ) : (
+              // Said, not hidden. A card that simply drops the picker reads as
+              // "this agency cannot link costs", and the operator goes looking
+              // for a setting that does not exist.
+              <p className="text-ink-subtle text-[0.8125rem]">
+                {linkable.isPending
+                  ? 'Looking for vehicle costs that could be linked…'
+                  : 'No unlinked vehicle costs for this vehicle. Record one with “Record a cost”, or record it in Finance against this vehicle and it will appear here.'}
+              </p>
+            )}
           </div>
         ) : null}
       </CardBody>
+
+      <RecordMaintenanceCost
+        open={isRecording}
+        onOpenChange={setIsRecording}
+        maintenanceId={maintenanceId}
+        vehicleId={vehicleId}
+        reference={reference}
+        title={title}
+        category={category}
+        currency={currency}
+        locale={locale}
+        timeZone={timeZone}
+      />
     </Card>
   )
+}
+
+/** Enough to tell two invoices from the same garage apart. */
+function linkableLabel(expense: LinkableExpense): string {
+  const name = expense.reference ?? expense.description ?? 'Expense'
+  return expense.incurred_on ? `${name} · ${expense.incurred_on}` : name
 }

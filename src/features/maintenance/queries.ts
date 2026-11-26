@@ -1,11 +1,15 @@
 import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query'
 
+import { createExpense } from '@/features/expenses/api'
+import { invalidateExpenses } from '@/features/expenses/queries'
+import type { ExpenseFormValues } from '@/features/expenses/schemas'
 import { useOrganization } from '@/features/workspace/workspace-context'
 import { invalidateVehicleRestrictions } from '@/features/vehicles/queries'
 import {
   changeMaintenance,
   createMaintenance,
   deleteMaintenanceDocument,
+  fetchLinkableExpenses,
   fetchMaintenance,
   fetchMaintenanceActualCost,
   fetchMaintenanceDocuments,
@@ -29,6 +33,8 @@ export const maintenanceKeys = {
     ['organization', organizationId, 'maintenance', maintenanceId, 'expenses'] as const,
   cost: (organizationId: string, maintenanceId: string) =>
     ['organization', organizationId, 'maintenance', maintenanceId, 'cost'] as const,
+  linkable: (organizationId: string, vehicleId: string) =>
+    ['organization', organizationId, 'maintenance', 'linkable-expenses', vehicleId] as const,
   downtime: (organizationId: string, vehicleId: string, from: string, to: string) =>
     ['organization', organizationId, 'maintenance', 'downtime', vehicleId, from, to] as const,
 }
@@ -138,12 +144,76 @@ export function useMaintenanceActualCost(maintenanceId: string | undefined) {
   })
 }
 
+/**
+ * The vehicle costs this record could still be given.
+ *
+ * Lives under the maintenance key so that linking, unlinking or recording a
+ * cost refreshes it through `invalidateMaintenance` — an expense that has just
+ * been attached has to leave this list, or the picker keeps offering it.
+ */
+export function useLinkableMaintenanceExpenses(vehicleId: string | undefined, enabled = true) {
+  const organization = useOrganization()
+  return useQuery({
+    queryKey: maintenanceKeys.linkable(organization.id, vehicleId ?? ''),
+    queryFn: () => fetchLinkableExpenses(organization.id, vehicleId ?? ''),
+    enabled: enabled && Boolean(vehicleId),
+  })
+}
+
 export function useLinkMaintenanceExpense(maintenanceId: string) {
   const client = useQueryClient()
   const organization = useOrganization()
   return useMutation({
     mutationFn: (expenseId: string) => linkMaintenanceExpense(maintenanceId, expenseId),
     onSuccess: () => invalidateMaintenance(client, organization.id),
+  })
+}
+
+/** What a cost recorded from a maintenance record came to. */
+export interface CreatedMaintenanceExpense {
+  expenseId: string
+  /** False when the cost was recorded but attaching it afterwards failed. */
+  isLinked: boolean
+  /** The reason it was not attached. Never thrown away — the UI says it. */
+  linkFailure: unknown
+}
+
+/**
+ * Record a cost and attach it to this maintenance record.
+ *
+ * Two steps against one ledger, not a ledger of its own: the insert is the
+ * same `createExpense` the Record a cost page uses, and the attachment is the
+ * same `maintenance_link_expense` an operator runs by hand. Both are subject
+ * to the same constraints and the same row-level policies.
+ *
+ * A failed attachment is reported rather than thrown, because by then the cost
+ * exists. Throwing would show "could not record the cost" over a cost that is
+ * sitting in the ledger, and the operator would record it a second time. The
+ * caller is given the id and the reason, and the expense shows up in the
+ * picker for them to attach.
+ */
+export function useCreateMaintenanceExpense(maintenanceId: string) {
+  const client = useQueryClient()
+  const organization = useOrganization()
+
+  return useMutation({
+    mutationFn: async (values: ExpenseFormValues): Promise<CreatedMaintenanceExpense> => {
+      const expense = await createExpense(organization.id, values)
+      try {
+        await linkMaintenanceExpense(maintenanceId, expense.id)
+        return { expenseId: expense.id, isLinked: true, linkFailure: null }
+      } catch (cause) {
+        return { expenseId: expense.id, isLinked: false, linkFailure: cause }
+      }
+    },
+    onSuccess: async () => {
+      // Both subtrees: the ledger, the reports and the vehicle's economics on
+      // one side, the actual cost and the picker on this one.
+      await Promise.all([
+        invalidateExpenses(client, organization.id),
+        invalidateMaintenance(client, organization.id),
+      ])
+    },
   })
 }
 

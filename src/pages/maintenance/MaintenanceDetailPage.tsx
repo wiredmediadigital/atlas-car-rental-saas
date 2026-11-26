@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { CheckCircle2, CircleOff, Play } from 'lucide-react'
 
@@ -17,7 +17,6 @@ import {
   Textarea,
   useToast,
 } from '@/components/ui'
-import { useExpenseList } from '@/features/expenses/queries'
 import { MaintenanceDocuments } from '@/features/maintenance/components/MaintenanceDocuments'
 import { MaintenanceExpenses } from '@/features/maintenance/components/MaintenanceExpenses'
 import { MaintenanceServicePlan } from '@/features/maintenance/components/MaintenanceServicePlan'
@@ -81,21 +80,6 @@ export function MaintenanceDetailPage() {
   const start = useMaintenanceAction('maintenance_start')
   const complete = useMaintenanceAction('maintenance_complete')
   const cancel = useMaintenanceAction('maintenance_cancel')
-
-  // Vehicle expenses that are not yet attached to anything, for linking.
-  const linkable = useExpenseList({
-    vehicleId: record?.vehicle_id,
-    allocation: 'vehicle',
-    pageSize: 50,
-  })
-  const linkableExpenses = useMemo(
-    () =>
-      (linkable.data?.rows ?? []).map((expense) => ({
-        id: expense.id,
-        label: `${expense.reference ?? expense.description ?? 'Expense'} · ${expense.incurred_on}`,
-      })),
-    [linkable.data],
-  )
 
   if (query.isPending) {
     return (
@@ -348,9 +332,12 @@ export function MaintenanceDetailPage() {
       {canViewExpenses ? (
         <MaintenanceExpenses
           maintenanceId={record.id}
+          vehicleId={record.vehicle_id}
+          reference={record.reference}
+          title={record.title}
+          category={record.category}
           currency={record.currency}
           estimatedCostMinor={record.estimated_cost_minor}
-          linkableExpenses={linkableExpenses}
           canManage={canUpdate}
           locale={organization.locale}
           timeZone={compliance.timeZone}
