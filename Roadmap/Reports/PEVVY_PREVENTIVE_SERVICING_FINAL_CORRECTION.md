@@ -474,7 +474,7 @@ was sufficient alone.
 
 ---
 
-## 15. Staging deployment evidence
+## 13. Staging deployment evidence
 
 Published to `origin/staging` as a fast-forward. No force push, no history rewrite.
 **`origin/main` untouched at `31383a9`** throughout.
@@ -541,7 +541,7 @@ neither, and the crawl confirms it on the served bytes.
 
 ---
 
-## 13. Acceptance register
+## 14. Acceptance register
 
 | | |
 |---|---|
@@ -611,7 +611,7 @@ is expected and self-healing — see §11.
 
 ---
 
-## 14. Not done, and why
+## 15. Not done, and why
 
 - **Nothing is marked accepted.** 26 / 1 / 0 stands as it was.
 - **Production remains NO-GO.** No production credential, no production project, no
