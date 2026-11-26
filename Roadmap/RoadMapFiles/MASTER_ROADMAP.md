@@ -29,3 +29,17 @@ TypeScript clean, ESLint at the baseline count, Prettier clean for the first
 time. Staging migration dry run PASS; the push itself was refused by the
 execution environment and staging is unchanged. Rental Financial Adjustments
 remains next and was not started.
+
+## Maintenance Management — staging deployed, acceptance outstanding (2026-11-26)
+
+Staging now runs the remediated Maintenance Management at `caf6cd1` with migration
+`20261125130000` applied. The next step is **owner manual acceptance of the 26 scenarios
+on hosted staging**, starting with scenario 22, the standard rental regression.
+
+Maintenance remains **production NO-GO** until that acceptance is recorded. Driver
+Availability keeps its owner manual acceptance of 9/9. Rental Financial Adjustments has
+not been started.
+
+Blocking anything hosted beyond maintenance: six of nine Edge Functions are not deployed
+to staging, so public booking, account closure, MFA reset and team invitations cannot be
+accepted there. Deploying them needs its own owner approval.

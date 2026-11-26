@@ -72,3 +72,31 @@ Phase 1B-02 staging validation is complete for the authorized staging-only scope
 - The active swapped QA rental requires actual final return information before the global lifecycle control can safely be disabled without stranding custody state.
 - Production remains unchanged and this withdrawal is not a production deployment authorization.
 - Evidence: `Reports/PEVVY_PHASE_1B03_WITHDRAWAL.md`.
+
+## Maintenance Management — production promotion checklist (2026-11-26)
+
+Staging is deployed and verified. These remain before production can be considered.
+
+- [ ] Owner manual acceptance of all 26 scenarios on hosted staging, signed in.
+      Start with scenario 22, the standard rental regression. The 11/11/4 baseline
+      stands until each is individually confirmed.
+- [ ] Decision: assignment activation defaults ON, contradicting the STG-02 contract.
+      Either revert the default or amend the contract.
+- [ ] Decision: should the eleven incident and maintenance `SECURITY DEFINER` write RPCs
+      ask `app.billing_require_write`? Policy proposal recorded in
+      `PEVVY_MAINTENANCE_REMEDIATION_RELEASE_CLOSURE.md` §4.
+- [ ] Port `withdraw-active-swap.test.ts` so something asserts the vehicle swap stays
+      withdrawn. Nothing on this branch does.
+- [ ] Update the two stale pre-withdrawal swap contract tests. They fail on an error
+      string, not on a security regression, and must not be reported as one.
+- [ ] Make the deployment artifact hash reproducible — pin the builder toolchain or
+      publish the reviewed artifact instead of rebuilding. The expected-SHA control
+      cannot currently pass; see the deployment report §5.
+- [ ] Independent concurrency verification against hosted Postgres. PGlite cannot provide
+      two genuinely independent transactions.
+- [ ] Decide on the six undeployed Edge Functions. Hosted public booking, account closure,
+      MFA reset and team invitations cannot be accepted until they are deployed, and that
+      needs its own owner approval.
+- [ ] Production migration plan and rollback. `20261125130000` is additive — it drops and
+      renames nothing — but there is **no down migration**; reverting needs a new forward one.
+- [ ] Hostinger deployment-to-commit attribution for the production target.

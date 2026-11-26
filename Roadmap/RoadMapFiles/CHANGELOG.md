@@ -37,3 +37,25 @@
 - Closed PUBLIC, and therefore anon, out of the private `app` schema.
 
 Automated validation only. Manual acceptance has not been re-run.
+
+## 2026-11-26 — Maintenance acceptance remediation deployed to staging
+
+Published `caf6cd1` to `origin/staging` as a fast-forward; the owner applied migration
+`20261125130000`. Staging ledger 140/140, zero drift.
+
+- A maintenance restriction now means the period it actually covers. The rewritten
+  `vehicles_available_between` had lost the overdue-unreturned-hire exclusion and made
+  any in-progress record block every period, which is why one defect produced the
+  standard rental regression, the period-specific failures and the overdue-checkout
+  failure at the same time.
+- A CSV import can no longer land a vehicle as bookable when its own file says the car is
+  off the road. The row is held back with a message naming what to do instead.
+- Four defects found by the pre-release safety review and fixed before publication: a
+  missing `EXECUTE` grant on `app.maintenance_restriction_range` that would have made
+  every availability search fail for every signed-in member; account closure collecting
+  three storage buckets its sweeper refused, leaving a closed agency's files in Storage;
+  `off_road_by` able to make an Auth account undeletable; and an undisclosed second
+  caller of the assignment self-heal.
+
+Not accepted: the owner's 11 passed / 11 failed / 4 pending baseline is unchanged.
+Production untouched and NO-GO.

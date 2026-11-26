@@ -33,3 +33,19 @@ maintenance workflow; incident association remains optional.
 
 The owner's acceptance baseline of 11 passed, 11 failed and 4 pending is the
 historical record and is not superseded by any automated result here.
+
+## Maintenance Management — 2026-11-26
+
+| Field | Value |
+|---|---|
+| Status | Deployed to staging; **awaiting owner manual acceptance** |
+| Staging commit | `caf6cd1452ed1060e010ebdd1f30daf737f364eb` |
+| Migration | `20261125130000_maintenance_acceptance_remediation.sql`, applied |
+| Automated coverage | `supabase/tests/maintenance-acceptance.test.ts`, 22 tests |
+| Acceptance baseline | 11 passed / 11 failed / 4 pending — **unchanged, not re-run** |
+| Production | NO-GO |
+
+Related: incident/maintenance integration, vehicle restriction actions
+(`vehicle_take_off_road`, `vehicle_return_to_service`,
+`vehicle_resolve_legacy_maintenance`), preventive servicing, maintenance documents and
+expense links, and the CSV import restriction safeguard.
