@@ -18,8 +18,10 @@ import {
   fetchMaintenanceForVehicle,
   fetchMaintenanceSpend,
   fetchMaintenanceCostsByRecord,
+  fetchMaintenanceStatusCounts,
   fetchFleetDowntime,
   fetchServicingFleet,
+  fetchServicePlans,
   fetchVehicleDowntime,
   linkMaintenanceExpense,
   unlinkMaintenanceExpense,
@@ -42,8 +44,12 @@ export const maintenanceKeys = {
     ['organization', organizationId, 'maintenance', maintenanceId, 'cost'] as const,
   linkable: (organizationId: string, vehicleId: string) =>
     ['organization', organizationId, 'maintenance', 'linkable-expenses', vehicleId] as const,
+  servicePlans: (organizationId: string) =>
+    ['organization', organizationId, 'maintenance', 'service-plans'] as const,
   servicingFleet: (organizationId: string) =>
     ['organization', organizationId, 'maintenance', 'servicing-fleet'] as const,
+  statusCounts: (organizationId: string) =>
+    ['organization', organizationId, 'maintenance', 'status-counts'] as const,
   costsByRecord: (organizationId: string) =>
     ['organization', organizationId, 'maintenance', 'costs-by-record'] as const,
   spend: (organizationId: string, from: string, to: string) =>
@@ -268,6 +274,16 @@ export function useServicingFleet() {
   })
 }
 
+/** Status counts for the dashboard, counted by the database rather than the page. */
+export function useMaintenanceStatusCounts() {
+  const organization = useOrganization()
+  return useQuery({
+    queryKey: maintenanceKeys.statusCounts(organization.id),
+    queryFn: () => fetchMaintenanceStatusCounts(organization.id),
+    staleTime: 30_000,
+  })
+}
+
 /** Actual cost for every maintenance record, keyed by record id. */
 export function useMaintenanceCostsByRecord() {
   const organization = useOrganization()
@@ -275,6 +291,16 @@ export function useMaintenanceCostsByRecord() {
     queryKey: maintenanceKeys.costsByRecord(organization.id),
     queryFn: () => fetchMaintenanceCostsByRecord(organization.id),
     staleTime: 60_000,
+  })
+}
+
+/** Every maintenance record carrying a service plan, for the servicing list. */
+export function useServicePlans() {
+  const organization = useOrganization()
+  return useQuery({
+    queryKey: maintenanceKeys.servicePlans(organization.id),
+    queryFn: () => fetchServicePlans(organization.id),
+    staleTime: 30_000,
   })
 }
 

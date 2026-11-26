@@ -21,7 +21,6 @@ import {
 import { ServicingTable } from '@/features/maintenance/components/ServicingTable'
 import {
   buildServicingRows,
-  countMaintenance,
   countServicing,
   filterMaintenanceRows,
   sortServicingRows,
@@ -30,8 +29,10 @@ import {
   useFleetDowntime,
   useMaintenance,
   useMaintenanceCostsByRecord,
+  useMaintenanceStatusCounts,
   useMaintenanceSpend,
   useServicingFleet,
+  useServicePlans,
 } from '@/features/maintenance/queries'
 import { useComplianceOptions, useDistanceUnit } from '@/features/workspace/useOrganizationSettings'
 import { useOrganization, usePermission } from '@/features/workspace/workspace-context'
@@ -173,18 +174,28 @@ export function MaintenancePage() {
     })
 
   const records = useMaintenance()
+  const statusCounts = useMaintenanceStatusCounts()
   const fleet = useServicingFleet()
+  const servicePlans = useServicePlans()
   const costs = useMaintenanceCostsByRecord()
   const spend = useMaintenanceSpend(period.from, period.to)
   const downtime = useFleetDowntime(period.from, period.to)
 
   const rows: readonly MaintenanceRow[] = useMemo(() => records.data ?? [], [records.data])
 
-  const counts = useMemo(() => countMaintenance(rows), [rows])
+  // Counted by the database, not derived from `rows`: that read is capped at
+  // max_rows, and a count taken from a truncated list is wrong while looking
+  const counts = statusCounts.data ?? {
+    scheduled: 0,
+    inProgress: 0,
+    completed: 0,
+    vehiclesInMaintenance: 0,
+  }
 
   const servicingRows = useMemo(
-    () => sortServicingRows(buildServicingRows(fleet.data ?? [], rows, compliance)),
-    [fleet.data, rows, compliance],
+    () =>
+      sortServicingRows(buildServicingRows(fleet.data ?? [], servicePlans.data ?? [], compliance)),
+    [fleet.data, servicePlans.data, compliance],
   )
   const servicingCounts = useMemo(() => countServicing(servicingRows), [servicingRows])
 
@@ -227,7 +238,7 @@ export function MaintenancePage() {
         downtimeMinutes={downtime.data ?? null}
         periodLabel={period.label}
         locale={locale}
-        isLoading={isListLoading}
+        isLoading={statusCounts.isPending || isListLoading}
         isSpendLoading={spend.isPending}
         isDowntimeLoading={downtime.isPending}
         isDowntimeUnavailable={downtime.isError}

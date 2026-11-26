@@ -1,8 +1,7 @@
 import { MetricTile } from '@/features/overview/components/MetricTile'
 import { formatMoney } from '@/lib/money/money'
 
-import type { MaintenanceSpendRow } from '../api'
-import type { MaintenanceCounts } from '../dashboard'
+import type { MaintenanceSpendRow, MaintenanceStatusCounts } from '../api'
 import type { ServicingCounts } from '../dashboard'
 import { formatDuration } from '../presentation'
 
@@ -15,7 +14,7 @@ import { formatDuration } from '../presentation'
  * two is the kind of number somebody puts in a board pack and cannot explain.
  */
 export interface MaintenanceSummaryProps {
-  counts: MaintenanceCounts
+  counts: MaintenanceStatusCounts
   servicing: ServicingCounts
   spend: readonly MaintenanceSpendRow[]
   downtimeMinutes: number | null

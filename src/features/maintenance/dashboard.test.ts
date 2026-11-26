@@ -3,12 +3,7 @@ import { describe, expect, it } from 'vitest'
 import type { ServiceOptions } from '@/lib/compliance/service'
 
 import type { MaintenanceRow, ServicingVehicle } from './api'
-import {
-  buildServicingRows,
-  countMaintenance,
-  countServicing,
-  sortServicingRows,
-} from './dashboard'
+import { buildServicingRows, countServicing, sortServicingRows } from './dashboard'
 
 /**
  * The dashboard figures.
@@ -71,34 +66,6 @@ function vehicle(overrides: Partial<ServicingVehicle> = {}): ServicingVehicle {
     ...overrides,
   }
 }
-
-describe('countMaintenance', () => {
-  it('counts each status and ignores cancelled work', () => {
-    const counts = countMaintenance([
-      record({ id: 'a', status: 'scheduled' }),
-      record({ id: 'b', status: 'scheduled' }),
-      record({ id: 'c', status: 'in_progress' }),
-      record({ id: 'd', status: 'completed' }),
-      record({ id: 'e', status: 'cancelled' }),
-    ])
-    expect(counts).toMatchObject({ scheduled: 2, inProgress: 1, completed: 1 })
-  })
-
-  it('counts a vehicle with two concurrent jobs as one vehicle off the road', () => {
-    const counts = countMaintenance([
-      record({ id: 'a', status: 'in_progress', vehicle_id: 'v1' }),
-      record({ id: 'b', status: 'in_progress', vehicle_id: 'v1' }),
-      record({ id: 'c', status: 'in_progress', vehicle_id: 'v2' }),
-    ])
-    expect(counts.inProgress).toBe(3)
-    expect(counts.vehiclesInMaintenance).toBe(2)
-  })
-
-  it('does not count a scheduled vehicle as in maintenance', () => {
-    const counts = countMaintenance([record({ status: 'scheduled', vehicle_id: 'v1' })])
-    expect(counts.vehiclesInMaintenance).toBe(0)
-  })
-})
 
 describe('buildServicingRows', () => {
   it('includes a vehicle nobody has planned a service for', () => {

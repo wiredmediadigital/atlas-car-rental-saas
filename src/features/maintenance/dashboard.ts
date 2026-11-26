@@ -6,7 +6,7 @@ import {
   type ServiceStatus,
 } from '@/lib/compliance/service'
 
-import type { MaintenanceRow, ServicingVehicle } from './api'
+import type { MaintenanceRow, ServicePlanRecord, ServicingVehicle } from './api'
 
 /**
  * The figures on the Maintenance dashboard, derived rather than queried.
@@ -17,48 +17,17 @@ import type { MaintenanceRow, ServicingVehicle } from './api'
  * disagreeing about the same car on the same day, which is the defect this
  * work package exists to close.
  *
- * Money and downtime are NOT here: those are real aggregates and come from the
- * server (`fetchMaintenanceSpend`, `maintenance_fleet_downtime`).
+ * Money, downtime and the status counts are NOT here: those are real
+ * aggregates and come from the server (`fetchMaintenanceSpend`,
+ * `fetchMaintenanceStatusCounts`, `maintenance_fleet_downtime`), because a
+ * figure derived from a list that `max_rows` has truncated is wrong while
+ * looking exact.
  */
-
-export interface MaintenanceCounts {
-  scheduled: number
-  inProgress: number
-  completed: number
-  /** Distinct vehicles with work actually under way. */
-  vehiclesInMaintenance: number
-}
-
-/**
- * @param rows Every maintenance record for the agency.
- *
- * Completed is counted over the rows given, so a caller that has narrowed to a
- * period is counting that period. Cancelled work is counted nowhere: it did
- * not happen.
- */
-export function countMaintenance(rows: readonly MaintenanceRow[]): MaintenanceCounts {
-  const vehicles = new Set<string>()
-  let scheduled = 0
-  let inProgress = 0
-  let completed = 0
-
-  for (const row of rows) {
-    if (row.status === 'scheduled') scheduled += 1
-    if (row.status === 'completed') completed += 1
-    if (row.status === 'in_progress') {
-      inProgress += 1
-      // A vehicle with two concurrent records is one vehicle off the road.
-      vehicles.add(row.vehicle_id)
-    }
-  }
-
-  return { scheduled, inProgress, completed, vehiclesInMaintenance: vehicles.size }
-}
 
 export interface VehicleServicing {
   vehicle: ServicingVehicle
   /** The maintenance record carrying the plan, when there is one. */
-  record: MaintenanceRow | null
+  record: ServicePlanRecord | null
   status: ServiceStatus
 }
 
@@ -71,10 +40,10 @@ export interface VehicleServicing {
  */
 export function buildServicingRows(
   vehicles: readonly ServicingVehicle[],
-  records: readonly MaintenanceRow[],
+  records: readonly ServicePlanRecord[],
   options: ServiceOptions,
 ): VehicleServicing[] {
-  const byVehicle = new Map<string, MaintenanceRow[]>()
+  const byVehicle = new Map<string, ServicePlanRecord[]>()
   for (const row of records) {
     const existing = byVehicle.get(row.vehicle_id)
     if (existing) existing.push(row)

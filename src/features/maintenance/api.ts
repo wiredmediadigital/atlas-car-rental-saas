@@ -141,6 +141,87 @@ export async function fetchMaintenanceForVehicle(
   return (data ?? []) as MaintenanceRow[]
 }
 
+/**
+ * How many rows one request may return.
+ *
+ * `supabase/config.toml` sets `max_rows = 1000`, so a read with no `.range()`
+ * stops at a thousand and says nothing about it. For a list that is a
+ * truncation an operator can see; for a SUM, or for a count, it is a wrong
+ * number that looks authoritative. Everything that totals or enumerates below
+ * therefore pages explicitly.
+ */
+const PAGE_SIZE = 1000
+
+interface PagedResult<TRow> {
+  data: TRow[] | null
+  error: { message?: string } | null
+}
+
+/** Walks every page of a filtered read, applying `onRow` to each row. */
+async function forEachPage<TRow>(
+  request: (fromRow: number, toRow: number) => PromiseLike<PagedResult<TRow>>,
+  onRow: (row: TRow) => void,
+): Promise<void> {
+  for (let page = 0; ; page += 1) {
+    const { data, error } = await request(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1)
+    if (error) throw new Error(error.message ?? 'The request failed.')
+    const rows = data ?? []
+    for (const row of rows) onRow(row)
+    if (rows.length < PAGE_SIZE) return
+  }
+}
+
+export interface MaintenanceStatusCounts {
+  scheduled: number
+  inProgress: number
+  completed: number
+  vehiclesInMaintenance: number
+}
+
+/**
+ * The dashboard's status counts, counted by the database.
+ *
+ * Deliberately not derived from the records list: that read is capped at
+ * `max_rows`, and a count taken from a truncated list is wrong while looking
+ * exact. `head: true` with `count: 'exact'` transfers no rows at all.
+ *
+ * The distinct-vehicle figure does read rows, but only the vehicle_id of work
+ * actually under way -- a set bounded by how many cars an agency can have in a
+ * garage at once, not by its history.
+ */
+export async function fetchMaintenanceStatusCounts(
+  organizationId: string,
+): Promise<MaintenanceStatusCounts> {
+  async function countOf(status: MaintenanceStatus): Promise<number> {
+    const { count, error } = await db
+      .from('maintenance_records')
+      .select('id', { count: 'exact', head: true })
+      .eq('organization_id', organizationId)
+      .eq('status', status)
+    if (error) throw error
+    return Number(count ?? 0)
+  }
+
+  const [scheduled, inProgress, completed] = await Promise.all([
+    countOf('scheduled'),
+    countOf('in_progress'),
+    countOf('completed'),
+  ])
+
+  const { data, error } = await db
+    .from('maintenance_records')
+    .select('vehicle_id')
+    .eq('organization_id', organizationId)
+    .eq('status', 'in_progress')
+  if (error) throw error
+
+  // A vehicle with two concurrent jobs is one vehicle off the road.
+  const rows = (data ?? []) as { vehicle_id: string }[]
+  const vehicles = new Set(rows.map((row) => row.vehicle_id))
+
+  return { scheduled, inProgress, completed, vehiclesInMaintenance: vehicles.size }
+}
+
 export interface ServicingVehicle {
   id: string
   registration_plate: string
@@ -151,26 +232,67 @@ export interface ServicingVehicle {
   next_service_on: string | null
 }
 
-/** How many vehicles the preventive servicing list will show at once. */
-const SERVICING_FLEET_LIMIT = 500
-
 /**
  * The fleet, for the preventive servicing list.
  *
  * Includes vehicles with no service plan, because a car nobody has scheduled a
  * service for is exactly the one an operator needs to see. Archived vehicles
- * are left out: they are not in service and cannot become due.
+ * are left out: they are not in service and cannot become due. Paged, so a
+ * fleet larger than `max_rows` is listed in full rather than silently cut.
  */
 export async function fetchServicingFleet(organizationId: string): Promise<ServicingVehicle[]> {
-  const { data, error } = await db
-    .from('vehicles')
-    .select('id, registration_plate, make, model, odometer, next_service_on')
-    .eq('organization_id', organizationId)
-    .is('archived_at', null)
-    .order('registration_plate', { ascending: true })
-    .limit(SERVICING_FLEET_LIMIT)
-  if (error) throw error
-  return (data ?? []) as ServicingVehicle[]
+  const rows: ServicingVehicle[] = []
+  await forEachPage<ServicingVehicle>(
+    (fromRow, toRow) =>
+      db
+        .from('vehicles')
+        .select('id, registration_plate, make, model, odometer, next_service_on')
+        .eq('organization_id', organizationId)
+        .is('archived_at', null)
+        .order('registration_plate', { ascending: true })
+        .range(fromRow, toRow) as PromiseLike<PagedResult<ServicingVehicle>>,
+    (row) => rows.push(row),
+  )
+  return rows
+}
+
+/** Just the plan-bearing columns, for the fleet-wide servicing list. */
+export interface ServicePlanRecord {
+  id: string
+  reference: string
+  vehicle_id: string
+  status: MaintenanceStatus
+  next_service_on: string | null
+  next_service_odometer: number | null
+  service_interval_days: number | null
+  service_interval_odometer: number | null
+}
+
+/**
+ * Every maintenance record that carries a service plan.
+ *
+ * Narrower than the records list in both directions: only the plan columns,
+ * and only rows that actually hold a plan. The servicing list used to be built
+ * from the full maintenance history, which is capped at `max_rows` -- so on a
+ * busy agency a vehicle whose plan sat beyond the cap would have been reported
+ * as having no plan at all, which is the opposite of the truth.
+ */
+export async function fetchServicePlans(organizationId: string): Promise<ServicePlanRecord[]> {
+  const rows: ServicePlanRecord[] = []
+  await forEachPage<ServicePlanRecord>(
+    (fromRow, toRow) =>
+      db
+        .from('maintenance_records')
+        .select(
+          'id, reference, vehicle_id, status, next_service_on, next_service_odometer, service_interval_days, service_interval_odometer',
+        )
+        .eq('organization_id', organizationId)
+        .or('next_service_on.not.is.null,next_service_odometer.not.is.null')
+        .order('id', { ascending: true })
+        .range(fromRow, toRow) as PromiseLike<PagedResult<ServicePlanRecord>>,
+    (row) => rows.push(row),
+  )
+  return rows
 }
 
 export interface MaintenanceSpendRow {
@@ -194,20 +316,27 @@ export async function fetchMaintenanceSpend(
   from: string,
   to: string,
 ): Promise<MaintenanceSpendRow[]> {
-  const { data, error } = await db
-    .from('expenses')
-    .select('amount_minor, currency')
-    .eq('organization_id', organizationId)
-    .eq('status', 'recorded')
-    .not('maintenance_id', 'is', null)
-    .gte('incurred_on', from)
-    .lt('incurred_on', to)
-  if (error) throw error
-
   const totals = new Map<string, number>()
-  for (const row of (data ?? []) as { amount_minor: number; currency: string }[]) {
-    totals.set(row.currency, (totals.get(row.currency) ?? 0) + Number(row.amount_minor))
-  }
+
+  await forEachPage<{ amount_minor: number; currency: string }>(
+    (fromRow, toRow) =>
+      db
+        .from('expenses')
+        .select('amount_minor, currency')
+        .eq('organization_id', organizationId)
+        .eq('status', 'recorded')
+        .not('maintenance_id', 'is', null)
+        .gte('incurred_on', from)
+        .lt('incurred_on', to)
+        .order('id', { ascending: true })
+        .range(fromRow, toRow) as PromiseLike<
+        PagedResult<{ amount_minor: number; currency: string }>
+      >,
+    (row) => {
+      totals.set(row.currency, (totals.get(row.currency) ?? 0) + Number(row.amount_minor))
+    },
+  )
+
   return [...totals.entries()]
     .map(([currency, total_minor]) => ({ currency, total_minor }))
     .sort((a, b) => b.total_minor - a.total_minor)
@@ -228,18 +357,25 @@ export async function fetchMaintenanceSpend(
 export async function fetchMaintenanceCostsByRecord(
   organizationId: string,
 ): Promise<Record<string, number>> {
-  const { data, error } = await db
-    .from('expenses')
-    .select('maintenance_id, amount_minor')
-    .eq('organization_id', organizationId)
-    .eq('status', 'recorded')
-    .not('maintenance_id', 'is', null)
-  if (error) throw error
-
   const totals: Record<string, number> = {}
-  for (const row of (data ?? []) as { maintenance_id: string; amount_minor: number }[]) {
-    totals[row.maintenance_id] = (totals[row.maintenance_id] ?? 0) + Number(row.amount_minor)
-  }
+
+  await forEachPage<{ maintenance_id: string; amount_minor: number }>(
+    (fromRow, toRow) =>
+      db
+        .from('expenses')
+        .select('maintenance_id, amount_minor')
+        .eq('organization_id', organizationId)
+        .eq('status', 'recorded')
+        .not('maintenance_id', 'is', null)
+        .order('id', { ascending: true })
+        .range(fromRow, toRow) as PromiseLike<
+        PagedResult<{ maintenance_id: string; amount_minor: number }>
+      >,
+    (row) => {
+      totals[row.maintenance_id] = (totals[row.maintenance_id] ?? 0) + Number(row.amount_minor)
+    },
+  )
+
   return totals
 }
 
