@@ -351,6 +351,7 @@ export function MaintenanceDetailPage() {
         canManage={canUpdate}
         locale={organization.locale}
         timeZone={compliance.timeZone}
+        serviceOptions={compliance}
       />
 
       <MaintenanceDocuments
