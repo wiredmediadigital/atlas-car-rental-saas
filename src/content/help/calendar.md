@@ -46,6 +46,7 @@ view is a few pixels wide and carries no text at all, which is honest — the
 label would be unreadable either way.
 
 ## Read the day across the top
+
 <!-- permission: rentals.view -->
 
 The strip counts five things for the selected day: collections still to happen,
@@ -61,6 +62,7 @@ A hire that goes out and comes back the same day appears under both collections
 and returns, because those are two separate jobs for the counter.
 
 ## Spot a tight turnaround
+
 <!-- permission: rentals.view -->
 
 Between one hire coming back and the next going out, the board reports the real
@@ -73,6 +75,7 @@ Under three hours is marked for attention. The case that genuinely cannot work
 separately.
 
 ## Find a vehicle free for a period
+
 <!-- permission: rentals.view -->
 
 **Find a free vehicle** asks for a window and answers from the same
@@ -84,6 +87,7 @@ It searches the whole fleet, ignoring the make filter on the board. Answering
 report the hidden half as committed.
 
 ## Start a booking from the board
+
 <!-- permission: rentals.create -->
 
 Clicking an empty stretch of a vehicle's row opens the rental flow with that
@@ -92,6 +96,7 @@ checks the vehicle, the dates and the driver again before anything is created,
 exactly as it would from a standing start.
 
 ## Move a booking to new dates
+
 <!-- permission: rentals.update -->
 
 Drag a block along its row to change the dates, or onto another vehicle's row
@@ -122,6 +127,7 @@ A vehicle that is retired or not in service will not accept a booking dropped
 on it.
 
 ## Work the day on a small screen
+
 <!-- permission: rentals.view -->
 
 Below a wide screen a Gantt chart answers nothing, so the same day is served as

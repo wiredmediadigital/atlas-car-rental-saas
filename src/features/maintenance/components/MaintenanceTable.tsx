@@ -16,8 +16,16 @@ import {
 
 export interface MaintenanceTableProps {
   rows: readonly MaintenanceRow[]
-  /** Actual cost per record, keyed by maintenance id. Absent while loading. */
+  /** Actual cost per record, keyed by maintenance id. */
   costs: ReadonlyMap<string, number>
+  /**
+   * False while the costs are still loading, or if the read failed.
+   *
+   * Without it every row renders '—', which is indistinguishable from a job
+   * that genuinely cost nothing -- an operator would read a whole screen of
+   * free repairs.
+   */
+  costsKnown: boolean
   locale: string
   timeZone: string
   isLoading?: boolean
@@ -46,9 +54,20 @@ function expected(row: MaintenanceRow, locale: string, timeZone: string): string
  * presentational: no fetching and no filter state, so the page owns the one
  * copy of both.
  */
+function costCell(
+  cost: number | undefined,
+  costsKnown: boolean,
+  currency: string,
+  locale: string,
+): string {
+  if (!costsKnown) return '…'
+  return cost === undefined ? '—' : formatMoney(cost, currency, { locale })
+}
+
 export function MaintenanceTable({
   rows,
   costs,
+  costsKnown,
   locale,
   timeZone,
   isLoading = false,
@@ -122,7 +141,7 @@ export function MaintenanceTable({
                     </td>
                     <td className="px-5 py-3">{expected(row, locale, timeZone)}</td>
                     <td data-numeric="" className="px-5 py-3 text-end">
-                      {cost === undefined ? '—' : formatMoney(cost, row.currency, { locale })}
+                      {costCell(cost, costsKnown, row.currency, locale)}
                     </td>
                     <td className="px-5 py-3">
                       <Badge tone={maintenanceStatusTones[row.status]} withDot>
@@ -142,6 +161,7 @@ export function MaintenanceTable({
 export function MaintenanceCardList({
   rows,
   costs,
+  costsKnown,
   locale,
   timeZone,
 }: Omit<MaintenanceTableProps, 'isLoading'>) {
@@ -171,9 +191,9 @@ export function MaintenanceCardList({
               {maintenanceCategoryLabels[row.category]} · {maintenancePriorityLabels[row.priority]}{' '}
               · {scheduled(row, locale, timeZone)}
             </p>
-            {cost === undefined ? null : (
+            {costsKnown && cost === undefined ? null : (
               <p className="text-[0.8125rem] font-medium">
-                {formatMoney(cost, row.currency, { locale })}
+                {costCell(cost, costsKnown, row.currency, locale)}
               </p>
             )}
           </li>

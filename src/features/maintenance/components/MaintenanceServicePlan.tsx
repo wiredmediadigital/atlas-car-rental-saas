@@ -17,7 +17,7 @@ import {
   SERVICE_STATE_TONES,
   type ServiceOptions,
 } from '@/lib/compliance/service'
-import { formatDate } from '@/lib/datetime/format'
+import { formatDate, parseIsoDate } from '@/lib/datetime/format'
 import { toErrorMessage } from '@/lib/supabase/errors'
 
 /**
@@ -68,6 +68,30 @@ export function MaintenanceServicePlan({
   const [errors, setErrors] = useState<ServicePlanErrors>({})
   const [isSaved, setIsSaved] = useState(false)
 
+  /*
+   * Follow the stored plan when it changes underneath the form.
+   *
+   * Completing this maintenance advances the plan in the database. Without
+   * this the boxes would still hold the superseded figures, and pressing Save
+   * would write them straight back over the advancement -- undoing, from the
+   * operator's point of view, the one thing completing the work was supposed
+   * to do. Adjusted during render, which is React's documented way to derive
+   * state from a changed prop, and the pattern the expense toolbar already
+   * uses in this codebase.
+   */
+  const stored = servicePlanToForm(record)
+  const [lastStored, setLastStored] = useState(stored)
+  if (
+    stored.nextOn !== lastStored.nextOn ||
+    stored.nextOdometer !== lastStored.nextOdometer ||
+    stored.intervalDays !== lastStored.intervalDays ||
+    stored.intervalOdometer !== lastStored.intervalOdometer
+  ) {
+    setLastStored(stored)
+    setValues(stored)
+    setErrors({})
+  }
+
   const status = evaluateServicePlan(record, vehicleOdometer, serviceOptions)
 
   function patch(next: Partial<typeof values>) {
@@ -89,16 +113,24 @@ export function MaintenanceServicePlan({
 
     setErrors({})
     try {
-      const stored = await setPlan.mutateAsync({ p_maintenance_id: record.id, ...payload })
+      const saved = await setPlan.mutateAsync({ p_maintenance_id: record.id, ...payload })
       // The authoritative row, not the typed text. If the database normalised
       // anything, this is where it becomes visible.
-      if (stored) setValues(servicePlanToForm(stored))
+      if (saved) {
+        const next = servicePlanToForm(saved)
+        setValues(next)
+        setLastStored(next)
+      }
       setIsSaved(true)
     } catch (cause) {
       setIsSaved(false)
       setErrors({ form: toErrorMessage(cause) })
     }
   }
+
+  // A `date` column has no instant; parseIsoDate keeps it on the agency's
+  // calendar day instead of rendering midnight UTC somewhere else.
+  const storedDate = record.next_service_on ? parseIsoDate(record.next_service_on, timeZone) : null
 
   const dateLine = describeServiceDate(status.byDate)
   const distanceLine = describeServiceDistance(status.byOdometer, distanceUnit)
@@ -133,9 +165,7 @@ export function MaintenanceServicePlan({
           <div>
             <dt className="text-ink-subtle text-sm">Next service on</dt>
             <dd className="font-medium">
-              {record.next_service_on
-                ? formatDate(new Date(record.next_service_on), { locale, timeZone })
-                : '—'}
+              {storedDate ? formatDate(storedDate, { locale, timeZone }) : '—'}
             </dd>
             {dateLine ? <dd className="text-ink-subtle text-[0.75rem]">{dateLine}</dd> : null}
           </div>

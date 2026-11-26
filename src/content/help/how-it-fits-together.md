@@ -27,13 +27,13 @@ that a record has gone missing.
 
 The sidebar is the product. It is grouped as the work is grouped:
 
-| Group | What is in it |
-|---|---|
-| — | **Overview**: the dashboard. |
+| Group      | What is in it                                              |
+| ---------- | ---------------------------------------------------------- |
+| —          | **Overview**: the dashboard.                               |
 | Operations | **Rentals**, **Calendar**, **Customers** — the day-to-day. |
-| Fleet | **Vehicles**, **GPS tracking** — the cars. |
-| Finance | **Expenses**, **Financing**, **Reports** — the money. |
-| Agency | **Team**, **Billing**, **Settings** — the business itself. |
+| Fleet      | **Vehicles**, **GPS tracking** — the cars.                 |
+| Finance    | **Expenses**, **Financing**, **Reports** — the money.      |
+| Agency     | **Team**, **Billing**, **Settings** — the business itself. |
 
 Two things are not in that list. **Notifications** is reached from the bell
 beside the agency's name, because it is an inbox rather than a section. **Help
@@ -59,14 +59,14 @@ answer rather than a mystery.
 
 ## Know where each record lives
 
-| What you have | Where it lives | What it attaches to |
-|---|---|---|
-| A car | Vehicles | Its own documents, photographs and compliance dates |
-| A renter or a company | Customers | Their identification documents |
-| A hire | Rentals | One vehicle, one renter, its drivers, charges and payments |
-| Money the agency spent | Expenses | The agency, or one vehicle, or one contract |
-| A loan or a lease | Financing | One vehicle |
-| A tracker | GPS tracking | One vehicle at a time |
+| What you have          | Where it lives | What it attaches to                                        |
+| ---------------------- | -------------- | ---------------------------------------------------------- |
+| A car                  | Vehicles       | Its own documents, photographs and compliance dates        |
+| A renter or a company  | Customers      | Their identification documents                             |
+| A hire                 | Rentals        | One vehicle, one renter, its drivers, charges and payments |
+| Money the agency spent | Expenses       | The agency, or one vehicle, or one contract                |
+| A loan or a lease      | Financing      | One vehicle                                                |
+| A tracker              | GPS tracking   | One vehicle at a time                                      |
 
 Calendar and Reports hold nothing of their own. Both are views over the records
 above, which is why a change made in one of them shows up everywhere
@@ -79,7 +79,7 @@ These hold across every module, and knowing them saves a lot of puzzlement:
 - **Each record carries one currency, and nothing is converted.** There is no
   exchange rate anywhere in {{productName}}. A figure covering two currencies
   is never shown as one number; you get a per-currency breakdown or a count.
-- **Money is never deleted.** A mistaken payment or cost is *voided*, with a
+- **Money is never deleted.** A mistaken payment or cost is _voided_, with a
   reason, and stays visible struck through. That is the correction path.
 - **Dates are the agency's dates.** Collection times, "today", month boundaries
   and report periods all use the agency's own time zone, which is set in

@@ -1,6 +1,5 @@
 import {
-  evaluateServicePlan,
-  selectVehicleServicePlan,
+  evaluateVehicleServicing,
   type ServiceOptions,
   type ServiceState,
   type ServiceStatus,
@@ -51,12 +50,12 @@ export function buildServicingRows(
   }
 
   return vehicles.map((vehicle) => {
-    const record = selectVehicleServicePlan(byVehicle.get(vehicle.id) ?? [])
-    return {
-      vehicle,
-      record,
-      status: evaluateServicePlan(record, vehicle.odometer, options),
-    }
+    const { record, status } = evaluateVehicleServicing(
+      byVehicle.get(vehicle.id) ?? [],
+      vehicle.odometer,
+      options,
+    )
+    return { vehicle, record, status }
   })
 }
 

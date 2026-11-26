@@ -22,10 +22,10 @@ Telematics screens usually collapse everything into one green dot, which is how
 a screen comes to say "online" while the integration is broken. Here they are
 three badges and three vocabularies:
 
-| What it answers | Reads |
-|---|---|
-| Is the tracker talking to the provider? | Tracker online · Tracker offline · Link not reported |
-| How old is the newest position we hold? | Live · Delayed · Last known · Clock ahead · No position |
+| What it answers                           | Reads                                                                                                        |
+| ----------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| Is the tracker talking to the provider?   | Tracker online · Tracker offline · Link not reported                                                         |
+| How old is the newest position we hold?   | Live · Delayed · Last known · Clock ahead · No position                                                      |
 | Is {{productName}} reaching the provider? | Synchronising · Credential rejected · Provider unreachable · Rate limited · Not synchronising · Switched off |
 
 **Link not reported** is not offline. A provider that does not report a
@@ -46,6 +46,7 @@ is almost always a tracker whose clock is set wrong, and it is shown rather
 than hidden so the device does not read as permanently live.
 
 ## Connect a tracking provider
+
 <!-- permission: gps.connect -->
 
 **Connect a provider** asks for a name for the connection, which Wialon server
@@ -66,6 +67,7 @@ you, not to anybody. There is no code path that could retrieve it. A token you
 have lost is replaced rather than recovered.
 
 ## Assign a device to a vehicle
+
 <!-- permission: gps.assign -->
 
 The **Devices** tab lists the trackers in the provider account and the vehicle
@@ -80,6 +82,7 @@ recorded earlier remain attributable to the vehicle that was actually carrying
 the device.
 
 ## Read the live map
+
 <!-- permission: gps.view -->
 
 List and map are two views of one selection: clicking a dot highlights a row,
@@ -93,6 +96,7 @@ customer. This screen shows plates, devices and contract references, and never
 a name.
 
 ## Refresh positions
+
 <!-- permission: gps.sync -->
 
 **Refresh** asks the provider for current positions. If a colleague's open tab
@@ -104,6 +108,7 @@ this deployment, so a position's age is the age of the last time somebody
 looked.
 
 ## Look at where a vehicle has been
+
 <!-- permission: gps.view -->
 
 The history panel draws the last 6 hours, 24 hours, 3 days or 7 days for one
@@ -112,6 +117,7 @@ server, because each one is a real call against an account that is rate-limited
 and billed by volume.
 
 ## Switch a connection off
+
 <!-- permission: gps.connect -->
 
 Switching a connection off stops all synchronising and keeps everything —

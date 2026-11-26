@@ -9,6 +9,7 @@ summary: The shortest honest path from an empty agency to a signed contract and 
 > only thing you genuinely cannot skip is the odometer reading at hand-over.
 
 ## Add a vehicle
+
 <!-- permission: vehicles.create -->
 
 **Add vehicle** needs five things: make, model, registration plate, the current
@@ -27,17 +28,19 @@ the same form and none is compulsory. Recording them now is what makes the
 expiry warnings work later.
 
 ## Record a customer
+
 <!-- permission: customers.create -->
 
 **Add customer** needs a name and nothing else. An individual needs a first or
 a last name; a company needs a company name.
 
-Record their driving licence while they are standing there. You *can* book a
+Record their driving licence while they are standing there. You _can_ book a
 hire for a driver with no licence on file — the screen says so rather than
 stopping you — but the licence should be recorded before any keys change hands,
 and doing it now saves doing it at a counter with somebody waiting.
 
 ## Write the booking
+
 <!-- permission: rentals.create -->
 
 **New rental** is five steps, in the order the facts depend on each other:
@@ -58,6 +61,7 @@ Finish on **Confirm reservation** rather than **Save as draft**. A draft
 reserves nothing — confirming is the moment the vehicle is actually held.
 
 ## Issue the contract and take the signature
+
 <!-- permission: rentals.update -->
 
 **Issue contract** freezes everything legally relevant into a snapshot and
@@ -71,6 +75,7 @@ drawn on screen. Plenty of agencies print and sign on paper instead; the drawn
 signature is optional throughout.
 
 ## Hand the vehicle over
+
 <!-- permission: rentals.update -->
 
 **Check out** captures when the vehicle went out, the odometer, the fuel level
@@ -83,6 +88,7 @@ photographs panel. They are the evidence a damage argument turns on, and the
 moment to take them is before the car leaves, not after it comes back.
 
 ## Take the money
+
 <!-- permission: payments.create -->
 
 The Money panel on the contract shows what is still owed, what deposit is held
@@ -93,6 +99,7 @@ Keep the two apart. A deposit is held, not earned: it does not reduce what the
 customer owes and it is never counted as takings.
 
 ## Close it when the car comes back
+
 <!-- permission: rentals.update -->
 
 **Record return** captures the same facts as the hand-over so the two can be

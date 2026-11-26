@@ -27,20 +27,20 @@ same.
 
 The first is where the hire is in its life:
 
-| State | What it means |
-|---|---|
-| Draft | Being put together. The vehicle is not held for these dates yet. |
-| Reserved | Confirmed. The vehicle is held and nobody else can book it. |
-| Out | The vehicle is with the customer. |
-| Completed | Returned and closed. |
-| Cancelled | Called off before the vehicle was collected. |
+| State     | What it means                                                    |
+| --------- | ---------------------------------------------------------------- |
+| Draft     | Being put together. The vehicle is not held for these dates yet. |
+| Reserved  | Confirmed. The vehicle is held and nobody else can book it.      |
+| Out       | The vehicle is with the customer.                                |
+| Completed | Returned and closed.                                             |
+| Cancelled | Called off before the vehicle was collected.                     |
 
 There is no way back along that line. Handing a vehicle over cannot un-happen,
 so a contract that is **Out** is returned and completed, never cancelled.
 
 A hire stays **Out** until you complete it — not until its return time passes,
 and not when you record the vehicle back. Both of those are things that happen
-*to* an open contract. The fleet agrees: the vehicle reads as rented for
+_to_ an open contract. The fleet agrees: the vehicle reads as rented for
 exactly as long, so a contract left open keeps its vehicle occupied. Contracts
 past their return time are gathered under **Past return time** at the top of
 this page.
@@ -54,6 +54,7 @@ A deposit is not in that calculation at all. It is held, not earned, and it
 never reduces what the customer still owes.
 
 ## Write a new contract
+
 <!-- permission: rentals.create -->
 
 **New rental** opens five steps, in the order the facts depend on each other.
@@ -85,6 +86,7 @@ You can book a driver whose licence is not on file — the screen says so rather
 than stopping you — but record the licence before the keys change hands.
 
 ## Confirm the reservation
+
 <!-- permission: rentals.update -->
 
 A draft reserves nothing. Confirming is the moment the vehicle is held for
@@ -100,6 +102,7 @@ else — extend, change vehicle, cancel — sits in the menu beside it, greyed o
 until it applies.
 
 ## Issue the contract and take a signature
+
 <!-- permission: rentals.update -->
 
 **Issue contract** freezes everything legally relevant into a snapshot and
@@ -120,6 +123,7 @@ optional throughout.
 A contract cannot be issued against a draft or a cancelled booking.
 
 ## Hand the vehicle over
+
 <!-- permission: rentals.update -->
 
 Issue the contract and take the signature first — that is the section above,
@@ -143,6 +147,7 @@ Write anything the customer should be shown now rather than argued about later
 into the condition notes.
 
 ## Add a charge or a discount
+
 <!-- permission: rentals.update -->
 
 Charges can be added and removed for as long as the contract is open. Pick the
@@ -159,6 +164,7 @@ rate, which is why it cannot be removed by hand. A closed or cancelled contract
 takes no further charges.
 
 ## Take a payment or a deposit
+
 <!-- permission: payments.create -->
 
 The Money panel shows three figures: still owed, deposit held, deposit agreed.
@@ -174,6 +180,7 @@ end: it does not reduce the balance and it is never counted as takings. The
 amount refunded can never exceed what is actually being held.
 
 ## Extend a hire
+
 <!-- permission: rentals.update -->
 
 **Extend** moves the return later and charges for the extra days in one action,
@@ -188,6 +195,7 @@ Only a contract that is holding the vehicle — **Reserved** or **Out** — can 
 extended, and only if nothing else is booked on that vehicle in the new window.
 
 ## Change the vehicle on a booking
+
 <!-- permission: rentals.update -->
 
 **Change vehicle** moves the booking onto a different vehicle and frees the
@@ -201,6 +209,7 @@ The pricing does not follow the vehicle. If the replacement is priced
 differently, adjust the charges and reissue the contract.
 
 ## Record the return and close the contract
+
 <!-- permission: rentals.update -->
 
 **Record return** captures the same facts as the hand-over — when, odometer,
@@ -236,6 +245,7 @@ a completed contract can quite correctly read **Unpaid**, and the **Money owed**
 figure at the top of the list keeps counting it.
 
 ## Cancel a booking
+
 <!-- permission: rentals.update -->
 
 Cancelling releases the vehicle for those dates and keeps the record. The
@@ -245,6 +255,7 @@ Give a reason — it is kept with the contract so the history explains itself.
 A hire that is already **Out** cannot be cancelled. Record the return instead.
 
 ## Void a payment entered by mistake
+
 <!-- permission: payments.delete -->
 
 Money is never deleted. A mistaken entry is voided with a reason: it stays
@@ -252,6 +263,7 @@ visible on the contract, struck through, and stops counting everywhere at once.
 Voiding an entry that took a deposit releases the hold as well.
 
 ## Delete an untouched draft
+
 <!-- permission: rentals.delete -->
 
 A draft with no payments and no issued contract can be deleted outright,

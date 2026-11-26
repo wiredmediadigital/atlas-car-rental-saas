@@ -92,7 +92,7 @@ joined by mistake.
 pause between sends, and an hourly ceiling for the whole agency. Both pass.
 
 **I created an account but I am asked to set up an agency.** That screen
-creates a *new* agency of your own, which is not what you want. Go back to the
+creates a _new_ agency of your own, which is not what you want. Go back to the
 invitation email and open its link.
 
 **I cannot sign in at all.** See [Troubleshooting](/help/troubleshooting),

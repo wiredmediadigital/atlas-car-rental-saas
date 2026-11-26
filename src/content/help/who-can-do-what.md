@@ -7,7 +7,7 @@ summary: The four roles, and every action in the product with the role it needs.
 > **In short** — everyone in an agency holds exactly one of four roles, and
 > each role can do everything the one below it can. The product leaves out what
 > your role cannot reach, so an action you cannot take is usually simply not
-> there. This page is the list of what *is* there, which is how you find out
+> there. This page is the list of what _is_ there, which is how you find out
 > who to ask.
 
 ### The four roles
@@ -56,7 +56,7 @@ on every single request, and it would refuse an action it did not permit even
 if every screen in {{productName}} offered it.
 
 What the interface does with the matrix is narrower and worth knowing: it
-avoids *offering* an action that is going to be refused. A hidden button is a
+avoids _offering_ an action that is going to be refused. A hidden button is a
 courtesy, not a control.
 
 That is also why a missing menu item is usually the answer to "why can't I do

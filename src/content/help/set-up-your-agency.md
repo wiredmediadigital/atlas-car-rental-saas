@@ -33,6 +33,7 @@ consequences that are worth a moment now:
   it.
 
 ## Fill in the details that print on paperwork
+
 <!-- permission: organization.update -->
 
 The general section of Settings holds the trading name, the registered legal
@@ -45,12 +46,14 @@ These appear at the head of the contracts and receipts the agency issues, so a
 blank line here is a blank line on the document a customer takes away.
 
 ## Add the logo
+
 <!-- permission: organization.update -->
 
 A PNG, JPEG or WebP of up to 2 MB. It is shown in the sidebar, on contracts and
 on receipts.
 
 ## Write the contract wording before the first hire
+
 <!-- permission: organization.update -->
 
 This is the step most worth doing before a customer signs anything. The
@@ -68,6 +71,7 @@ Contracts already issued never change. New wording reaches the next contract,
 not the last one.
 
 ## Work through the checklist on the dashboard
+
 <!-- permission: organization.view -->
 
 Until the agency has at least one vehicle and at least one contract, the
@@ -80,6 +84,7 @@ the data is there, never because a screen assumed it. The checklist retires
 itself when the agency starts trading.
 
 ## Invite the people who will use it
+
 <!-- permission: team.invite -->
 
 An invitation is an email address and a level of access. You can only grant

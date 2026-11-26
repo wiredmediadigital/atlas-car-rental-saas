@@ -21,6 +21,7 @@ splitting the save would mean two round trips to change an address and a
 currency. The other sections save on their own.
 
 ## Record the agency's own details
+
 <!-- permission: organization.update -->
 
 **General** holds the trading name, the registered legal name where it differs,
@@ -32,6 +33,7 @@ the contracts and receipts the agency issues, so a blank address line is a
 blank address line on the paperwork a customer takes away.
 
 ## Set the currency, time zone and language
+
 <!-- permission: organization.update -->
 
 **Regional** decides three things, and each of them reaches further than it
@@ -49,12 +51,14 @@ looks:
 These apply to the agency, not to your account.
 
 ## Upload the agency logo
+
 <!-- permission: organization.update -->
 
 **Branding** takes a PNG, JPEG or WebP of up to 2 MB. It appears in the
 sidebar, on contracts and on receipts.
 
 ## Write the contract wording
+
 <!-- permission: organization.update -->
 
 **Contract terms** is where the agency's own paperwork is written. It holds the

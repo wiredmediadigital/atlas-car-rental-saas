@@ -4,7 +4,7 @@ group: Agency
 summary: What the bell is telling you, what you can put away, and what it will never do.
 ---
 
-> **In short** — most of what appears here is a *condition* rather than an
+> **In short** — most of what appears here is a _condition_ rather than an
 > event: a car is overdue, a document has expired, a lender has not been paid.
 > Conditions clear themselves when they stop being true. Nothing is sent by
 > email, and nothing is generated while nobody has {{productName}} open.
@@ -17,14 +17,14 @@ of unread items. Opening it gives the same list in a panel, and
 
 ### The six categories
 
-| Category | What it tells you about |
-|---|---|
-| Rentals | Pick-ups and returns due, overdue returns, and unpaid contracts. |
+| Category           | What it tells you about                                               |
+| ------------------ | --------------------------------------------------------------------- |
+| Rentals            | Pick-ups and returns due, overdue returns, and unpaid contracts.      |
 | Vehicle compliance | Insurance, inspection and registration approaching expiry or expired. |
-| Financing | Lender payments due and overdue. |
-| Tracking | Tracker connections and positions that have gone quiet. |
-| Team | People joining, leaving and changing role. |
-| Subscription | Payments, plan changes and cancellation. |
+| Financing          | Lender payments due and overdue.                                      |
+| Tracking           | Tracker connections and positions that have gone quiet.               |
+| Team               | People joining, leaving and changing role.                            |
+| Subscription       | Payments, plan changes and cancellation.                              |
 
 You are only offered the categories you could actually receive. The thresholds
 are the same ones the modules themselves use, so somebody who cannot open
@@ -43,6 +43,7 @@ The difference decides what you can do with an item, which is why dismissing is
 offered on some rows and not others.
 
 ## Read the four views
+
 <!-- permission: organization.view -->
 
 **All** is everything currently live: nothing dismissed and nothing snoozed.
@@ -55,6 +56,7 @@ There is no search, no faceting and no date range here. An inbox that needs a
 query builder is an inbox nobody reads.
 
 ## Put something away
+
 <!-- permission: organization.view -->
 
 The menu on a row offers **Later today**, **Tomorrow**, **Next week** and
@@ -69,6 +71,7 @@ and dismissing it would mean nothing beyond marking it read. Team notifications
 are never dismissable for that reason.
 
 ## Mark things read
+
 <!-- permission: organization.view -->
 
 **Mark all read** clears the count on the bell without changing anything about

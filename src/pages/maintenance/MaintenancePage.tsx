@@ -96,8 +96,14 @@ export function MaintenancePage() {
     const end = addMonthsInTimeZone(start, timeZone, 1)
 
     return {
+      // Business dates, for the `incurred_on` date column.
       from: toIsoDateInTimeZone(start, timeZone),
       to: toIsoDateInTimeZone(end, timeZone),
+      // Instants, for the downtime window, which is timestamptz. Passing a
+      // bare 'YYYY-MM-DD' would be read at the server's midnight rather than
+      // the agency's, so the window would not cover the month its label names.
+      fromInstant: start.toISOString(),
+      toInstant: end.toISOString(),
       label: new Intl.DateTimeFormat(locale, {
         month: 'long',
         year: 'numeric',
@@ -124,7 +130,7 @@ export function MaintenancePage() {
     [searchParams],
   )
 
-  const page = Math.max(1, Number(searchParams.get('page') ?? '1') || 1)
+  const requestedPage = Math.max(1, Number(searchParams.get('page') ?? '1') || 1)
 
   const updateParams = useCallback(
     (mutate: (params: URLSearchParams) => void, { resetPage = true } = {}) => {
@@ -179,7 +185,7 @@ export function MaintenancePage() {
   const servicePlans = useServicePlans()
   const costs = useMaintenanceCostsByRecord()
   const spend = useMaintenanceSpend(period.from, period.to)
-  const downtime = useFleetDowntime(period.from, period.to)
+  const downtime = useFleetDowntime(period.fromInstant, period.toInstant)
 
   const rows: readonly MaintenanceRow[] = useMemo(() => records.data ?? [], [records.data])
 
@@ -201,6 +207,9 @@ export function MaintenancePage() {
 
   const filtered = useMemo(() => filterMaintenanceRows(rows, filters), [rows, filters])
   const pageCount = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
+  // Clamped, so a stale or hand-edited ?page= shows the last page of results
+  // rather than a blank card with no control to escape it.
+  const page = Math.min(requestedPage, pageCount)
   const visible = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
 
   const costMap = useMemo(() => new Map(Object.entries(costs.data ?? {})), [costs.data])
@@ -308,16 +317,20 @@ export function MaintenancePage() {
                 <MaintenanceTable
                   rows={visible}
                   costs={costMap}
+                  costsKnown={costs.isSuccess}
                   locale={locale}
                   timeZone={timeZone}
                   isLoading={isListLoading}
                 />
-                <MaintenanceCardList
-                  rows={visible}
-                  costs={costMap}
-                  locale={locale}
-                  timeZone={timeZone}
-                />
+                {isListLoading ? null : (
+                  <MaintenanceCardList
+                    rows={visible}
+                    costs={costMap}
+                    costsKnown={costs.isSuccess}
+                    locale={locale}
+                    timeZone={timeZone}
+                  />
+                )}
                 <ListPagination
                   page={page}
                   pageCount={pageCount}

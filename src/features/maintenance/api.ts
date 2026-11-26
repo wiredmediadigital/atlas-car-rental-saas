@@ -266,6 +266,7 @@ export interface ServicePlanRecord {
   next_service_odometer: number | null
   service_interval_days: number | null
   service_interval_odometer: number | null
+  created_at: string
 }
 
 /**
@@ -284,10 +285,12 @@ export async function fetchServicePlans(organizationId: string): Promise<Service
       db
         .from('maintenance_records')
         .select(
-          'id, reference, vehicle_id, status, next_service_on, next_service_odometer, service_interval_days, service_interval_odometer',
+          'id, reference, vehicle_id, status, next_service_on, next_service_odometer, service_interval_days, service_interval_odometer, created_at',
         )
         .eq('organization_id', organizationId)
-        .or('next_service_on.not.is.null,next_service_odometer.not.is.null')
+        .or(
+          'next_service_on.not.is.null,next_service_odometer.not.is.null,service_interval_days.not.is.null,service_interval_odometer.not.is.null',
+        )
         .order('id', { ascending: true })
         .range(fromRow, toRow) as PromiseLike<PagedResult<ServicePlanRecord>>,
     (row) => rows.push(row),

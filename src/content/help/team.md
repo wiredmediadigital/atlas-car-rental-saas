@@ -43,6 +43,7 @@ Each task below is labelled with the role it needs, wherever that is more than
 everybody has.
 
 ## Invite somebody to the agency
+
 <!-- permission: team.invite -->
 
 **Invite member** asks for an email address and a role, and sends them a link.
@@ -62,6 +63,7 @@ the difference is usually why somebody is looking at this list.
 Inviting somebody who is already in the agency does nothing and says so.
 
 ## Pass an invitation on by hand
+
 <!-- permission: team.invite -->
 
 If no email could carry the invitation — nothing is configured to send it, or
@@ -81,6 +83,7 @@ agency may issue in an hour.
 **Withdraw** cancels an invitation and the link in that email stops working.
 
 ## Change what somebody can reach
+
 <!-- permission: team.update -->
 
 **Change role** is on the row's menu. The dialog describes each role as you
@@ -93,6 +96,7 @@ list at all, because it does not move this way: it moves by transfer, below.
 The change applies immediately, everywhere.
 
 ## Remove somebody from the agency
+
 <!-- permission: team.remove -->
 
 **Remove from agency** ends their access to this agency straight away —
@@ -115,6 +119,7 @@ An agency always has an owner, so if that is you, you cannot leave until you
 have transferred ownership. The dialog says so rather than letting you try.
 
 ## Hand the agency on to somebody else
+
 <!-- permission: team.transferOwnership -->
 
 **Transfer ownership** is the only way an agency changes hands. It is not
@@ -127,6 +132,7 @@ Afterwards, only the new owner can transfer it again — including back to you.
 Nothing else moves: no contract, cost or customer record is touched.
 
 ## Check what has changed
+
 <!-- permission: team.history -->
 
 **Recent activity** is one line per event: invitations sent, resent and

@@ -182,10 +182,15 @@ describe('nothing in the schema can bypass RLS', () => {
      * does not release a vehicle another still restricts, and that a vehicle
      * and an incident belong to the same agency. The read-only members of the
      * group — maintenance_conflicts, maintenance_due_summary,
-     * maintenance_actual_cost, maintenance_vehicle_downtime and
-     * driver_availability — are definer so they can read across rentals,
-     * expenses and vehicles on the caller's behalf, and each re-checks
-     * is_org_member before returning a row.
+     * maintenance_actual_cost, maintenance_vehicle_downtime,
+     * maintenance_fleet_downtime and driver_availability — are definer so they
+     * can read across rentals, expenses and vehicles on the caller's behalf,
+     * and each re-checks is_org_member before returning a row.
+     * maintenance_fleet_downtime is the fleet-wide counterpart of
+     * maintenance_vehicle_downtime, added so the Maintenance dashboard asks
+     * one question instead of one per vehicle; it is scoped by
+     * p_organization_id AND app.is_org_member(p_organization_id), and a
+     * cross-agency caller gets 0 rather than another agency's minutes.
      *
      * And the three vehicle restriction actions, which replaced the operational
      * status dropdown. vehicles.status is no longer writable by any browser
@@ -236,6 +241,7 @@ describe('nothing in the schema can bypass RLS', () => {
       'maintenance_conflicts',
       'maintenance_create',
       'maintenance_due_summary',
+      'maintenance_fleet_downtime',
       'maintenance_link_expense',
       'maintenance_reschedule',
       'maintenance_set_service_plan',

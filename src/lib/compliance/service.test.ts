@@ -5,6 +5,7 @@ import {
   describeServiceDate,
   describeServiceDistance,
   evaluateServicePlan,
+  evaluateVehicleServicing,
   selectVehicleServicePlan,
   type ServiceOptions,
 } from './service'
@@ -188,35 +189,148 @@ describe('selectVehicleServicePlan', () => {
     ).toBeNull()
   })
 
-  it('picks the soonest date across several records', () => {
-    const picked = selectVehicleServicePlan([
-      { next_service_on: '2027-06-08', next_service_odometer: null, status: 'completed' },
-      { next_service_on: '2026-12-20', next_service_odometer: null, status: 'scheduled' },
-    ])
-    expect(picked?.next_service_on).toBe('2026-12-20')
-  })
-
   it('ignores a cancelled record’s reminder', () => {
     const picked = selectVehicleServicePlan([
-      { next_service_on: '2026-01-01', next_service_odometer: null, status: 'cancelled' },
-      { next_service_on: '2027-06-08', next_service_odometer: null, status: 'scheduled' },
+      { id: 'a', next_service_on: '2026-01-01', next_service_odometer: null, status: 'cancelled' },
+      { id: 'b', next_service_on: '2027-06-08', next_service_odometer: null, status: 'scheduled' },
     ])
-    expect(picked?.next_service_on).toBe('2027-06-08')
+    expect(picked?.id).toBe('b')
   })
 
-  it('falls back to the lowest odometer threshold when no date is set', () => {
+  it('prefers a live plan over a stale completed one', () => {
+    // The regression this guards: a years-old completed one-off reminder used
+    // to win on date and report the vehicle permanently overdue, while the
+    // plan somebody actually configured sat unread beside it.
     const picked = selectVehicleServicePlan([
-      { next_service_on: null, next_service_odometer: 70000, status: 'scheduled' },
-      { next_service_on: null, next_service_odometer: 60200, status: 'scheduled' },
+      {
+        id: 'old',
+        next_service_on: '2026-01-01',
+        next_service_odometer: null,
+        status: 'completed',
+      },
+      {
+        id: 'live',
+        next_service_on: '2027-06-08',
+        next_service_odometer: null,
+        status: 'scheduled',
+      },
     ])
-    expect(picked?.next_service_odometer).toBe(60200)
+    expect(picked?.id).toBe('live')
   })
 
-  it('prefers a record with a date over one with only a distance', () => {
+  it('takes the most recently configured plan within a group', () => {
     const picked = selectVehicleServicePlan([
-      { next_service_on: null, next_service_odometer: 60200, status: 'scheduled' },
-      { next_service_on: '2027-06-08', next_service_odometer: null, status: 'scheduled' },
+      {
+        id: 'older',
+        created_at: '2026-01-01T00:00:00Z',
+        next_service_on: '2027-01-01',
+        next_service_odometer: null,
+        status: 'scheduled',
+      },
+      {
+        id: 'newer',
+        created_at: '2026-06-01T00:00:00Z',
+        next_service_on: '2028-01-01',
+        next_service_odometer: null,
+        status: 'scheduled',
+      },
     ])
-    expect(picked?.next_service_on).toBe('2027-06-08')
+    expect(picked?.id).toBe('newer')
+  })
+
+  it('does not depend on the order the rows arrived in', () => {
+    const rows = [
+      {
+        id: 'a',
+        created_at: '2026-01-01T00:00:00Z',
+        next_service_on: '2027-01-01',
+        next_service_odometer: null,
+        status: 'scheduled',
+      },
+      {
+        id: 'b',
+        created_at: '2026-01-01T00:00:00Z',
+        next_service_on: '2027-01-01',
+        next_service_odometer: null,
+        status: 'scheduled',
+      },
+    ]
+    expect(selectVehicleServicePlan(rows)?.id).toBe(
+      selectVehicleServicePlan([...rows].reverse())?.id,
+    )
+  })
+
+  it('keeps a record that carries only a recurrence rule', () => {
+    const picked = selectVehicleServicePlan([
+      {
+        id: 'intervals-only',
+        next_service_on: null,
+        next_service_odometer: null,
+        service_interval_days: 180,
+        service_interval_odometer: null,
+        status: 'scheduled',
+      },
+    ])
+    expect(picked?.id).toBe('intervals-only')
+  })
+})
+
+describe('evaluateVehicleServicing', () => {
+  it('reports not_configured when the vehicle has no plan at all', () => {
+    const result = evaluateVehicleServicing([], 54375, OPTIONS)
+    expect(result.record).toBeNull()
+    expect(result.status.state).toBe('not_configured')
+  })
+
+  it('surfaces a passed threshold on a record the selection rule did not pick', () => {
+    // The governing record looks healthy on date. A second record's odometer
+    // threshold has already been passed, and the vehicle does need a service.
+    const result = evaluateVehicleServicing(
+      [
+        {
+          id: 'live',
+          created_at: '2026-06-01T00:00:00Z',
+          next_service_on: '2028-01-01',
+          next_service_odometer: null,
+          status: 'scheduled',
+        },
+        {
+          id: 'distance',
+          created_at: '2026-01-01T00:00:00Z',
+          next_service_on: null,
+          next_service_odometer: 54000,
+          status: 'scheduled',
+        },
+      ],
+      54375,
+      OPTIONS,
+    )
+    expect(result.status.state).toBe('overdue')
+    expect(result.record?.id).toBe('distance')
+  })
+
+  it('keeps the governing record when nothing else is more urgent', () => {
+    const result = evaluateVehicleServicing(
+      [
+        {
+          id: 'live',
+          created_at: '2026-06-01T00:00:00Z',
+          next_service_on: '2028-01-01',
+          next_service_odometer: null,
+          status: 'scheduled',
+        },
+        {
+          id: 'other',
+          created_at: '2026-01-01T00:00:00Z',
+          next_service_on: '2029-01-01',
+          next_service_odometer: null,
+          status: 'scheduled',
+        },
+      ],
+      54375,
+      OPTIONS,
+    )
+    expect(result.record?.id).toBe('live')
+    expect(result.status.state).toBe('up_to_date')
   })
 })

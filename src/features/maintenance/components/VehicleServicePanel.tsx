@@ -15,13 +15,12 @@ import { useMaintenanceForVehicle } from '@/features/maintenance/queries'
 import {
   describeServiceDate,
   describeServiceDistance,
-  evaluateServicePlan,
-  selectVehicleServicePlan,
+  evaluateVehicleServicing,
   SERVICE_STATE_LABELS,
   SERVICE_STATE_TONES,
   type ServiceOptions,
 } from '@/lib/compliance/service'
-import { formatDate } from '@/lib/datetime/format'
+import { formatDate, parseIsoDate } from '@/lib/datetime/format'
 
 /**
  * What this vehicle's servicing requires, read from the authoritative plan.
@@ -58,8 +57,25 @@ export function VehicleServicePanel({
   serviceOptions,
 }: VehicleServicePanelProps) {
   const records = useMaintenanceForVehicle(vehicleId)
-  const plan = selectVehicleServicePlan(records.data ?? [])
-  const status = evaluateServicePlan(plan, odometer, serviceOptions)
+  const { record: plan, status } = evaluateVehicleServicing(
+    records.data ?? [],
+    odometer,
+    serviceOptions,
+  )
+
+  // A `date` column has no instant: new Date('2026-12-01') is midnight UTC and
+  // prints as 30 November anywhere behind Greenwich, a day out of step with the
+  // "Due in N days" line beside it. parseIsoDate exists for this.
+  const serviceDate = status.nextServiceOn
+    ? parseIsoDate(status.nextServiceOn, serviceOptions.timeZone)
+    : null
+  const legacyDate = legacyNextServiceOn
+    ? parseIsoDate(legacyNextServiceOn, serviceOptions.timeZone)
+    : null
+  const formatLegacyDate = () =>
+    legacyDate
+      ? formatDate(legacyDate, { locale, timeZone: serviceOptions.timeZone })
+      : legacyNextServiceOn
 
   const dateLine = describeServiceDate(status.byDate)
   const distanceLine = describeServiceDistance(status.byOdometer, distanceUnit)
@@ -100,11 +116,8 @@ export function VehicleServicePanel({
               <div>
                 <dt className="text-ink-subtle text-sm">Next service date</dt>
                 <dd className="font-medium">
-                  {status.nextServiceOn
-                    ? formatDate(new Date(status.nextServiceOn), {
-                        locale,
-                        timeZone: serviceOptions.timeZone,
-                      })
+                  {serviceDate
+                    ? formatDate(serviceDate, { locale, timeZone: serviceOptions.timeZone })
                     : '—'}
                 </dd>
                 {dateLine ? <dd className="text-ink-subtle text-[0.75rem]">{dateLine}</dd> : null}
@@ -164,10 +177,7 @@ export function VehicleServicePanel({
                 title="No service plan configured"
                 description={
                   legacyNextServiceOn
-                    ? `This vehicle still carries an older service date of ${formatDate(
-                        new Date(legacyNextServiceOn),
-                        { locale, timeZone: serviceOptions.timeZone },
-                      )}, recorded before servicing moved to Maintenance. It is kept for reference and is not used for reminders. Schedule maintenance for this vehicle and set its service plan there.`
+                    ? `This vehicle still carries an older service date of ${formatLegacyDate()}, recorded before servicing moved to Maintenance. It is kept for reference and is not used for reminders. Schedule maintenance for this vehicle and set its service plan there.`
                     : 'Schedule maintenance for this vehicle, then set when it is next due — by date, by distance, or both.'
                 }
                 action={

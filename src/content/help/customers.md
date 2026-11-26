@@ -42,6 +42,7 @@ rule, because one country's format rejects correct numbers from everywhere
 else; matching is done on the digits.
 
 ## Add a customer
+
 <!-- permission: customers.create -->
 
 **Add customer** asks who they are, how to reach them and where they live, and
@@ -56,6 +57,7 @@ phone number is ordinary — but a duplicate caught at the counter is cheaper
 than one found a month later.
 
 ## Record identification
+
 <!-- permission: customerDocuments.create -->
 
 The documents panel takes a passport, national ID, residence permit, driving
@@ -74,6 +76,7 @@ on the open internet.
 Replacing a scan deletes the one it replaced.
 
 ## Decide whether somebody may drive
+
 <!-- permission: customers.view -->
 
 A customer reads as one of four things: can drive, licence expired, no licence
@@ -87,6 +90,7 @@ When a customer has more than one licence recorded, the one that stays valid
 longest is the one used, because that is the one that matters operationally.
 
 ## See only the last four characters, or all of them
+
 <!-- permission: customers.view -->
 
 A document number is evidence, checked once at the counter — not a display
@@ -98,6 +102,7 @@ That keeps identifiers out of screenshots, out of support tickets and off the
 screen somebody is standing behind.
 
 ## Read a customer's money correctly
+
 <!-- permission: customers.view -->
 
 The profile shows what the customer still owes. It shows a figure only when
@@ -106,6 +111,7 @@ currencies gets a count of currencies instead, because adding them would be a
 confident lie, and there is no exchange rate anywhere in this product.
 
 ## Import a list of customers
+
 <!-- permission: customers.create -->
 
 **Import** reads a CSV of up to 5 MB and 500 rows at a time. It matches your
@@ -120,6 +126,7 @@ A part-successful import is a real outcome: the rows that passed are added, and
 the rest are listed so you can fix them and import again.
 
 ## Archive a customer
+
 <!-- permission: customers.archive -->
 
 **Archive customer** takes them out of the list and stops them being put on a
@@ -130,6 +137,7 @@ again.
 It is reversible from a banner on their own page.
 
 ## Delete a customer permanently
+
 <!-- permission: customers.delete -->
 
 Deleting is offered only when nothing financial refers to the person — no

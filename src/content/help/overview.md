@@ -25,16 +25,16 @@ The selector offers this month, last month, the last three months and this
 year. Month and year boundaries are the agency's own — a month begins when the
 agency's calendar says so, not when a clock somewhere else does.
 
-| Figure | Counted over |
-|---|---|
-| Revenue, Expenses, Operating result | The chosen period |
-| Completed | The chosen period |
-| The revenue-and-expenses chart | The chosen period, by day or by month |
-| Today | Today, in the agency's time zone |
-| Fleet status, Active contracts, Upcoming pick-ups | Now |
-| Outstanding, Deposits held | Now, across every contract |
-| Customers | Everyone on file who has not been archived |
-| Contracts | Every contract ever written |
+| Figure                                            | Counted over                               |
+| ------------------------------------------------- | ------------------------------------------ |
+| Revenue, Expenses, Operating result               | The chosen period                          |
+| Completed                                         | The chosen period                          |
+| The revenue-and-expenses chart                    | The chosen period, by day or by month      |
+| Today                                             | Today, in the agency's time zone           |
+| Fleet status, Active contracts, Upcoming pick-ups | Now                                        |
+| Outstanding, Deposits held                        | Now, across every contract                 |
+| Customers                                         | Everyone on file who has not been archived |
+| Contracts                                         | Every contract ever written                |
 
 Changing the period cannot change a figure in the second half of that table,
 and it is worth knowing which half you are looking at before quoting a number
@@ -51,6 +51,7 @@ says how many were left out. The figures below it are correct for the agency's
 currency and silent about the rest.
 
 ## Read the day's work off the top
+
 <!-- permission: rentals.view -->
 
 **Today** is four counts: collecting today, due back today, past return time,
@@ -60,6 +61,7 @@ same question the Rentals page answers in more detail.
 An agency with no contracts yet gets a sentence instead of four zeros.
 
 ## Read the money tiles correctly
+
 <!-- permission: organization.view -->
 
 Four tiles, and the differences between them matter.
@@ -69,7 +71,7 @@ when it was received. Refunds are subtracted. A voided entry counts nowhere.
 Deposits are not in it at all — a deposit is held, not earned.
 
 **Expenses** is what was recorded as spent, dated by when the cost was
-*incurred* rather than when somebody typed it in. It is the gross figure, tax
+_incurred_ rather than when somebody typed it in. It is the gross figure, tax
 included, because gross is what left the agency.
 
 **Operating result** is the first less the second. The page says plainly that
@@ -81,6 +83,7 @@ Anyone who treats it as profit will be wrong by whatever was never recorded.
 It is a balance as at now and does not move with the period.
 
 ## Read the fleet strip
+
 <!-- permission: organization.view -->
 
 The strip counts every vehicle that has not been retired, split by what each
@@ -93,6 +96,7 @@ and **Upcoming pick-ups** counts confirmed bookings whose collection time has
 not arrived yet.
 
 ## Follow the setup checklist on a new agency
+
 <!-- permission: organization.view -->
 
 Until the agency has at least one vehicle and at least one contract, a
@@ -103,6 +107,7 @@ assumed it.
 It retires itself the moment the agency is trading, and it does not come back.
 
 ## Read the trend chart
+
 <!-- permission: organization.view -->
 
 **Revenue and expenses** draws the same two definitions as the tiles, bucketed
@@ -111,6 +116,7 @@ in the month it was incurred, so a July receipt entered in August belongs to
 July.
 
 ## Check what is owed to lenders
+
 <!-- permission: financing.view -->
 
 **Financing obligations** sits below the chart as context rather than as a

@@ -37,6 +37,7 @@ one is shortened and the page says where the figures now end.
 **Compare** puts the previous equivalent period beside the current one.
 
 ## Read the business section
+
 <!-- permission: reports.view -->
 
 Four figures at the top: rental revenue, operating cost, operating result and
@@ -49,6 +50,7 @@ customers, deposits held, remaining principal, overdue to lenders. Those are
 balances as at this moment, and the panel is labelled so.
 
 ## Read the fleet section
+
 <!-- permission: reports.view -->
 
 Fleet utilisation, hires started, fleet revenue and operating contribution,
@@ -67,6 +69,7 @@ not as a breach — folding the two together would turn a filing habit into an
 alarm.
 
 ## Read the rentals section
+
 <!-- permission: reports.view -->
 
 Hires started and completed, average hire length and average hire value, then a
@@ -79,6 +82,7 @@ A **Right now** panel sits beside it, labelled as current state rather than as
 a period figure.
 
 ## Read the customers section
+
 <!-- permission: reports.view -->
 
 How many customers rented in the period, how many were first-time and how many
@@ -86,6 +90,7 @@ returning, and the repeat rate. Rental cash is attributed to the customer who
 paid it. Outstanding balances, again, are as at now.
 
 ## Read the costs section
+
 <!-- permission: reports.view -->
 
 The same ledger the Expenses page shows, broken down by category, by supplier
@@ -93,6 +98,7 @@ or by what each cost belongs to. Voided costs are absent, and costs attached to
 a financing agreement are excluded so the same money is not counted twice.
 
 ## Read the financing section
+
 <!-- permission: reports.view -->
 
 Active agreements, paid to lenders, cost of borrowing and remaining principal,
@@ -103,6 +109,7 @@ Where a payment was recorded without stating how much of it was interest, the
 cost of borrowing is marked as a floor rather than printed as a settled number.
 
 ## Read the tracking section
+
 <!-- permission: reports.view -->
 
 How much of the fleet carries a tracker, how fresh the positions are, and how
@@ -114,6 +121,7 @@ overnight — so there is no uptime, no average position age for a month, and no
 count of what went quiet last night. None of it was ever recorded.
 
 ## Take a section out as a spreadsheet
+
 <!-- permission: reports.view -->
 
 **Export** produces a file of the section on screen, for the period and

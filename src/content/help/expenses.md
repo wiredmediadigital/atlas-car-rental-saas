@@ -6,7 +6,7 @@ permission: expenses.view
 ---
 
 > **In short** — a cost is the gross amount that left the agency, dated by the
-> day it was *incurred*. Every cost belongs to exactly one of three things: the
+> day it was _incurred_. Every cost belongs to exactly one of three things: the
 > agency as a whole, one vehicle, or one contract. That choice is what makes a
 > vehicle's running cost mean anything.
 
@@ -39,17 +39,18 @@ because one consistent basis cannot double count.
 
 ### The three allocations
 
-| Belongs to | Use it for |
-|---|---|
+| Belongs to      | Use it for                                                    |
+| --------------- | ------------------------------------------------------------- |
 | Agency overhead | Rent, software, marketing — nothing one car or one hire owns. |
-| A vehicle | Tyres, a service, this car's insurance. |
-| A rental | A delivery, a toll, cleaning that one hire caused. |
+| A vehicle       | Tyres, a service, this car's insurance.                       |
+| A rental        | A delivery, a toll, cleaning that one hire caused.            |
 
 They are mutually exclusive, and a cost that tried to be two of them is
 refused. A cost attached to a contract carries no vehicle of its own: the car
 is whichever one the contract is for.
 
 ## Record a cost
+
 <!-- permission: expenses.create -->
 
 **Record a cost** asks for the date it was incurred, what it was for, the
@@ -62,6 +63,7 @@ The date is the one that matters. A receipt typed in August for a cost incurred
 in July belongs to July, and every report in the product agrees with that.
 
 ## Import a month of receipts
+
 <!-- permission: expenses.create -->
 
 **Import** reads a CSV of up to 5 MB and 500 rows at a time, matching your
@@ -70,6 +72,7 @@ every row through the same checks the form uses and names the ones that would
 fail.
 
 ## Keep the categories and suppliers in order
+
 <!-- permission: expenseVendors.manage -->
 
 **Categories and suppliers** holds both lists. A supplier is operational:
@@ -81,6 +84,7 @@ Retiring an entry keeps it on the costs that already use it and takes it out of
 the picker. Two suppliers cannot share a tax or business identifier.
 
 ## Rename or retire a category
+
 <!-- permission: expenseCategories.manage -->
 
 The category list is structural rather than operational: renaming one changes
@@ -88,6 +92,7 @@ how every historical cost reads, which is why it sits a level above adding a
 supplier.
 
 ## Attach the receipt
+
 <!-- permission: expenses.create -->
 
 The documents panel takes PDFs, PNGs, JPEGs and WebP files of up to 10 MB. They
@@ -98,6 +103,7 @@ Removing a document leaves the cost itself untouched. To correct the cost,
 edit or void it.
 
 ## Correct a cost
+
 <!-- permission: expenses.update -->
 
 A recorded cost can be edited while it is still a recorded cost. Every change
@@ -106,6 +112,7 @@ who did it. The "who" is taken from the session rather than from anything the
 screen sent, because a history whose author can be dictated is not a history.
 
 ## Void a cost entered by mistake
+
 <!-- permission: expenses.void -->
 
 Costs are never deleted. **Void** asks for a reason, stops the cost counting

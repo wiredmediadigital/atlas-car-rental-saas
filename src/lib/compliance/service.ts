@@ -250,33 +250,96 @@ export function describeServiceDistance(limb: ServiceLimb, distanceUnit: string)
  * The plan that answers "when is this vehicle next due?".
  *
  * A vehicle's plan lives on its maintenance records, because that is where
- * `maintenance_set_service_plan` puts it — one recurrence rule travelling with
- * the record that last serviced the car, advanced each time qualifying work is
- * completed. A vehicle can therefore have several records carrying a plan, and
- * the one that matters is the soonest: the earliest date, or failing that the
- * lowest odometer threshold. Cancelled records are ignored — a cancelled job's
- * reminder is not a commitment.
+ * `maintenance_set_service_plan` puts it -- one recurrence rule travelling
+ * with the record that last serviced the car, advanced each time qualifying
+ * work is completed. A vehicle can therefore carry several, and choosing
+ * between them is a real decision rather than a detail:
+ *
+ *   - Cancelled records are ignored. A cancelled job's reminder is not a
+ *     commitment.
+ *   - A live record -- scheduled or in progress -- beats a completed one.
+ *     Without this, a years-old completed one-off reminder would win on date
+ *     for ever and report a vehicle permanently overdue while the plan
+ *     somebody actually configured sat unread beside it.
+ *   - Within a group, the most recently created record wins, because that is
+ *     the plan somebody set last. Ties are then broken on id, so the answer
+ *     does not depend on the order rows happened to arrive in -- Vehicle
+ *     Details and the fleet list sort their inputs differently and must still
+ *     agree.
  */
-export function selectVehicleServicePlan<T extends ServicePlan & { status?: string | null }>(
+export interface VehicleServiceResult<T> {
+  /** The record whose plan decided the status, or null when none is configured. */
+  record: T | null
+  status: ServiceStatus
+}
+
+/**
+ * The servicing state of one vehicle, across every plan it carries.
+ *
+ * Evaluates each candidate and returns the most urgent, rather than picking a
+ * record first and evaluating only that one. The question an operator is
+ * asking is "does this car need a service?", and a car whose second record has
+ * already passed its odometer threshold needs one even if the record chosen on
+ * date terms looks fine. Picking first would have made that invisible.
+ *
+ * Ties -- including the ordinary case of a single plan -- fall through to
+ * `selectVehicleServicePlan`, so the record offered for editing is still the
+ * one somebody configured last.
+ */
+export function evaluateVehicleServicing<
+  T extends ServicePlan & { id?: string; status?: string | null; created_at?: string | null },
+>(
   records: readonly T[],
-): T | null {
+  currentOdometer: number | null | undefined,
+  options: ServiceOptions,
+): VehicleServiceResult<T> {
+  const governing = selectVehicleServicePlan(records)
+  if (!governing) {
+    return { record: null, status: evaluateServicePlan(null, currentOdometer, options) }
+  }
+
+  let best: VehicleServiceResult<T> = {
+    record: governing,
+    status: evaluateServicePlan(governing, currentOdometer, options),
+  }
+
+  for (const row of records) {
+    if (row === governing) continue
+    if (row.status === 'cancelled') continue
+    if (row.next_service_on === null && row.next_service_odometer === null) continue
+
+    const status = evaluateServicePlan(row, currentOdometer, options)
+    if (SEVERITY[status.state] > SEVERITY[best.status.state]) best = { record: row, status }
+  }
+
+  return best
+}
+
+export function selectVehicleServicePlan<
+  T extends ServicePlan & { id?: string; status?: string | null; created_at?: string | null },
+>(records: readonly T[]): T | null {
   const candidates = records.filter(
     (row) =>
       row.status !== 'cancelled' &&
-      (row.next_service_on !== null || row.next_service_odometer !== null),
+      (row.next_service_on !== null ||
+        row.next_service_odometer !== null ||
+        row.service_interval_days != null ||
+        row.service_interval_odometer != null),
   )
   if (candidates.length === 0) return null
 
-  return candidates.reduce((best, row) => {
-    const a = best.next_service_on
-    const b = row.next_service_on
-    if (a !== null && b !== null) return b < a ? row : best
-    if (a === null && b !== null) return row
-    if (b === null && a !== null) return best
+  const rank = (row: T): number => (row.status === 'completed' ? 1 : 0)
 
-    const aOdo = best.next_service_odometer
-    const bOdo = row.next_service_odometer
-    if (aOdo !== null && bOdo !== null) return bOdo < aOdo ? row : best
-    return bOdo !== null ? row : best
+  return candidates.reduce((best, row) => {
+    const byStatus = rank(row) - rank(best)
+    if (byStatus !== 0) return byStatus < 0 ? row : best
+
+    const a = best.created_at ?? ''
+    const b = row.created_at ?? ''
+    if (a !== b) return b > a ? row : best
+
+    // Deterministic last resort, so two equally-ranked records cannot swap
+    // depending on which screen loaded them.
+    return (row.id ?? '') > (best.id ?? '') ? row : best
   })
 }

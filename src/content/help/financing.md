@@ -45,19 +45,20 @@ describing will and will not be able to answer.
 
 ### The states an agreement moves through
 
-| State | What it means |
-|---|---|
-| Draft | Not live yet. Terms can still be corrected freely. |
-| Active | Running. Payments are due on the schedule. |
-| Paid off | Every obligation was met. |
-| Closed | Ended for another reason, with that reason on the record. |
-| Cancelled | Never came into effect. |
+| State     | What it means                                             |
+| --------- | --------------------------------------------------------- |
+| Draft     | Not live yet. Terms can still be corrected freely.        |
+| Active    | Running. Payments are due on the schedule.                |
+| Paid off  | Every obligation was met.                                 |
+| Closed    | Ended for another reason, with that reason on the record. |
+| Cancelled | Never came into effect.                                   |
 
 A draft becomes active or cancelled. An active agreement becomes paid off,
 closed or cancelled. Paid off can still be closed. Closed and cancelled are the
 end.
 
 ## Record a new agreement
+
 <!-- permission: financing.create -->
 
 **Add financing** walks through the vehicle, the lender and the kind of
@@ -81,6 +82,7 @@ nobody could follow.
 The day of the month the first payment falls on anchors the whole schedule.
 
 ## Add a lender
+
 <!-- permission: lenders.manage -->
 
 Lenders are kept as their own list — bank, finance company, leasing company,
@@ -88,12 +90,14 @@ dealer finance, private or other — so the same institution is not retyped on
 every agreement.
 
 ## Activate the agreement
+
 <!-- permission: financing.update -->
 
 A draft holds no obligations. Activating it is what starts the schedule and
 what makes payments recordable.
 
 ## Record a lender payment
+
 <!-- permission: financingPayments.create -->
 
 **Record a payment** asks what actually left the account and when, which
@@ -101,7 +105,7 @@ instalment it settles — leave that blank for a payment outside the schedule �
 and its purpose: scheduled, extra, a payoff or a fee.
 
 On an amortising loan the scheduled split into principal, interest and fees is
-offered as a starting point. It is clearly labelled as the *scheduled* split
+offered as a starting point. It is clearly labelled as the _scheduled_ split
 and not the lender's: if the statement says something else, type what the
 statement says.
 
@@ -111,12 +115,14 @@ Two states have nothing to settle: a draft, which has no obligations yet, and a
 cancelled agreement, which never came into effect. The page says which.
 
 ## Void a payment entered wrongly
+
 <!-- permission: financingPayments.void -->
 
 Voiding stops a payment counting towards cash paid, principal repaid and cost
 of borrowing, and reopens the instalment it settled. Nothing is deleted.
 
 ## Attach the paperwork
+
 <!-- permission: financingDocuments.create -->
 
 The documents panel holds the agreement itself, lender statements, payoff
@@ -124,6 +130,7 @@ letters and receipts, up to 10 MB each. They are stored privately and opened
 through short-lived links.
 
 ## Mark an agreement paid off
+
 <!-- permission: financing.update -->
 
 This is refused unless it is honestly true: the agreement is live, it has a
@@ -135,6 +142,7 @@ which of those is not yet true.
 other way. It asks for the reason and keeps it on the record.
 
 ## Delete a draft
+
 <!-- permission: financing.delete -->
 
 A draft with no payments against it can be deleted outright, because nothing

@@ -11,6 +11,7 @@ import {
   CardBody,
   CardHeader,
   ConfirmDialog,
+  Input,
   Field,
   PageHeader,
   Skeleton,
@@ -73,6 +74,8 @@ export function MaintenanceDetailPage() {
   const [isConfirmingEarlyStart, setIsConfirmingEarlyStart] = useState(false)
   const [isCancelling, setIsCancelling] = useState(false)
   const [cancelReason, setCancelReason] = useState('')
+  const [isFinishing, setIsFinishing] = useState(false)
+  const [completionOdometer, setCompletionOdometer] = useState('')
 
   const query = useMaintenance()
   const record = (query.data ?? []).find((item) => item.id === maintenanceId)
@@ -257,12 +260,22 @@ export function MaintenanceDetailPage() {
               <Button
                 leadingIcon={<CheckCircle2 />}
                 isLoading={complete.isPending}
-                onClick={() =>
+                onClick={() => {
+                  // Only a record that recurs on distance needs a reading, and
+                  // only that record is asked for one. Every other completion
+                  // behaves exactly as it did.
+                  if (record.service_interval_odometer !== null) {
+                    setCompletionOdometer(
+                      record.vehicle?.odometer == null ? '' : String(record.vehicle.odometer),
+                    )
+                    setIsFinishing(true)
+                    return
+                  }
                   void run('complete', {
                     p_maintenance_id: record.id,
                     p_actual_completion: new Date().toISOString(),
                   })
-                }
+                }}
               >
                 Complete maintenance
               </Button>
@@ -371,6 +384,38 @@ export function MaintenanceDetailPage() {
         isPending={start.isPending}
         onConfirm={() => void beginWork()}
       />
+
+      <ConfirmDialog
+        open={isFinishing}
+        onOpenChange={setIsFinishing}
+        title="Complete this maintenance?"
+        description={`This service repeats every ${record.service_interval_odometer?.toLocaleString(organization.locale) ?? ''} ${distanceUnit}, so the next one is worked out from the reading taken now.`}
+        confirmLabel="Complete maintenance"
+        cancelLabel="Not yet"
+        isPending={complete.isPending}
+        onConfirm={() => {
+          setIsFinishing(false)
+          const trimmed = completionOdometer.trim()
+          void run('complete', {
+            p_maintenance_id: record.id,
+            p_actual_completion: new Date().toISOString(),
+            // Blank means nobody read it. The database leaves the distance
+            // threshold where it is rather than inventing one.
+            p_completion_odometer: /^\d+$/.test(trimmed) ? Number(trimmed) : null,
+          })
+        }}
+      >
+        <Field
+          label={`Odometer at the service (${distanceUnit})`}
+          hint="Leave it blank if nobody took a reading. The next service date still moves; the distance threshold stays where it is."
+        >
+          <Input
+            inputMode="numeric"
+            value={completionOdometer}
+            onChange={(event) => setCompletionOdometer(event.target.value)}
+          />
+        </Field>
+      </ConfirmDialog>
 
       <ConfirmDialog
         open={isCancelling}

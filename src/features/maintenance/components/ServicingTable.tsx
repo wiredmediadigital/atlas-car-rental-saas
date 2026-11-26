@@ -9,9 +9,21 @@ import {
   SERVICE_STATE_LABELS,
   SERVICE_STATE_TONES,
 } from '@/lib/compliance/service'
-import { formatDate } from '@/lib/datetime/format'
+import { formatDate, parseIsoDate } from '@/lib/datetime/format'
 
 import type { VehicleServicing } from '../dashboard'
+
+/**
+ * A `date` column has no instant.
+ *
+ * `new Date('2026-12-01')` is midnight UTC, and rendering that in any zone
+ * behind Greenwich prints 30 November -- a day earlier than the status badge
+ * and the sort beside it, which are computed on calendar days in the agency's
+ * zone. `parseIsoDate` is the helper that exists for exactly this.
+ */
+function serviceDate(value: string | null, timeZone: string): Date | null {
+  return value ? parseIsoDate(value, timeZone) : null
+}
 
 export interface ServicingTableProps {
   rows: readonly VehicleServicing[]
@@ -100,8 +112,8 @@ export function ServicingTable({
                     : `${vehicle.odometer.toLocaleString(locale)} ${distanceUnit}`}
                 </td>
                 <td className="px-5 py-3">
-                  {status.nextServiceOn
-                    ? formatDate(new Date(status.nextServiceOn), { locale, timeZone })
+                  {serviceDate(status.nextServiceOn, timeZone)
+                    ? formatDate(serviceDate(status.nextServiceOn, timeZone)!, { locale, timeZone })
                     : '—'}
                 </td>
                 <td data-numeric="" className="px-5 py-3 text-end">
@@ -165,8 +177,8 @@ export function ServicingTable({
                 : ` · ${vehicle.odometer.toLocaleString(locale)} ${distanceUnit}`}
             </p>
             <p className="text-[0.8125rem]">
-              {status.nextServiceOn
-                ? formatDate(new Date(status.nextServiceOn), { locale, timeZone })
+              {serviceDate(status.nextServiceOn, timeZone)
+                ? formatDate(serviceDate(status.nextServiceOn, timeZone)!, { locale, timeZone })
                 : 'No service date'}
               {status.nextServiceOdometer === null
                 ? ''
