@@ -12,7 +12,8 @@ import {
   type ComplianceFilter,
   type VehicleSort,
 } from '@/features/vehicles/api'
-import { exportVehicles } from '@/features/vehicles/export'
+import { fetchServicePlans } from '@/features/maintenance/api'
+import { exportVehicles, resolveExportServiceDates } from '@/features/vehicles/export'
 import { FleetSummary } from '@/features/vehicles/components/FleetSummary'
 import { FleetToolbar, type FleetFilters } from '@/features/vehicles/components/FleetToolbar'
 import { VehicleCardList } from '@/features/vehicles/components/VehicleCardList'
@@ -187,10 +188,23 @@ export function VehiclesPage() {
   }, [filters, statuses])
 
   const { exportNow, isExporting } = useCsvExport({
-    fetchRows: useCallback(
-      () => fetchVehiclesForExport({ ...currentFilter, organizationId: organization.id }),
-      [currentFilter, organization.id],
-    ),
+    /*
+     * The fleet AND its service plans, because the `Next service` column is
+     * read from Maintenance now rather than from the frozen legacy column.
+     *
+     * Fetched together and in parallel: the plans are a second round trip, and
+     * sequencing them behind the fleet would add their latency to an export the
+     * person is already waiting on. `fetchServicePlans` pages past PostgREST's
+     * 1,000-row ceiling, so a large fleet does not quietly lose the plans of
+     * everything after the first page and report those vehicles as unplanned.
+     */
+    fetchRows: useCallback(async () => {
+      const [collected, plans] = await Promise.all([
+        fetchVehiclesForExport({ ...currentFilter, organizationId: organization.id }),
+        fetchServicePlans(organization.id),
+      ])
+      return { ...collected, rows: resolveExportServiceDates(collected.rows, plans, compliance) }
+    }, [currentFilter, organization.id, compliance]),
     build: exportVehicles,
     filterLabel,
     noun: 'vehicles',

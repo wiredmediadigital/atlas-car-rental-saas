@@ -53,6 +53,18 @@ vi.mock('@/features/exports/useCsvExport', () => ({
   useCsvExport: () => ({ exportNow: () => Promise.resolve(), isExporting: false }),
 }))
 
+/*
+ * The export's `Next service` column is read from the maintenance service
+ * plans, so this page now imports the maintenance API. That module builds its
+ * Supabase client at module scope, which makes the IMPORT alone require a
+ * configured environment -- the export itself is already mocked above and
+ * never runs in this file. VehicleDetailPage carries the same transitive
+ * import through the Service and maintenance card.
+ */
+vi.mock('@/features/maintenance/api', () => ({
+  fetchServicePlans: () => Promise.resolve([]),
+}))
+
 vi.mock('@/features/vehicles/components/VehicleTable', () => ({ VehicleTable: () => null }))
 vi.mock('@/features/vehicles/components/VehicleCardList', () => ({ VehicleCardList: () => null }))
 

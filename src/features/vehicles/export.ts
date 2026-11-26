@@ -1,5 +1,10 @@
 import { csvMoney, csvNumber, csvText } from '@/features/reports/csv'
 import {
+  evaluateVehicleServicing,
+  type ServiceOptions,
+  type ServicePlan,
+} from '@/lib/compliance/service'
+import {
   buildExportFile,
   csvBoolean,
   csvInstant,
@@ -29,6 +34,83 @@ import type { VehicleFleetEntry } from '@/types/database'
  * named here: this is a fleet export, a renter's name is not a fact about a
  * car, and the rentals export already joins the two for anybody who needs it.
  */
+
+/**
+ * A fleet row with its service date already resolved against Maintenance.
+ *
+ * Required rather than optional ON PURPOSE. `VehicleFleetEntry.next_service_on`
+ * is the pre-Maintenance column, and nothing in the product writes it any more:
+ * Edit Vehicle no longer carries the field and the write key was removed from
+ * the payload. If this were optional, a caller that forgot to resolve would
+ * quietly fall back to that frozen column and publish a date the product itself
+ * no longer believes -- a wrong date in a file somebody keeps, which is worse
+ * than a blank one. The type now refuses to build the file until the question
+ * has been answered.
+ */
+export interface VehicleExportRow extends VehicleFleetEntry {
+  /** The date the Service and maintenance card shows, or null. */
+  readonly service_next_on: string | null
+}
+
+/** A service plan carried by one of the vehicle's maintenance records. */
+export type ExportServicePlan = ServicePlan & {
+  readonly vehicle_id: string
+  readonly id?: string
+  readonly status?: string | null
+  readonly created_at?: string | null
+}
+
+/**
+ * Fill the `Next service` column from the authoritative preventive service plan.
+ *
+ * WHY THE COLUMN KEPT ITS NAME. It is the same fact it always was -- when this
+ * vehicle is next due -- so renaming it would break every spreadsheet, filter
+ * and pivot built on an earlier export for no gain. What changed is where the
+ * answer is read from, not what the question is.
+ *
+ * THE THREE RULES, and the reason each one is not the obvious alternative:
+ *
+ *   A configured plan wins.        Read through `evaluateVehicleServicing`, the
+ *                                  same call Vehicle Details makes, so the file
+ *                                  and the screen cannot disagree about the same
+ *                                  car on the same day.
+ *
+ *   A mileage-only plan is blank.  Such a vehicle is due at a READING, not on a
+ *                                  day. There is no date to publish, and falling
+ *                                  back to the legacy one here would be the worst
+ *                                  outcome of the three: a plausible, specific,
+ *                                  wrong date, indistinguishable in the file from
+ *                                  a real one.
+ *
+ *   The legacy date only when      Agencies that never configured a plan would
+ *   there is no plan at all.       otherwise lose a date they still rely on, and
+ *                                  this export is often taken precisely because
+ *                                  somebody is leaving.
+ */
+export function resolveExportServiceDates(
+  rows: readonly VehicleFleetEntry[],
+  plans: readonly ExportServicePlan[],
+  options: ServiceOptions,
+): VehicleExportRow[] {
+  const byVehicle = new Map<string, ExportServicePlan[]>()
+  for (const plan of plans) {
+    const existing = byVehicle.get(plan.vehicle_id)
+    if (existing) existing.push(plan)
+    else byVehicle.set(plan.vehicle_id, [plan])
+  }
+
+  return rows.map((row) => {
+    const { record, status } = evaluateVehicleServicing(
+      byVehicle.get(row.vehicle_id) ?? [],
+      row.odometer,
+      options,
+    )
+    // `record` is the test for "a plan exists", NOT `status.nextServiceOn`.
+    // A mileage-only plan is a configured plan with no date, and testing the
+    // date instead would send exactly that case down the legacy branch.
+    return { ...row, service_next_on: record ? status.nextServiceOn : row.next_service_on }
+  })
+}
 
 const HEADERS = [
   'Plate',
@@ -68,14 +150,14 @@ const HEADERS = [
 
 export function buildVehiclesCsv(
   context: ExportContext,
-  rows: readonly VehicleFleetEntry[],
+  rows: readonly VehicleExportRow[],
 ): string {
   return exportVehicles(context, rows).contents
 }
 
 export function exportVehicles(
   context: ExportContext,
-  rows: readonly VehicleFleetEntry[],
+  rows: readonly VehicleExportRow[],
 ): ExportFile {
   const body = rows.map((row) => [
     csvText(row.registration_plate),
@@ -97,7 +179,7 @@ export function exportVehicles(
     csvText(row.insurance_expires_on),
     csvText(row.inspection_expires_on),
     csvText(row.registration_expires_on),
-    csvText(row.next_service_on),
+    csvText(row.service_next_on),
     csvText(row.current_rental_reference),
     csvInstant(row.current_rental_ends_at),
     csvText(row.next_rental_reference),
