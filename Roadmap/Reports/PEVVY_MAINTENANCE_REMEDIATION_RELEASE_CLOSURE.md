@@ -3,7 +3,8 @@
 **Date:** 2026-11-26
 **Worktree:** `E:\pevvy-maintenance-acceptance-20261125`
 **Branch:** `fix/maintenance-manual-acceptance-20261125`
-**Final source commit:** `4772e242e6d3b5fb004387776645de4a7a4a62cf`
+**Final source commit (code):** `4772e242e6d3b5fb004387776645de4a7a4a62cf`
+**Branch head:** `27e9486` — this report. Later commits on this branch, if any, are documentation only.
 **Staging baseline:** `977e32eb3447af2ec886cb512e8a9f06212b4259`
 **Authorized staging project:** `yeklucfthspvejlkffln` (Pevvy-Staging)
 **Production project `ysnumxtzcgzyabrghxwq`:** not linked, not contacted, not deployed to.
@@ -386,8 +387,11 @@ read-only was completed.
 Set-Location 'E:\pevvy-maintenance-acceptance-20261125'
 
 git rev-parse --abbrev-ref HEAD    # fix/maintenance-manual-acceptance-20261125
-git rev-parse HEAD                 # 4772e242e6d3b5fb004387776645de4a7a4a62cf
 git status --porcelain             # expect no output
+git log --oneline -1               # the branch head
+
+# The reviewed code must be in what you are about to push. Prints nothing if so.
+git merge-base --is-ancestor 4772e242e6d3b5fb004387776645de4a7a4a62cf HEAD; if ($LASTEXITCODE -ne 0) { 'STOP: reviewed code is not in HEAD' }
 
 # 2. Link the authorized staging project
 #    (already linked and verified; run it if the link is ever lost)
