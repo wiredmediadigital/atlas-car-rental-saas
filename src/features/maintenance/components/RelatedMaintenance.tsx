@@ -62,7 +62,7 @@ export function RelatedMaintenance({
         {query.isLoading ? (
           <p className="text-ink-subtle text-sm">Loading maintenance…</p>
         ) : query.isError ? (
-          <p role="alert" className="text-danger text-sm">
+          <p role="alert" className="text-critical-600 text-sm">
             Unable to load related maintenance.
           </p>
         ) : rows.length === 0 ? (

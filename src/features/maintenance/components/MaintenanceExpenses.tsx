@@ -140,7 +140,7 @@ export function MaintenanceExpenses({
         </dl>
 
         {error ? (
-          <p role="alert" className="text-danger text-sm">
+          <p role="alert" className="text-critical-600 text-sm">
             {error}
           </p>
         ) : null}

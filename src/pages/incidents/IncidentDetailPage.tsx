@@ -266,7 +266,7 @@ export function IncidentDetailPage() {
               </Field>
             </div>
             {error ? (
-              <p role="alert" className="text-danger">
+              <p role="alert" className="text-critical-600">
                 {error}
               </p>
             ) : null}

@@ -156,7 +156,7 @@ export function MaintenanceNewPage() {
           />
         </Field>
         {error ? (
-          <p role="alert" className="text-danger">
+          <p role="alert" className="text-critical-600">
             {error}
           </p>
         ) : null}

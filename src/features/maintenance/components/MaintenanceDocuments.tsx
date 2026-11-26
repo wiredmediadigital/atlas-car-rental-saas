@@ -112,7 +112,7 @@ export function MaintenanceDocuments({
       />
       <CardBody>
         {error ? (
-          <p role="alert" className="text-danger mb-3 text-sm">
+          <p role="alert" className="text-critical-600 mb-3 text-sm">
             {error}
           </p>
         ) : null}

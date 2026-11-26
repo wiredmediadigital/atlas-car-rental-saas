@@ -145,7 +145,7 @@ export function VehicleRestrictions({
       ) : null}
 
       {error && pending === null ? (
-        <p role="alert" className="text-danger text-sm">
+        <p role="alert" className="text-critical-600 text-sm">
           {error}
         </p>
       ) : null}
@@ -217,7 +217,7 @@ export function VehicleRestrictions({
             </Field>
 
             {error ? (
-              <p role="alert" className="text-danger text-sm">
+              <p role="alert" className="text-critical-600 text-sm">
                 {error}
               </p>
             ) : null}
