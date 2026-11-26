@@ -6,6 +6,7 @@ import {
   MoreHorizontal,
   Pencil,
   Trash2,
+  Wrench,
 } from 'lucide-react'
 import { useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
@@ -85,6 +86,7 @@ export function VehicleDetailPage() {
   const canEdit = usePermission('vehicles.update')
   const canDelete = usePermission('vehicles.delete')
   const canViewExpenses = usePermission('expenses.view')
+  const canViewMaintenance = usePermission('maintenance.view')
   const canRecordExpense = usePermission('expenses.create')
   const canViewFinancing = usePermission('financing.view')
   const canCreateFinancing = usePermission('financing.create')
@@ -208,9 +210,19 @@ export function VehicleDetailPage() {
           </span>
         }
         actions={
-          canEdit ? (
+          canEdit || canViewMaintenance ? (
             <div className="flex items-center gap-2">
+              {canViewMaintenance ? (
+                <Button
+                  variant="secondary"
+                  leadingIcon={<Wrench />}
+                  onClick={() => navigate(`${paths.maintenance}?vehicle=${vehicle.vehicle_id}`)}
+                >
+                  Maintenance
+                </Button>
+              ) : null}
               <Button
+                className={canEdit ? undefined : 'hidden'}
                 variant="secondary"
                 leadingIcon={<Pencil />}
                 onClick={() => setIsEditing(true)}
