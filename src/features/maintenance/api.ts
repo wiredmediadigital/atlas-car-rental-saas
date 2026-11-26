@@ -120,6 +120,144 @@ export async function fetchMaintenanceForIncident(
   return (data ?? []) as MaintenanceRow[]
 }
 
+/**
+ * Every maintenance record for one vehicle, for Vehicle Details.
+ *
+ * Read for the one vehicle rather than filtering the organization's whole
+ * maintenance history in the browser: the fleet list is unbounded, and a page
+ * about one car should not pay for every car.
+ */
+export async function fetchMaintenanceForVehicle(
+  organizationId: string,
+  vehicleId: string,
+): Promise<MaintenanceRow[]> {
+  const { data, error } = await db
+    .from('maintenance_records')
+    .select(RECORD_COLUMNS)
+    .eq('organization_id', organizationId)
+    .eq('vehicle_id', vehicleId)
+    .order('created_at', { ascending: false })
+  if (error) throw error
+  return (data ?? []) as MaintenanceRow[]
+}
+
+export interface ServicingVehicle {
+  id: string
+  registration_plate: string
+  make: string
+  model: string
+  odometer: number | null
+  /** The pre-Maintenance date, shown for reference only. Never a reminder. */
+  next_service_on: string | null
+}
+
+/** How many vehicles the preventive servicing list will show at once. */
+const SERVICING_FLEET_LIMIT = 500
+
+/**
+ * The fleet, for the preventive servicing list.
+ *
+ * Includes vehicles with no service plan, because a car nobody has scheduled a
+ * service for is exactly the one an operator needs to see. Archived vehicles
+ * are left out: they are not in service and cannot become due.
+ */
+export async function fetchServicingFleet(organizationId: string): Promise<ServicingVehicle[]> {
+  const { data, error } = await db
+    .from('vehicles')
+    .select('id, registration_plate, make, model, odometer, next_service_on')
+    .eq('organization_id', organizationId)
+    .is('archived_at', null)
+    .order('registration_plate', { ascending: true })
+    .limit(SERVICING_FLEET_LIMIT)
+  if (error) throw error
+  return (data ?? []) as ServicingVehicle[]
+}
+
+export interface MaintenanceSpendRow {
+  currency: string
+  total_minor: number
+}
+
+/**
+ * What the agency spent on maintenance in a period.
+ *
+ * Read from `public.expenses` rather than the `expense_ledger` view, which
+ * predates maintenance and carries no `maintenance_id` -- the same reason
+ * fetchLinkableExpenses reads the table. `expenses_maintenance_idx` covers
+ * this predicate exactly.
+ *
+ * Totalled per currency and never across them. Two currencies added together
+ * is a number that means nothing, which is why the ledger refuses to do it.
+ */
+export async function fetchMaintenanceSpend(
+  organizationId: string,
+  from: string,
+  to: string,
+): Promise<MaintenanceSpendRow[]> {
+  const { data, error } = await db
+    .from('expenses')
+    .select('amount_minor, currency')
+    .eq('organization_id', organizationId)
+    .eq('status', 'recorded')
+    .not('maintenance_id', 'is', null)
+    .gte('incurred_on', from)
+    .lt('incurred_on', to)
+  if (error) throw error
+
+  const totals = new Map<string, number>()
+  for (const row of (data ?? []) as { amount_minor: number; currency: string }[]) {
+    totals.set(row.currency, (totals.get(row.currency) ?? 0) + Number(row.amount_minor))
+  }
+  return [...totals.entries()]
+    .map(([currency, total_minor]) => ({ currency, total_minor }))
+    .sort((a, b) => b.total_minor - a.total_minor)
+}
+
+/**
+ * Actual cost per maintenance record, for the records list.
+ *
+ * One read for the whole list rather than `maintenance_actual_cost` once per
+ * row, which would be a request per record. Voided costs are excluded, exactly
+ * as that function excludes them, so the figure here and the figure on a
+ * record's own page are the same figure.
+ *
+ * Totals are summed per record without regard to currency, matching
+ * `maintenance_actual_cost`; a record's costs are in the record's currency in
+ * every case this product can produce.
+ */
+export async function fetchMaintenanceCostsByRecord(
+  organizationId: string,
+): Promise<Record<string, number>> {
+  const { data, error } = await db
+    .from('expenses')
+    .select('maintenance_id, amount_minor')
+    .eq('organization_id', organizationId)
+    .eq('status', 'recorded')
+    .not('maintenance_id', 'is', null)
+  if (error) throw error
+
+  const totals: Record<string, number> = {}
+  for (const row of (data ?? []) as { maintenance_id: string; amount_minor: number }[]) {
+    totals[row.maintenance_id] = (totals[row.maintenance_id] ?? 0) + Number(row.amount_minor)
+  }
+  return totals
+}
+
+/** Minutes the whole fleet was actually out of service in a period. */
+export async function fetchFleetDowntime(
+  organizationId: string,
+  from: string,
+  to: string,
+): Promise<number> {
+  const { data, error } = await db.rpc('maintenance_fleet_downtime', {
+    p_organization_id: organizationId,
+    p_from: from,
+    p_to: to,
+  })
+  if (error) throw error
+  return Number(data ?? 0)
+}
+
 export async function createMaintenance(values: Record<string, unknown>): Promise<MaintenanceRow> {
   const { data, error } = await db.rpc('maintenance_create', values)
   if (error) throw error

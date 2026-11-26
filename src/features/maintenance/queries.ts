@@ -15,6 +15,11 @@ import {
   fetchMaintenanceDocuments,
   fetchMaintenanceExpenses,
   fetchMaintenanceForIncident,
+  fetchMaintenanceForVehicle,
+  fetchMaintenanceSpend,
+  fetchMaintenanceCostsByRecord,
+  fetchFleetDowntime,
+  fetchServicingFleet,
   fetchVehicleDowntime,
   linkMaintenanceExpense,
   unlinkMaintenanceExpense,
@@ -27,6 +32,8 @@ export const maintenanceKeys = {
   all: (organizationId: string) => ['organization', organizationId, 'maintenance'] as const,
   forIncident: (organizationId: string, incidentId: string) =>
     ['organization', organizationId, 'maintenance', 'incident', incidentId] as const,
+  forVehicle: (organizationId: string, vehicleId: string) =>
+    ['organization', organizationId, 'maintenance', 'vehicle', vehicleId] as const,
   documents: (organizationId: string, maintenanceId: string) =>
     ['organization', organizationId, 'maintenance', maintenanceId, 'documents'] as const,
   expenses: (organizationId: string, maintenanceId: string) =>
@@ -35,6 +42,14 @@ export const maintenanceKeys = {
     ['organization', organizationId, 'maintenance', maintenanceId, 'cost'] as const,
   linkable: (organizationId: string, vehicleId: string) =>
     ['organization', organizationId, 'maintenance', 'linkable-expenses', vehicleId] as const,
+  servicingFleet: (organizationId: string) =>
+    ['organization', organizationId, 'maintenance', 'servicing-fleet'] as const,
+  costsByRecord: (organizationId: string) =>
+    ['organization', organizationId, 'maintenance', 'costs-by-record'] as const,
+  spend: (organizationId: string, from: string, to: string) =>
+    ['organization', organizationId, 'maintenance', 'spend', from, to] as const,
+  fleetDowntime: (organizationId: string, from: string, to: string) =>
+    ['organization', organizationId, 'maintenance', 'fleet-downtime', from, to] as const,
   downtime: (organizationId: string, vehicleId: string, from: string, to: string) =>
     ['organization', organizationId, 'maintenance', 'downtime', vehicleId, from, to] as const,
 }
@@ -69,6 +84,23 @@ export function useMaintenanceForIncident(incidentId: string | undefined) {
     queryKey: maintenanceKeys.forIncident(organization.id, incidentId ?? ''),
     queryFn: () => fetchMaintenanceForIncident(organization.id, incidentId ?? ''),
     enabled: Boolean(incidentId),
+    staleTime: 15_000,
+  })
+}
+
+/**
+ * Every maintenance record for one vehicle, for Vehicle Details.
+ *
+ * Under the maintenance key, so `invalidateMaintenance` already refreshes it
+ * when work is started, completed or rescheduled, or when a service plan is
+ * saved.
+ */
+export function useMaintenanceForVehicle(vehicleId: string | undefined) {
+  const organization = useOrganization()
+  return useQuery({
+    queryKey: maintenanceKeys.forVehicle(organization.id, vehicleId ?? ''),
+    queryFn: () => fetchMaintenanceForVehicle(organization.id, vehicleId ?? ''),
+    enabled: Boolean(vehicleId),
     staleTime: 15_000,
   })
 }
@@ -223,6 +255,47 @@ export function useUnlinkMaintenanceExpense(_maintenanceId: string) {
   return useMutation({
     mutationFn: (expenseId: string) => unlinkMaintenanceExpense(expenseId),
     onSuccess: () => invalidateMaintenance(client, organization.id),
+  })
+}
+
+/** The fleet, for the preventive servicing list. */
+export function useServicingFleet() {
+  const organization = useOrganization()
+  return useQuery({
+    queryKey: maintenanceKeys.servicingFleet(organization.id),
+    queryFn: () => fetchServicingFleet(organization.id),
+    staleTime: 60_000,
+  })
+}
+
+/** Actual cost for every maintenance record, keyed by record id. */
+export function useMaintenanceCostsByRecord() {
+  const organization = useOrganization()
+  return useQuery({
+    queryKey: maintenanceKeys.costsByRecord(organization.id),
+    queryFn: () => fetchMaintenanceCostsByRecord(organization.id),
+    staleTime: 60_000,
+  })
+}
+
+/** Maintenance spend for a period, per currency. */
+export function useMaintenanceSpend(from: string, to: string) {
+  const organization = useOrganization()
+  return useQuery({
+    queryKey: maintenanceKeys.spend(organization.id, from, to),
+    queryFn: () => fetchMaintenanceSpend(organization.id, from, to),
+    staleTime: 60_000,
+  })
+}
+
+/** Minutes the whole fleet was actually out of service in a period. */
+export function useFleetDowntime(from: string, to: string) {
+  const organization = useOrganization()
+  return useQuery({
+    queryKey: maintenanceKeys.fleetDowntime(organization.id, from, to),
+    queryFn: () => fetchFleetDowntime(organization.id, from, to),
+    // Work still in progress accrues against now(), so this answer ages.
+    staleTime: 30_000,
   })
 }
 
