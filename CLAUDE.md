@@ -72,3 +72,34 @@ setup:site` verifies every local function is deployed and ACTIVE.
 - `npm run verify` — format, lint, typecheck, unit + database tests (PGlite), build.
 - `npm run build` — enough to confirm a configuration change.
 - Database tests in `supabase/tests/` replay every migration on a fresh in-memory Postgres.
+
+## 2026-11-26 development handoff
+
+Read `Roadmap/Handoff/PEVVY_PROJECT_HANDOFF.md` together with the other six
+handoff documents before continuing feature work, and
+`Roadmap/Reports/PEVVY_CLAUDE_CODE_ONBOARDING_REPORT.md` for the verified
+state of the repository. Development moved from Codex to Claude Code on
+2026-11-25.
+
+The primary checkout `E:\pevvy-car-rental-saas-main` is intentionally dirty:
+preserve its changes, untracked investigations, worktrees and branches. Do not
+reset, clean, stash, rebase, merge, force-push, apply migrations, deploy or
+access production as part of ordinary continuation. Work in an isolated
+worktree cut from `origin/staging`, not from the primary checkout, which is
+behind the feature lineage and mixes unrelated billing work.
+
+Staging Supabase is `yeklucfthspvejlkffln`; production is `ysnumxtzcgzyabrghxwq`.
+Production changes require explicit owner authorization. Maintenance remains
+production NO-GO, while Driver Availability has owner manual acceptance 9/9.
+Never represent local tests, a staging migration, or HTTP 200 as authenticated
+manual acceptance or production approval.
+
+`20261122100000_billing_platform_state_service_rpc.sql` belongs to the billing
+lineage in `E:\pevvy-billing-remediation`. It is not in the staging source and
+has never been applied to staging. Do not import it into feature work.
+
+Vehicle operational status is no longer an editable field. A restriction comes
+from a maintenance record, from the off-road action, or from a legacy value
+awaiting resolution; `app.guard_vehicle_status` refuses any other write,
+including a direct PostgREST call. A form that submits the whole vehicle row
+must not carry the column.

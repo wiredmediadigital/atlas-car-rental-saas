@@ -1,0 +1,1350 @@
+# PEVVY — CONSOLIDATED MAINTENANCE MANAGEMENT AND FLEET INTEGRATION CORRECTIONS
+
+## 1. Objective
+
+Complete the Maintenance Management work package by correcting the identified operational inconsistencies and implementing the missing frontend integrations.
+
+The owner has manually tested the staging implementation and identified the following requirements:
+
+- Synchronize Maintenance Management with Fleet Management vehicle statuses.
+- Replace the legacy manual maintenance status toggle with the Maintenance Management workflow.
+- Automatically reflect maintenance restrictions across all relevant interfaces.
+- Preserve current vehicle availability when maintenance is scheduled for a future date.
+- Immediately restrict vehicle availability when maintenance starts.
+- Introduce an early-start confirmation.
+- Display actual maintenance start and completion timestamps.
+- Integrate Incident Management with Maintenance Management.
+- Allow optional incident association.
+- Ensure maintenance completion restores vehicle availability safely.
+- Ensure maintenance downtime is calculated accurately.
+
+Implement, validate and deploy these corrections in one consolidated execution.
+
+Do not return another assessment-only report.
+
+## 2. Existing implementation and environment
+
+Primary repository:
+
+`E:\pevvy-car-rental-saas-main`
+
+Existing maintenance implementation worktree:
+
+`E:\pevvy-maintenance-20261125`
+
+Existing implementation branch:
+
+`feat/maintenance-management-20261125`
+
+Last verified staging commit:
+
+`ac78cf1c381d059ddf82974d7a429e695a2d3b6b`
+
+Fetch the latest `origin/staging` before implementation.
+
+Authorized staging Supabase project:
+
+`yeklucfthspvejlkffln`
+
+Protected production Supabase project:
+
+`ysnumxtzcgzyabrghxwq`
+
+Staging frontend:
+
+`https://quantum-lavenderblush-buffalo-97.hostingersite.com`
+
+Existing applied maintenance migration:
+
+`20261125110000_maintenance_management.sql`
+
+Do not rewrite or reapply the existing migration.
+
+Create a corrective migration only if database changes are genuinely required.
+
+Review:
+
+- `Roadmap/Reports/PEVVY_MAINTENANCE_MANAGEMENT_IMPLEMENTATION.md`
+- `Roadmap/Reports/PEVVY_MAINTENANCE_MANAGEMENT_DEPLOYMENT_CLOSURE.md`
+- `Roadmap/Prompts/PEVVY_MAINTENANCE_MANAGEMENT_PROMPT.md`
+
+Preserve all previously implemented and accepted functionality.
+
+## 3. Observed staging defects
+
+### 3.1 Hyundai Elantra — DEMO-003
+
+Maintenance record:
+
+- Reference: MNT-2026-00002
+- Title: Routine maintenance
+- Status: In progress
+
+Observed behaviour:
+
+- Fleet list displays Available.
+- Vehicle Details displays Available.
+- Vehicle Details displays Bookable now.
+- Vehicle Details states that the vehicle is on the lot and ready to hire out.
+- Operational status displays In service.
+- The vehicle is excluded from rental vehicle selection.
+
+The backend appears to enforce the maintenance restriction, but the Fleet Management and Vehicle Details interfaces display contradictory information.
+
+Correct this inconsistency.
+
+### 3.2 Ford Mustang — DEMO-019
+
+Maintenance record:
+
+- Reference: MNT-2026-00001
+- Title: Routine Service
+- Status: Completed
+
+Observed behaviour:
+
+- Fleet list continues to display In maintenance.
+
+Inspect whether this is caused by a legacy manual maintenance status or another valid operational restriction.
+
+Do not automatically clear a valid safety restriction.
+
+### 3.3 Toyota Corolla — DEMO-001
+
+Maintenance record:
+
+- Reference: MNT-2026-00003
+- Scheduled start: December 1, 2026, 7:22 PM.
+- Scheduled completion: December 1, 2026, 9:22 PM.
+
+Owner-confirmed behaviour:
+
+- Future scheduled maintenance allows the vehicle to remain available for a tested rental period before maintenance starts.
+- Clicking Start maintenance immediately makes the vehicle unavailable, even though the original scheduled date is in the future.
+
+Preserve this correct behaviour.
+
+Add appropriate early-start confirmation, rental conflict validation and actual timestamp presentation.
+
+The owner has not yet independently confirmed the specific overlapping future reservation scenario.
+
+### 3.4 Missing incident integration
+
+The owner cannot link maintenance records to incidents through the current staging interface.
+
+The existing implementation report indicates that the incident relationship exists at the schema and RPC level.
+
+Complete the missing frontend integration using the existing relationship.
+
+## 4. Authoritative vehicle operational status
+
+Maintenance Management must become the authoritative source of maintenance-related vehicle restrictions and effective maintenance status.
+
+Inspect the existing:
+
+- Vehicle operational status fields.
+- Fleet status calculation.
+- Vehicle Details status calculation.
+- Maintenance lifecycle.
+- Rental custody records.
+- Rental availability functions.
+- Vehicle availability queries.
+- Dashboard and fleet status counts.
+- Existing role permissions.
+
+Implement one consistent effective vehicle status calculation.
+
+The calculation must account for:
+
+- Current rental custody.
+- Existing rental commitments.
+- Future scheduled maintenance.
+- Current scheduled maintenance restrictions.
+- Maintenance in progress.
+- Overdue maintenance.
+- Independent off-the-road restrictions.
+- Legacy manual maintenance restrictions.
+- Other existing operational restrictions.
+
+Reuse the existing authoritative vehicle availability architecture.
+
+Do not introduce a parallel availability engine.
+
+Do not maintain two independent sources of maintenance status that can contradict each other.
+
+Where multiple restrictions apply, preserve all applicable restrictions and display the relevant operational reasons.
+
+## 5. Expected maintenance and vehicle lifecycle
+
+### 5.1 No maintenance restriction
+
+When a vehicle has no applicable maintenance restriction, no active rental custody and no other operational restriction:
+
+- Display Available.
+- Allow rental booking and checkout according to existing availability rules.
+
+### 5.2 Future scheduled maintenance
+
+When maintenance is scheduled for a future date:
+
+- Immediately display upcoming maintenance information.
+- Display the maintenance reference.
+- Display scheduled start and expected completion.
+- Preserve current availability where the vehicle is otherwise eligible.
+- Block rental periods overlapping the scheduled maintenance period.
+- Allow non-overlapping rental periods.
+
+Do not immediately take a vehicle out of service solely because maintenance has been scheduled for a future date.
+
+Example:
+
+Maintenance is scheduled for December 1 from 7:22 PM to 9:22 PM.
+
+A rental ending before maintenance begins should be allowed.
+
+A rental overlapping the maintenance period should be blocked.
+
+A rental beginning after expected maintenance completion may be allowed, subject to other restrictions and checkout revalidation.
+
+### 5.3 Scheduled maintenance period reached
+
+When the scheduled maintenance period begins:
+
+- Display an appropriate maintenance-due or scheduled-maintenance restriction.
+- Enforce the applicable reservation and checkout restrictions.
+- Do not automatically mark maintenance as physically started.
+- Preserve the distinction between scheduled and actual maintenance.
+
+If scheduled maintenance is missed or not started, clearly display its scheduling state and require the operator to resolve or reschedule it.
+
+Do not misrepresent missed scheduled work as completed or physically in progress.
+
+### 5.4 Maintenance started
+
+When an operator explicitly starts maintenance:
+
+- Immediately display In maintenance as the effective vehicle status.
+- Immediately enforce the actual maintenance restriction.
+- Remove misleading Available and Bookable now indicators.
+- Remove misleading ready-to-hire descriptions.
+- Record the actual maintenance start timestamp.
+- Display the active maintenance reference.
+- Display expected completion information.
+- Provide a link to Maintenance Details.
+- Block rental checkout.
+
+This must apply even when the original scheduled maintenance date is in the future.
+
+Do not delay an explicitly started maintenance restriction until the original scheduled start date.
+
+### 5.5 Maintenance overdue
+
+If expected completion passes while maintenance remains in progress:
+
+- Retain the maintenance restriction.
+- Display In maintenance with an overdue indicator.
+- Continue blocking checkout.
+- Do not automatically return the vehicle to service.
+
+### 5.6 Maintenance completed
+
+When maintenance is completed:
+
+- Record actual completion.
+- Release the restriction associated with that maintenance record.
+- Recalculate effective vehicle status.
+- Restore normal availability only if all applicable restrictions have been resolved.
+
+Do not blindly set the underlying vehicle status to Available.
+
+Preserve:
+
+- Other active maintenance records.
+- Independent off-the-road restrictions.
+- Legacy restrictions not explicitly resolved.
+- Actual rental custody.
+- Other operational restrictions.
+
+### 5.7 Maintenance cancelled
+
+When maintenance is cancelled:
+
+- Record cancellation reason and audit information.
+- Release only the applicable maintenance restriction.
+- Preserve maintenance history.
+- Recalculate effective vehicle status.
+
+Cancelling maintenance must not automatically declare an unsafe vehicle roadworthy.
+
+If a safety-related restriction remains, the vehicle must remain unavailable.
+
+## 6. Replace the legacy operational status toggle
+
+The existing Vehicle Details page contains a manual Operational status dropdown with:
+
+- In service.
+- In maintenance.
+- Off the road.
+
+The standalone In maintenance status toggle is no longer appropriate.
+
+Replace manual maintenance status management with contextual Maintenance Management actions.
+
+### Vehicle without active maintenance
+
+Provide appropriate actions:
+
+- Schedule maintenance.
+- Start unscheduled maintenance.
+- View maintenance history.
+
+### Vehicle with scheduled maintenance
+
+Provide appropriate actions:
+
+- View maintenance.
+- Start maintenance.
+- Reschedule maintenance.
+- Cancel maintenance.
+
+Lifecycle actions should use the existing maintenance workflow.
+
+### Vehicle with maintenance in progress
+
+Display:
+
+- Effective status: In maintenance.
+- Active maintenance reference.
+- Actual start.
+- Expected completion.
+- Relevant overdue indicator.
+- View maintenance action.
+
+Maintenance completion must occur through the maintenance record.
+
+Do not allow the operator to bypass active maintenance by manually selecting In service.
+
+### Independent operational restrictions
+
+Retain an independent Off the road action for non-maintenance restrictions.
+
+Examples:
+
+- Insurance problems.
+- Registration problems.
+- Theft.
+- Safety restrictions.
+- Other operational reasons.
+
+Retain an authorized return-to-service action for resolving these independent restrictions.
+
+Returning a vehicle to service must not bypass active maintenance, unresolved safety restrictions or actual rental custody.
+
+Enforce these rules through the backend as well as the interface.
+
+Inspect all supported vehicle update paths, including Vehicle Edit and direct API operations.
+
+Do not merely remove a dropdown option while leaving an unrestricted backend bypass.
+
+Reuse existing role permissions.
+
+## 7. Legacy maintenance status compatibility
+
+Existing vehicles may have the old manually assigned In maintenance status without a corresponding maintenance record.
+
+Perform a read-only inventory identifying:
+
+- Vehicles with legacy manual maintenance status.
+- Vehicles with active maintenance records.
+- Vehicles with completed maintenance records but legacy maintenance status.
+- Vehicles with independent operational restrictions.
+- Vehicles with contradictory effective status information.
+
+Specifically inspect:
+
+- Ford Mustang — DEMO-019.
+- Tesla Model 3 — DEMO-020.
+- Nissan Sentra — DEMO-005.
+- Hyundai Elantra — DEMO-003.
+- Toyota Corolla — DEMO-001.
+
+These are staging test vehicles.
+
+Do not automatically clear existing restrictions or fabricate historical maintenance records.
+
+Provide a straightforward authorized transition for legacy maintenance restrictions:
+
+- Create or associate an appropriate maintenance record when work remains ongoing.
+- Explicitly resolve the legacy restriction when the operator confirms that maintenance is complete and the vehicle is roadworthy.
+
+Ensure that creating or associating a maintenance record does not introduce duplicate restrictions that cannot subsequently be resolved.
+
+Preserve existing safety restrictions until explicitly resolved.
+
+Do not perform bulk staging or production data remediation.
+
+## 8. Fleet Management integration
+
+Update the existing Fleet Management vehicle list to use consistent effective vehicle status information.
+
+Use existing badge styles and terminology where appropriate.
+
+Relevant states include:
+
+- Available.
+- Reserved.
+- Rented.
+- In maintenance.
+- Off the road.
+
+Supplement these states with contextual information:
+
+- Maintenance scheduled.
+- Maintenance due to start.
+- Maintenance overdue.
+- Expected maintenance completion.
+
+For future scheduled maintenance, retain the current availability status and display a secondary upcoming maintenance indicator.
+
+For active maintenance, display In maintenance rather than Available.
+
+Ensure the following use consistent status information:
+
+- Fleet vehicle list.
+- Fleet status filters.
+- Fleet status counts.
+- Relevant dashboard summaries.
+- Vehicle Details.
+- Vehicle selection and availability indicators.
+
+Do not redesign the existing Fleet Management page.
+
+Avoid unnecessary per-vehicle API requests.
+
+Reuse tenant-scoped batch queries or existing backend projections where practical.
+
+## 9. Vehicle Details integration
+
+Update the existing Vehicle Details page.
+
+Display:
+
+- Effective vehicle status.
+- Accurate current bookability.
+- Active maintenance information.
+- Upcoming scheduled maintenance.
+- Maintenance reference.
+- Actual maintenance start.
+- Expected completion.
+- Relevant overdue indicators.
+- Other applicable operational restrictions.
+- Links to the relevant maintenance records.
+
+Remove contradictory descriptions such as:
+
+- Available during active maintenance.
+- Bookable now during active maintenance.
+- On the lot and ready to hire out during active maintenance.
+
+Replace the unrestricted manual maintenance status toggle with contextual maintenance actions.
+
+Preserve existing:
+
+- Vehicle information.
+- Compliance information.
+- Documents.
+- Vehicle editing.
+- Odometer information.
+- Rental history.
+- Expense information.
+
+Where a vehicle has multiple active maintenance records, display the relevant records without implying that completing only one will release the vehicle.
+
+## 10. Early-start confirmation
+
+When an operator attempts to start maintenance before its scheduled start date, display a confirmation dialog.
+
+The dialog must include:
+
+- Vehicle registration and make/model.
+- Maintenance reference.
+- Maintenance title.
+- Original scheduled start.
+- Expected completion.
+- Actual start: Immediately.
+- Warning that starting maintenance now will immediately take the vehicle out of service.
+- Warning about potentially affected rental reservations.
+
+Suggested title:
+
+Start maintenance early?
+
+Suggested message:
+
+This maintenance is scheduled for a future date. Starting maintenance now will immediately take this vehicle out of service and may affect existing rental reservations.
+
+Actions:
+
+- Cancel.
+- Start maintenance now.
+
+Cancelling must leave the maintenance record and vehicle availability unchanged.
+
+Confirming must execute the existing maintenance start operation after authoritative backend validation.
+
+Do not create a separate maintenance lifecycle for early starts.
+
+## 11. Rental conflict revalidation
+
+Before starting maintenance, revalidate the vehicle's current circumstances.
+
+Check:
+
+- Actual rental custody.
+- Existing confirmed rental commitments.
+- Conflicts introduced by starting maintenance earlier than scheduled.
+- Conflicts introduced by changing expected completion.
+- Independent operational restrictions.
+
+### Routine maintenance
+
+Routine maintenance must not start if unresolved rental conflicts prevent the operator from legitimately taking the vehicle out of service.
+
+Display the conflicting rental information and require the operator to resolve the conflict or adjust maintenance scheduling.
+
+Do not automatically cancel or reschedule rentals.
+
+### Urgent safety-related maintenance
+
+Preserve the authorized urgent maintenance exception.
+
+An authorized operator must be able to record urgent repairs or apply an appropriate safety restriction when necessary.
+
+Identify affected reservations.
+
+Do not automatically:
+
+- Cancel a rental.
+- Complete a rental.
+- Return a vehicle.
+- Substitute a vehicle.
+- Change the rental agreement.
+- Charge the customer.
+
+If a vehicle remains in actual rental custody, preserve that custody information and do not falsely indicate that the vehicle is physically present at a workshop.
+
+Enforce the distinction between urgent safety restrictions and ordinary physical maintenance commencement.
+
+## 12. Actual maintenance timestamps
+
+The current Maintenance Details page displays scheduled dates but does not adequately display actual maintenance timing.
+
+Preserve the scheduled maintenance information and display actual lifecycle timestamps separately.
+
+### Scheduled information
+
+- Scheduled start.
+- Scheduled completion.
+- Current expected completion.
+
+### Actual information
+
+- Actual maintenance start.
+- Actual maintenance completion.
+- Actual maintenance duration.
+- Early-start indicator, where applicable.
+- Overdue completion indicator, where applicable.
+
+Record actual timestamps through the authoritative backend lifecycle operations.
+
+Do not rely exclusively on browser-generated timestamps.
+
+Do not overwrite the original scheduled start when maintenance starts early.
+
+Preserve original scheduling history according to existing audit conventions.
+
+Allow authorized operators to revise expected completion through the existing maintenance workflow.
+
+Revalidate affected rental commitments when expected completion changes.
+
+Use the organization's existing timezone and date formatting conventions.
+
+## 13. Maintenance downtime calculation
+
+Calculate actual maintenance downtime using actual start and completion timestamps.
+
+For maintenance in progress:
+
+- Calculate elapsed downtime from actual maintenance start.
+- Do not calculate actual downtime from the original scheduled start.
+
+For completed maintenance:
+
+- Calculate actual duration from actual start to actual completion.
+
+Distinguish:
+
+- Planned maintenance duration.
+- Actual maintenance duration.
+- Overdue completion duration.
+
+Where multiple maintenance records overlap for the same vehicle, do not double-count overlapping downtime.
+
+Ensure future scheduled maintenance is not included in historical actual downtime.
+
+Reuse the existing maintenance downtime RPC and reporting conventions where available.
+
+Add dedicated numeric assertions for overlapping and non-overlapping downtime calculations.
+
+Do not introduce a new fleet reporting engine.
+
+## 14. Incident Management integration
+
+The owner has approved the following primary workflow:
+
+Incident Details → Create maintenance → Existing maintenance creation form.
+
+Incident association must remain optional.
+
+Do not create a separate incident-linking module.
+
+Reuse the existing maintenance incident relationship and backend validation.
+
+## 15. Create maintenance directly from Incident Details
+
+Add a Create maintenance action to the existing Incident Details page.
+
+The action should be available to appropriately authorized operators.
+
+When selected, open the existing maintenance creation form and automatically populate:
+
+- Vehicle.
+- Related incident.
+- Readable incident reference.
+- Relevant incident description.
+
+Allow the operator to complete:
+
+- Maintenance title.
+- Maintenance category.
+- Priority.
+- Scheduled start.
+- Expected completion.
+- Service provider.
+- Estimated cost.
+- Other existing maintenance information.
+
+Allow the operator to review the information before saving.
+
+Opening the form must not automatically create a maintenance record or change vehicle availability.
+
+Creating a scheduled maintenance record must follow the normal scheduling restrictions.
+
+Starting maintenance must follow the normal maintenance lifecycle.
+
+Do not introduce a separate incident-specific maintenance creation form.
+
+## 16. Optional incident association
+
+When maintenance is created directly from Maintenance Management, provide an optional Related incident field.
+
+Requirements:
+
+- Select the vehicle first.
+- Retrieve incidents associated with the selected vehicle and organization.
+- Display readable incident references, types, dates and statuses.
+- Allow No incident.
+- Allow eligible historical incidents.
+- Clear invalid incident selections when the vehicle changes.
+- Do not display internal UUIDs.
+- Preserve tenant isolation.
+
+Routine maintenance must never require an incident.
+
+Examples of maintenance that may exist independently:
+
+- Oil and filter changes.
+- Preventive servicing.
+- Tire replacement.
+- Brake servicing.
+- Vehicle inspections.
+- General mechanical repairs.
+- Cleaning and detailing.
+
+Incident association is optional even for breakdown-related or accident-related maintenance.
+
+Maintenance created directly from Incident Details should automatically carry the selected incident association.
+
+## 17. Related maintenance on Incident Details
+
+Add a Related maintenance section to the existing Incident Details page.
+
+Display all maintenance records associated with the incident.
+
+Include:
+
+- Maintenance reference.
+- Maintenance title.
+- Category.
+- Status.
+- Scheduled start.
+- Actual completion, where applicable.
+- Actual cost, where permitted.
+- Link to Maintenance Details.
+
+Allow one incident to have multiple related maintenance records.
+
+Example:
+
+A vehicle accident may require:
+
+- Bodywork repair.
+- Mechanical inspection.
+- Tire replacement.
+
+Each maintenance record may reference the same incident.
+
+Do not duplicate the incident or create duplicate expenses.
+
+## 18. Related incident on Maintenance Details
+
+When maintenance is associated with an incident, display:
+
+- Incident reference.
+- Incident type.
+- Incident status.
+- Incident date.
+- Link to Incident Details.
+
+When no incident is associated, the maintenance record remains valid.
+
+Reuse the existing maintenance edit workflow for correcting an incident association where supported.
+
+Do not introduce a dedicated relationship administration module.
+
+Do not reopen completed maintenance solely to correct an incident reference.
+
+Preserve existing record-integrity and audit requirements.
+
+## 19. Incident and maintenance lifecycle independence
+
+Ensure:
+
+- Creating maintenance does not automatically resolve an incident.
+- Completing maintenance does not automatically resolve an incident.
+- Resolving an incident does not automatically complete maintenance.
+- Linking an incident does not automatically change vehicle availability.
+- Maintenance restrictions follow the maintenance lifecycle.
+- Creating maintenance does not automatically complete or cancel a rental.
+- Maintenance expenses do not automatically become customer charges.
+
+Incident Management records what happened.
+
+Maintenance Management records the servicing or repair work.
+
+Fleet Management reflects the resulting effective vehicle availability.
+
+Rental Management remains responsible for rental agreements and custody.
+
+## 20. Expense, service reminder and attachment preservation
+
+Preserve all existing Maintenance Management functionality, including:
+
+- Existing expense associations.
+- Actual maintenance cost calculation.
+- Date-based service requirements.
+- Odometer-based service requirements.
+- Upcoming and overdue service indicators.
+- Next-service calculation.
+- Maintenance history.
+- Secure supporting documents.
+
+Inspect whether these features are accessible through the existing frontend.
+
+The previous deployment report established backend or contract-level implementation for several of these features but did not establish complete authenticated UI acceptance.
+
+Where approved functionality exists only at the backend level and is not accessible through the frontend, complete the missing interface integration using existing Pevvy components.
+
+Do not create:
+
+- A duplicate expense ledger.
+- A separate accounting system.
+- A separate odometer tracking system.
+- A duplicate document management system.
+- A new notification delivery platform.
+
+Ensure maintenance expenses are not double-counted across vehicle, incident and maintenance reporting.
+
+## 21. Rental availability integration
+
+Preserve the existing authoritative maintenance availability enforcement.
+
+Verify all relevant supported rental commitment paths:
+
+- Rental creation.
+- Rental confirmation.
+- Rental checkout.
+- Rental extensions.
+- Rental rescheduling.
+- Pre-checkout vehicle changes.
+- Public booking, where applicable.
+
+Ensure:
+
+- Scheduled maintenance blocks overlapping rental periods.
+- Future non-overlapping rental periods remain eligible.
+- Actual maintenance commencement immediately applies the relevant restriction.
+- Checkout is blocked during active maintenance.
+- Checkout remains blocked during overdue maintenance.
+- Completing maintenance restores eligibility only when other restrictions permit.
+- Existing driver conflict prevention remains operational.
+
+Future reservations after expected maintenance completion may remain permissible under the existing scheduling rules.
+
+Actual checkout must revalidate whether maintenance has completed.
+
+Do not weaken backend validation to correct frontend presentation.
+
+## 22. Query refresh and cache consistency
+
+After any relevant maintenance operation, refresh or invalidate the appropriate existing queries.
+
+Operations include:
+
+- Creation.
+- Scheduling.
+- Rescheduling.
+- Start.
+- Early start.
+- Completion.
+- Cancellation.
+- Expected completion changes.
+- Incident association changes.
+- Legacy restriction resolution.
+- Independent operational restriction changes.
+
+Refresh relevant:
+
+- Maintenance list.
+- Maintenance Details.
+- Fleet vehicle list.
+- Vehicle Details.
+- Fleet status counts.
+- Dashboard summaries.
+- Vehicle availability.
+- Rental vehicle selection.
+- Incident Details.
+- Related maintenance.
+- Vehicle service history.
+- Maintenance expenses.
+
+The operator must not need to manually refresh the browser to see updated status.
+
+Reuse existing query keys and caching conventions.
+
+Ensure time-dependent scheduled and overdue status indicators remain accurate as time progresses.
+
+## 23. Backend security and tenant isolation
+
+Preserve the existing Pevvy authorization architecture.
+
+Enforce:
+
+- Organization-scoped maintenance records.
+- Organization-scoped vehicle records.
+- Same-organization incident relationships.
+- Same-vehicle incident relationships.
+- Existing manager and staff permissions.
+- Existing expense permissions.
+- Existing document storage restrictions.
+- Audit attribution for relevant changes.
+
+Reject:
+
+- Cross-tenant vehicle references.
+- Cross-tenant incident references.
+- Different-vehicle incident associations.
+- Unauthorized maintenance operations.
+- Unauthorized operational restriction changes.
+- Direct API attempts to bypass active maintenance restrictions.
+
+Do not weaken existing RLS policies or grants.
+
+Public booking users may receive vehicle availability information but must not receive internal maintenance descriptions, incident details, expenses or private documents.
+
+## 24. Transactional integrity
+
+Preserve and inspect the existing locking and transactional validation patterns.
+
+Ensure maintenance operations and rental commitments cannot create contradictory vehicle availability through simultaneous requests.
+
+Relevant competing operations include:
+
+- Maintenance scheduling and rental confirmation.
+- Maintenance start and rental checkout.
+- Early maintenance start and rental rescheduling.
+- Maintenance completion and another maintenance restriction.
+- Manual operational restriction changes and maintenance lifecycle operations.
+
+Reuse existing vehicle-level locking conventions.
+
+Do not introduce unnecessary global locks.
+
+Use independent database transactions for concurrency testing where supported.
+
+If the available PGlite harness cannot establish independent competing transactions, document the limitation and retain it as an explicit production release requirement.
+
+Do not claim concurrency proof from sequential tests.
+
+## 25. Focused acceptance tests
+
+Implement focused automated validation and prepare manual staging acceptance for the following scenarios.
+
+### A. Future scheduled maintenance
+
+- Schedule maintenance for a future period.
+- Verify the vehicle remains currently available.
+- Verify upcoming maintenance information appears.
+- Verify an overlapping rental is blocked.
+- Verify a non-overlapping rental is allowed.
+- Verify exact boundary behaviour follows existing overlap conventions.
+
+### B. Maintenance start
+
+- Start scheduled maintenance.
+- Verify Fleet Management displays In maintenance.
+- Verify Vehicle Details displays In maintenance.
+- Verify Bookable now is removed.
+- Verify checkout is blocked.
+- Verify actual start is recorded.
+
+### C. Early maintenance start
+
+- Schedule maintenance for a future date.
+- Select Start maintenance.
+- Verify the confirmation dialog.
+- Cancel and verify no changes.
+- Confirm early start.
+- Verify the vehicle is immediately restricted.
+- Verify original scheduled dates remain unchanged.
+- Verify actual start is displayed.
+
+### D. Existing rental conflicts
+
+- Create an existing confirmed rental.
+- Attempt conflicting routine maintenance scheduling.
+- Attempt conflicting early maintenance start.
+- Verify conflicts are identified.
+- Verify the existing rental remains unchanged.
+- Verify urgent authorized restrictions follow the approved exception workflow.
+
+### E. Maintenance overdue
+
+- Start maintenance.
+- Allow expected completion to pass.
+- Verify overdue maintenance is displayed.
+- Verify checkout remains blocked.
+- Verify the vehicle is not automatically released.
+
+### F. Maintenance completion
+
+- Complete maintenance.
+- Verify actual completion is recorded.
+- Verify maintenance history.
+- Verify vehicle availability is restored when no restrictions remain.
+- Verify Fleet Management and Vehicle Details update automatically.
+
+### G. Multiple maintenance restrictions
+
+- Create two applicable active maintenance records.
+- Complete the first.
+- Verify the vehicle remains unavailable.
+- Complete the second.
+- Verify maintenance-related restrictions are released.
+- Verify overlapping downtime is not double-counted.
+
+### H. Independent operational restrictions
+
+- Apply an independent Off the road restriction.
+- Complete maintenance.
+- Verify the independent restriction remains effective.
+- Resolve the independent restriction through the authorized workflow.
+- Verify availability is restored only when all restrictions are resolved.
+
+### I. Legacy maintenance status
+
+- Identify a vehicle with legacy manual maintenance status.
+- Verify the restriction remains effective.
+- Transition ongoing work into Maintenance Management.
+- Explicitly resolve a completed legacy restriction.
+- Verify no fabricated history or unsafe automatic release occurs.
+
+### J. Manual status bypass prevention
+
+- Start maintenance.
+- Attempt to manually change the vehicle to In service.
+- Verify the active maintenance restriction cannot be bypassed.
+- Verify direct API operations cannot bypass the restriction.
+
+### K. Create maintenance from incident
+
+- Open an existing incident.
+- Select Create maintenance.
+- Verify vehicle and incident are automatically populated.
+- Save the maintenance record.
+- Verify the record appears under Related maintenance.
+- Navigate between Incident Details and Maintenance Details.
+
+### L. Optional incident association
+
+- Create routine maintenance without an incident.
+- Verify successful creation.
+- Create maintenance with an eligible incident.
+- Verify the relationship.
+- Change the selected vehicle and verify invalid incident selection is cleared.
+- Verify multiple maintenance records can reference one incident.
+
+### M. Incident lifecycle independence
+
+- Complete maintenance linked to an open incident.
+- Verify the incident remains open.
+- Resolve an incident with outstanding maintenance.
+- Verify maintenance remains unchanged.
+- Verify rental custody and financial history remain unchanged.
+
+### N. Downtime calculation
+
+- Start maintenance earlier than scheduled.
+- Verify actual downtime begins at actual start.
+- Complete maintenance.
+- Verify actual duration.
+- Test overlapping maintenance intervals with dedicated numeric assertions.
+- Verify future scheduled maintenance is excluded from actual downtime.
+
+### O. Expense and service integration
+
+- Link an existing expense to maintenance.
+- Verify actual maintenance cost.
+- Verify no double-counting.
+- Configure date-based service reminders.
+- Configure odometer-based service reminders.
+- Complete applicable recurring maintenance.
+- Verify next-service calculation.
+- Verify service history.
+
+### P. Security and attachments
+
+- Upload and retrieve an authorized maintenance document.
+- Reject unauthorized access.
+- Reject cross-tenant vehicle associations.
+- Reject cross-tenant incident associations.
+- Reject different-vehicle incident associations.
+- Reject unauthorized maintenance lifecycle operations.
+
+### Q. Regression
+
+Verify:
+
+- Standard rental creation.
+- Driver conflict prevention.
+- Rental confirmation.
+- Checkout.
+- Return.
+- Rental completion.
+- Rental extensions.
+- Rental rescheduling.
+- Vehicle creation and editing.
+- Fleet Management.
+- Incident Management.
+- Expense management.
+- Public booking.
+- Existing SaaS billing functionality.
+
+Do not reopen previously accepted functionality unless a genuine regression is identified.
+
+## 26. Implementation and validation
+
+Implement the smallest coherent correction that satisfies the approved requirements.
+
+Do not rebuild Maintenance Management from scratch.
+
+Reuse the existing implementation and established architecture.
+
+Run:
+
+- Focused maintenance lifecycle tests.
+- Effective vehicle status tests.
+- Early-start validation tests.
+- Rental availability integration tests.
+- Incident relationship tests.
+- Maintenance downtime numeric tests.
+- Tenant-isolation tests.
+- Authorization tests.
+- Focused frontend tests.
+- Relevant rental and driver availability regression tests.
+- TypeScript validation.
+- Focused ESLint validation.
+- Git diff validation.
+- Guarded staging build.
+
+Reuse the existing successful PGlite database test harness.
+
+Avoid repeating the previous local PostgreSQL connectivity and hanging-test investigation unnecessarily.
+
+Use bounded execution and meaningful diagnostics.
+
+Do not repeatedly run the entire repository test suite.
+
+If a database correction is required, validate the corrective migration before applying it to staging.
+
+## 27. Staging database deployment
+
+The owner authorizes the required corrective migration deployment to staging.
+
+Authorized project:
+
+`yeklucfthspvejlkffln`
+
+Before applying a migration:
+
+1. Verify staging project identity.
+2. Inspect the remote migration ledger.
+3. Verify the existing maintenance migration remains applied.
+4. Verify Incident Management and driver availability migrations remain applied.
+5. Perform a migration dry run.
+6. Confirm only intended corrective migrations are pending.
+7. Apply the validated corrective migrations.
+8. Verify remote migration history.
+9. Verify affected functions, triggers, grants and RLS policies.
+10. Verify existing rental and maintenance functionality remains compatible.
+
+Do not reapply previously applied migrations.
+
+Do not apply unrelated or superseded migrations.
+
+Do not automatically modify existing staging records merely to make acceptance tests pass.
+
+No production database operations.
+
+## 28. Staging frontend deployment
+
+Reuse the established Hostinger deployment configuration.
+
+- GitHub branch: `staging`
+- Hostinger build command: `npm run build`
+- Output directory: `dist-staging`
+- Guarded local build: `npm run build:staging`
+- Supabase URL: `https://yeklucfthspvejlkffln.supabase.co`
+
+Use the existing approved browser-safe staging configuration.
+
+Do not rediscover or reconfigure the established deployment environment unnecessarily.
+
+Do not:
+
+- Change Hostinger branch binding.
+- Change the output directory.
+- Create another deployment environment.
+- Extract or print credentials.
+- Commit secrets.
+- Substitute production configuration.
+- Disable environment validation.
+
+If local guarded build configuration is unavailable, distinguish that limitation from the Hostinger-managed build process.
+
+Report the precise missing configuration and minimum owner action required.
+
+Do not claim a guarded build passed if it did not.
+
+## 29. Git integration and live publication
+
+Fetch the latest `origin/staging`.
+
+Integrate the corrections into an isolated worktree.
+
+Preserve:
+
+- Maintenance Management.
+- Incident Management.
+- Driver availability.
+- Existing rental lifecycle.
+- Fleet Management.
+- Expense management.
+- Existing staging billing.
+- Withdrawn vehicle-swap restrictions.
+
+Commit the validated changes.
+
+Push to `origin/staging` using a normal fast-forward push.
+
+No force pushes.
+
+Verify Hostinger publishes the final staging commit.
+
+Verify the live frontend includes:
+
+- Updated effective fleet status.
+- Updated Vehicle Details.
+- Contextual maintenance actions.
+- Early-start confirmation.
+- Actual maintenance timestamps.
+- Incident-to-maintenance creation.
+- Optional incident association.
+- Related maintenance presentation.
+
+Verify the staging project reference is present and the production project reference is absent.
+
+Do not claim live publication success based solely on a successful Git push.
+
+## 30. Roadmap and production release manifest
+
+Update:
+
+- `Roadmap/RoadMapFiles/FEATURE_TRACKER.md`
+- `Roadmap/RoadMapFiles/MASTER_ROADMAP.md`
+- `Roadmap/RoadMapFiles/CHANGELOG.md`
+- `Roadmap/RoadMapFiles/ARCHITECTURE_DECISIONS.md`, where applicable.
+- `Roadmap/RoadMapFiles/PRODUCTION_RELEASE_MANIFEST.md`
+
+Record the approved architectural decision:
+
+Maintenance-related vehicle status is derived from Maintenance Management records and effective operational restrictions, rather than a standalone manual maintenance status toggle.
+
+Record the approved incident integration:
+
+Incident Details provides Create maintenance as the primary incident-related repair workflow, while incident association remains optional.
+
+Preserve existing roadmap identifiers.
+
+Record:
+
+- Original maintenance implementation.
+- Corrective changes.
+- Required migrations.
+- Source commits.
+- Migration dependencies.
+- Automated validation.
+- Staging database status.
+- Frontend publication status.
+- Manual acceptance status.
+- Outstanding production release requirements.
+
+Preserve the previously accepted Driver Availability status of 9/9 manual tests passed.
+
+Retain outstanding independent concurrency testing and production compatibility verification as production release requirements.
+
+Do not mark Maintenance Management manually accepted without actual owner confirmation.
+
+Rental Financial Adjustments remains the next work package.
+
+Do not begin that work package during this execution.
+
+## 31. Restrictions
+
+- No production access or deployment.
+- No production database changes.
+- No force pushes.
+- No remote history rewrites.
+- No unrelated database migrations.
+- No duplicate maintenance system.
+- No duplicate vehicle availability engine.
+- No duplicate operational status engine.
+- No standalone manual maintenance status bypass.
+- No automatic clearing of legacy safety restrictions.
+- No fabricated maintenance history.
+- No unsafe vehicle release.
+- No automatic rental cancellation.
+- No automatic rental completion.
+- No automatic vehicle substitution.
+- No vehicle-swap reactivation.
+- No automatic incident resolution.
+- No mandatory incident association.
+- No dedicated incident relationship administration module.
+- No duplicate expense ledger.
+- No automatic customer charges.
+- No billing or Stripe changes.
+- No destructive staging data cleanup.
+- No unnecessary navigation redesign.
+- No unrelated feature development.
+- No repeated assessment-only execution.
+
+## 32. Final consolidated report
+
+Save one consolidated implementation and deployment report to:
+
+`E:\pevvy-car-rental-saas-main\Roadmap\Reports\PEVVY_MAINTENANCE_FLEET_STATUS_INTEGRATION_CORRECTION.md`
+
+Include:
+
+1. Executive summary.
+2. Root cause of the observed status inconsistencies.
+3. Effective vehicle status implementation.
+4. Legacy operational status toggle changes.
+5. Legacy maintenance restriction inventory and handling.
+6. Fleet Management integration.
+7. Vehicle Details integration.
+8. Future maintenance scheduling behaviour.
+9. Early-start confirmation.
+10. Rental conflict revalidation.
+11. Actual maintenance timestamps.
+12. Maintenance completion and cancellation behaviour.
+13. Multiple maintenance restrictions.
+14. Independent operational restrictions.
+15. Downtime calculation and numeric test evidence.
+16. Incident-to-maintenance creation.
+17. Optional incident association.
+18. Related maintenance presentation.
+19. Expense, service reminder and attachment integration.
+20. Query refresh behaviour.
+21. Backend authorization and tenant isolation.
+22. Transactional integrity and concurrency status.
+23. Automated test results.
+24. Relevant regression results.
+25. Files changed.
+26. Database migration details, if applicable.
+27. Staging database deployment results.
+28. Final source commit.
+29. Guarded build results.
+30. Git staging push results.
+31. Hostinger live publication verification.
+32. Roadmap updates.
+33. Production release manifest updates.
+34. Consolidated manual acceptance checklist.
+35. Genuine remaining blockers or limitations.
+
+Clearly distinguish:
+
+- Implemented.
+- Automatically validated.
+- Deployed.
+- Manually verified.
+- Pending.
+- Blocked.
+
+When resolving an incident with outstanding scheduled or in-progress maintenance records, display a confirmation warning listing the associated outstanding maintenance.
+
+Allow the authorized operator to proceed with incident resolution after explicit confirmation.
+
+Resolving the incident must not:
+
+- Complete or cancel maintenance records.
+- Remove maintenance restrictions.
+- Change vehicle availability.
+- Remove incident-maintenance relationships.
+- Modify rental custody or financial history.
+
+Preserve access to related maintenance records from resolved incidents.
+
+Allow authorized operators to create additional maintenance from resolved incidents where necessary.
+
+Include this requirement in the existing consolidated implementation and deployment report.
+
+Archive this consolidated prompt to:
+
+`E:\pevvy-car-rental-saas-main\Roadmap\Prompts\PEVVY_MAINTENANCE_FLEET_STATUS_INTEGRATION_CORRECTION_PROMPT.md`
+
+This prompt supersedes all previous Maintenance Management correction addendums.
+
+Execute the complete implementation, validation and staging deployment now.
+
+Do not stop after producing another planning or assessment document.
