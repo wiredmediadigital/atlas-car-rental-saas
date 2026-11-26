@@ -126,3 +126,33 @@ never fire because nothing recorded a completion odometer.
 Not accepted: 26 passed / 1 failed / 0 untested stands unchanged. Scenario 19 stays failed
 until the owner verifies it; dashboard acceptance is recorded separately as scenario 28.
 Production untouched and NO-GO.
+
+## 2026-11-26 — preventive servicing deployment closure
+
+The owner applied `20261126120000_maintenance_service_plan_advancement.sql`. Verified
+independently: 141 local, 141 applied, zero drift. Both new functions were read back from
+the hosted schema — `authenticated` and `service_role` granted, `anon` granted nothing,
+both SECURITY DEFINER with a fixed `search_path`, and the downtime function scoped by
+`app.is_org_member` inside its own WHERE clause.
+
+The downtime tile is operational. A live probe returned `42501 permission denied` rather
+than `PGRST202 not found`, which is the distinction that matters: PostgREST resolved the
+function and its named signature and Postgres refused the anonymous role, so the schema
+cache has reloaded and the tile's error path is gone.
+
+The fleet CSV export's `Next service` column now reads the authoritative service plan
+instead of the frozen `vehicles.next_service_on`. The column keeps its name, its position
+and the file's 33 columns. A configured plan wins; a mileage-only plan leaves the cell
+blank, because such a vehicle is due at a reading and not on a day and a fallback there
+would print a plausible wrong date; the legacy date survives only where no plan exists at
+all. It resolves through `evaluateVehicleServicing`, the same call Vehicle Details makes,
+so the file and the screen cannot disagree. Plans are paged, so a fleet over PostgREST's
+1,000-row ceiling does not report everything after the first page as unplanned.
+
+The build moved 198 → 199 files. Investigated rather than assumed: rebuilding the previous
+commit reproduced its recorded hash exactly, and the added file is the maintenance API
+emitted as a shared chunk now that the Vehicles page reaches it.
+
+Not accepted: 26 passed / 1 failed / 0 untested stands unchanged. Scenario 19 and the
+dashboard's scenario 28 both await owner verification. No migration was created,
+production was not touched, and it remains NO-GO.

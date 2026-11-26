@@ -114,3 +114,44 @@ no production deployment is claimed.**
 - Deployment report: `Roadmap/Reports/PEVVY_PREVENTIVE_SERVICING_FINAL_CORRECTION.md`
 - Manual acceptance: **NOT PERFORMED.** 26 passed / 1 failed / 0 untested stands. Scenario
   19 remains failed until the owner verifies it; dashboard acceptance is scenario 28.
+
+## 2026-11-26 — preventive servicing deployment closure (staging)
+
+- Published commit: `dd01c82c2e1da56edcb143c9186d9b6f3feae323`
+- `origin/staging`: `0f4fc5e..dd01c82`, fast-forward, no force. `origin/main` unchanged at
+  `31383a97eb8e000f9189913b255af4da22bf3a26`.
+- Staging migration `20261126120000_maintenance_service_plan_advancement.sql`: **APPLIED**
+  by the owner. Ledger verified independently and mechanically: 141 local, 141 applied,
+  0 local-only, 0 remote-only, 0 mismatched pairs, last applied `20261126120000`.
+- Function permissions: **verified on the hosted database** this time, not owner-reported,
+  by reading back the live schema. `maintenance_fleet_downtime` and `maintenance_complete`
+  are both `REVOKE ALL ... FROM PUBLIC` with `authenticated` and `service_role` granted and
+  `anon` absent; both SECURITY DEFINER with `search_path = public, pg_temp`.
+- Downtime RPC reachability: a live anonymous call returned HTTP 401 `42501 permission
+  denied for function`, not `PGRST202`. PostgREST resolves the function and its named
+  signature, so the schema cache has reloaded and the dashboard tile no longer errors.
+- Source change: the fleet CSV export's `Next service` column, which was still printing the
+  now-unwritable legacy column. Column name, position and the file's 33 columns unchanged.
+- Guarded build: 199 files, `09ef62a85d3e6ce7…`. The 198 → 199 move was investigated: the
+  previous commit rebuilds to 198 files and `f5e07fe48e3a17c0…`, exactly its recorded hash,
+  and the added file is `assets/api-*.js` emitted as a shared chunk.
+- Deployment result: **success.** Manifest `9a8ba920…`/198 →
+  `e4c586445ed429e7986c344e5d10d17328938eaaf2e10a8d3836785be2a1f698`/199. Verified by
+  content: 173 asset files crawled, 171 of 171 `.js` served as JavaScript, the eight
+  strings unique to the previous release all still present, 0 production references, 0
+  leaked secret keys. Because this release adds no new user-visible string, the CSV
+  correction was proved structurally: the deployed `VehiclesPage` chunk now reaches the
+  chunk holding the service-plan query, which it did not before.
+- Production verification result: **none. Production was not touched.**
+- Known issues: the deployed artifact hash remains unreproducible by the deploying party —
+  the host rebuilds from source. `npm run lint` is still red on this baseline with 12
+  pre-existing errors in `incidents/api.ts`, `IncidentNewPage.tsx` and `RentalNewPage.tsx`.
+  Six of nine Edge Functions remain undeployed.
+- Rollback reference: previous staging tip `0f4fc5e7ce2bd7003f4aa8fea124361933a45b0a`,
+  previously deployed artifact
+  `9a8ba920d0cbbee1a1c332b8a36e36998d68019652add28f9a34b776005de424`. Frontend-only; the
+  migration replaces a function with a compatible signature, so the previous frontend runs
+  against it unchanged.
+- Deployment report: `Roadmap/Reports/PEVVY_PREVENTIVE_SERVICING_DEPLOYMENT_CLOSURE.md`
+- Manual acceptance: **NOT PERFORMED.** 26 passed / 1 failed / 0 untested stands. Scenario
+  19 and scenario 28 both await owner verification.

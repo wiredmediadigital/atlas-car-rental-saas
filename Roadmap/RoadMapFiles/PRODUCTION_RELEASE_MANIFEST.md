@@ -81,3 +81,46 @@ owner approval and was not attempted.
 - A reproducible deployment artifact hash: Hostinger rebuilds from source rather than
   publishing the reviewed artifact, so the expected-SHA control cannot currently pass.
 - Independent concurrency verification.
+
+## Preventive servicing deployment closure — 2026-11-26
+
+- Published commit: `dd01c82c2e1da56edcb143c9186d9b6f3feae323`
+- `origin/staging`: `0f4fc5e..dd01c82`, fast-forward, no force. `origin/main` unchanged at
+  `31383a97eb8e000f9189913b255af4da22bf3a26`.
+- Staging migration `20261126120000_maintenance_service_plan_advancement.sql`: **APPLIED**
+  by the owner. Ledger verified independently: **141 local, 141 applied, zero drift**, last
+  applied `20261126120000`.
+- Function permissions after the migration: **independently verified on the hosted
+  database** by reading back the live schema — not owner-reported, unlike the previous
+  entry. `maintenance_fleet_downtime` and `maintenance_complete`: `authenticated` true,
+  `service_role` true, **`anon` absent**; both SECURITY DEFINER with
+  `search_path = public, pg_temp`; the downtime function scoped by `app.is_org_member`
+  within its own WHERE clause.
+- PostgREST exposure confirmed live: anonymous call returns `42501 permission denied for
+  function`, not `PGRST202`, so the schema cache has reloaded.
+- **No migration was created by this package.** `supabase/migrations/` is unchanged at 141.
+- Hostinger staging publication: **verified by content.** Manifest moved `9a8ba920…`/198
+  files to `e4c58644…`/199 files, project ref `yeklucfthspvejlkffln`. 173 asset files
+  crawled; 171 of 171 `.js` served as JavaScript; 0 production references; 0 secret keys.
+- The single added file was investigated, not assumed: the previous commit rebuilds to 198
+  files and `f5e07fe48e3a17c0…`, exactly its recorded hash, and the 199th file is
+  `assets/api-*.js` emitted as a shared chunk now that the Vehicles page reaches it.
+- Deployed artifact SHA still differs from the locally guarded `09ef62a8…`; the host
+  rebuilds from source rather than publishing the reviewed artifact. File count matches.
+- Edge Functions: **none deployed.** Six of nine remain undeployed, as before.
+- Production project `ysnumxtzcgzyabrghxwq`: unchanged, not accessed, not linked.
+- Production release: **NO-GO.**
+
+### Outstanding before promotion
+
+- Owner manual acceptance of **scenario 19** (preventive servicing) and **scenario 28**
+  (maintenance dashboard). The register stands at 26 passed / 1 failed / 0 untested and the
+  11/11/4 owner baseline is unchanged.
+- The 12 pre-existing lint errors in `incidents/api.ts`, `IncidentNewPage.tsx` and
+  `RentalNewPage.tsx`.
+- Six undeployed staging Edge Functions.
+- A reproducible deployment artifact hash.
+- Independent concurrency verification.
+- Assignment activation defaulting ON against the STG-02 contract — owner decision.
+- Whether eleven incident and maintenance write RPCs should call
+  `app.billing_require_write` — owner decision.

@@ -49,3 +49,24 @@ Related: incident/maintenance integration, vehicle restriction actions
 (`vehicle_take_off_road`, `vehicle_return_to_service`,
 `vehicle_resolve_legacy_maintenance`), preventive servicing, maintenance documents and
 expense links, and the CSV import restriction safeguard.
+
+## Preventive servicing deployment closure — 2026-11-26
+
+| Area | State | Evidence |
+|---|---|---|
+| Preventive servicing | Correction deployed to staging; **scenario 19 awaiting owner acceptance** | `dd01c82`, `20261126120000_maintenance_service_plan_advancement.sql` applied |
+| Maintenance dashboard | Deployed; downtime tile operational; **scenario 28 awaiting owner acceptance** | `maintenance_fleet_downtime` live, `42501` probe |
+| Fleet CSV export | `Next service` column now reads the authoritative plan; contract unchanged, 33 columns | `src/features/vehicles/export.ts`, 7 new tests |
+| Migration ledger | 141 local / 141 applied / zero drift | `supabase migration list --linked` |
+| Rental Financial Adjustments | Not started | Next package |
+
+| Field | Value |
+|---|---|
+| Status | Deployed to staging; **awaiting owner manual acceptance** |
+| Staging commit | `dd01c82c2e1da56edcb143c9186d9b6f3feae323` |
+| Deployed artifact | `e4c58644…`, 199 files, verified by content |
+| Acceptance register | 26 passed / 1 failed / 0 untested — **unchanged, not re-run** |
+| Production | NO-GO |
+
+The owner's acceptance baseline of 11 passed, 11 failed and 4 pending remains the
+historical record and is not superseded by any automated result here.
