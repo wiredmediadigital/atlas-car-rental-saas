@@ -80,3 +80,37 @@ no production deployment is claimed.**
 - Deployment report: `Roadmap/Reports/PEVVY_MAINTENANCE_EXPENSE_WORKFLOW_ENHANCEMENT.md`
 - Manual acceptance: **NOT PERFORMED.** Owner baseline 11 passed / 11 failed / 4 pending
   stands unchanged. Suggested scenario 27 is in §11 of the report.
+
+## 2026-11-26 — Preventive servicing correction and Maintenance dashboard (staging)
+
+- Commits: `3ba371e`..`cd6fc95` (nine). One fast-forward to `origin/staging`; no force
+  push; `origin/main` unchanged at `31383a9`.
+- Database: **one corrective migration, `20261126120000`, NOT APPLIED.** Staging stands at
+  **140 applied / 141 local**, drift of 1 by design. It replaces `maintenance_complete`
+  to advance a recurring service plan, and adds `maintenance_fleet_downtime`. Additive:
+  two `create or replace`, a comment and grants; no table DDL, nothing dropped.
+- Deployment environment: Supabase `yeklucfthspvejlkffln` + Hostinger staging
+  (`quantum-lavenderblush-buffalo-97.hostingersite.com`).
+- Feature flag status: no flag introduced.
+- Deployment result: **success.** Manifest `7fec4e62…`/196 → `9a8ba920…`/198. Verified by
+  content: 172 asset files crawled, eight strings unique to this release found in the
+  deployed bundle, the `MaintenanceDetailPage` chunk byte-identical to the local artifact
+  once chunk hashes are normalised, 0 production references and 0 leaked secret keys.
+- Until the migration is applied: recurring advancement does not happen (no regression,
+  the defect simply persists) and the dashboard's downtime tile reads "Unavailable" and
+  says why, rather than a bare dash that would look like zero. It self-heals on apply with
+  no redeploy.
+- Production verification result: **none. Production was not touched.**
+- Known issues: the deployed artifact hash is still not reproducible by the deploying
+  party — the host rebuilds from source and Tailwind emits a LAB colour component
+  differing by 0.000015. `npm run lint` remains red on this baseline with 12 pre-existing
+  errors in `incidents/api.ts`, `IncidentNewPage.tsx` and `RentalNewPage.tsx`. The fleet
+  CSV export still carries a "Next service" column sourced from the now-unwritable legacy
+  column — left deliberately, needs an owner decision.
+- Rollback reference: previous staging tip `0766e82b4af959b01d1f6bc499056d388d8652ec`,
+  previously deployed artifact
+  `7fec4e624cd75a62a4df1108d9cf2786a8ea83d9da6dcad2adea0b171a913bbf`. Frontend-only
+  rollback; the migration is unapplied, so there is nothing to reverse.
+- Deployment report: `Roadmap/Reports/PEVVY_PREVENTIVE_SERVICING_FINAL_CORRECTION.md`
+- Manual acceptance: **NOT PERFORMED.** 26 passed / 1 failed / 0 untested stands. Scenario
+  19 remains failed until the owner verifies it; dashboard acceptance is scenario 28.

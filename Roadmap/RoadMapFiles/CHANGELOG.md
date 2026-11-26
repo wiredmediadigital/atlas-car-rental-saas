@@ -83,3 +83,46 @@ the schema was already sufficient.
 
 Not accepted: the owner's 11 passed / 11 failed / 4 pending baseline is unchanged — this
 adds a scenario rather than resolving one. Production untouched and NO-GO.
+
+## 2026-11-26 — Preventive servicing correction and Maintenance dashboard (staging)
+
+Published `3ba371e`..`cd6fc95` to `origin/staging` as fast-forwards. One corrective
+migration, `20261126120000`, **not applied** — staging stands at 140 applied, 141 local.
+
+Scenario 19. The service plan was always being saved: replaying the real migration
+history, `maintenance_set_service_plan` stores all four columns and reads back intact.
+Every symptom the owner reported was a surface that failed to show it.
+
+- The read-back lived in the `canManage === false` branch, so the manager who saves was
+  the one person who never saw what had been stored. It now renders for everyone.
+- `toNumberOrNull` turned `5,000` into `null` while the RPC overwrites all four columns,
+  so a mistyped box silently erased a stored interval and reported success. Parsing is
+  strict and per-field now, and the boxes re-seed from the row the RPC returns.
+- `text-danger` is not a token in this Tailwind v4 theme, so every error using it rendered
+  as grey body text. Nine call sites across maintenance, vehicles and incidents.
+- Nothing outside that one card read the plan, and `maintenance_due_summary` had zero
+  frontend callers. Vehicle Details was reading an unrelated legacy column.
+
+Service status now has one home in `src/lib/compliance/service.ts`, reusing the agency's
+own lead days and reading the day in its time zone. Vehicle Details gains a Service and
+maintenance card and loses the Next service row from Compliance. The general vehicle form
+no longer edits `next_service_on`; the key came out of the write payload first, so stored
+dates survive an edit rather than being nulled one vehicle at a time.
+
+Completing qualifying maintenance now advances the plan — the owner's worked example,
+2026-12-10 at 55,200 with 180 days and 5,000, gives 2027-06-08 and 60,200 — and the
+completion asks for an odometer reading only where the plan recurs on distance.
+
+The Maintenance page becomes a dashboard: eight figures that say which are states and
+which are period totals, a filterable records tab, and a fleet-wide preventive servicing
+tab including vehicles with no plan.
+
+Found and fixed before publication: dashboard sums silently truncated by `max_rows = 1000`
+(two of them money), and nineteen defects from a 93-agent adversarial review — dates
+rendering a day early, a form that could write superseded values back over an advanced
+plan, a failing SECURITY DEFINER allow-list test, and a distance advancement that could
+never fire because nothing recorded a completion odometer.
+
+Not accepted: 26 passed / 1 failed / 0 untested stands unchanged. Scenario 19 stays failed
+until the owner verifies it; dashboard acceptance is recorded separately as scenario 28.
+Production untouched and NO-GO.

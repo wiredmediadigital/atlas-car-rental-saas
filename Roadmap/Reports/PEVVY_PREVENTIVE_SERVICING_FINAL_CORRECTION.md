@@ -392,9 +392,152 @@ Then confirm the ledger reconciles at 141 / 141, and re-check the downtime tile.
 I did not run these. The execution environment refused a database push in this work
 package's predecessor and that restriction is respected.
 
-<!-- REVIEW -->
+---
 
-<!-- DEPLOYMENT -->
+## 12. Adversarial review, and what it caught
+
+The seven implementation commits went through a 93-agent review before anything was
+published: six reviewers over distinct dimensions, then **three independent refuters per
+finding**, each told to default to "refuted" unless it could confirm the defect from the
+code. **29 candidates, 19 confirmed, 10 refuted.** Fixed in `cd6fc95`.
+
+Four of the confirmed findings were about reads capped by `max_rows` and had already been
+fixed in `4548b99`, which the review did not see.
+
+### The ones that mattered
+
+**Dates rendered a day early.** All three new surfaces passed
+`new Date('2026-12-01')` — midnight UTC — into `formatDate` with the agency zone, printing
+*30 November* anywhere behind Greenwich. The "Due in N days" line beside it is computed on
+calendar days and was correct, so a row was labelled with one day and sorted under
+another. **It was also a regression**: the Compliance row this card replaced used
+`parseIsoDate`, which exists for exactly this. I had written the warning about this
+anti-pattern into `service.ts` and then committed it three times in the rendering layer.
+
+**The form could undo the advancement.** The service plan inputs were seeded once. After
+completing the maintenance — which moves the plan on — the boxes still held the superseded
+figures, and pressing **Save service plan** wrote them straight back, reverting the one
+thing completing the work was supposed to do. The form now follows the stored plan when it
+changes underneath it.
+
+**A test I had not run was failing.** `maintenance_fleet_downtime` was missing from the
+repository's enumerated `SECURITY DEFINER` allow-list in `analytics-security.test.ts` —
+the gate built to catch precisely this, an unreviewed RLS-bypassing function appearing in
+`public`. The reviewer ran the suite and it failed. I confirmed it, then added the entry
+with its justification. **I should have run that suite before claiming the database tests
+passed.**
+
+**The distance advancement could never fire.** `coalesce(completion_odometer,
+start_odometer)` was the only input, and *nothing in the product ever wrote either
+column* — the Complete button sent two parameters and neither was an odometer. The feature
+was correct and unreachable. Completing a record that recurs on distance now asks for the
+reading, prefilled from the vehicle and optional. **Only that record asks**; every other
+completion behaves exactly as before, so no accepted scenario changes.
+
+**A vehicle's servicing is now evaluated across every plan it carries**, rather than
+picking one record and evaluating only that. A passed odometer threshold on a second
+record used to be invisible. Selection also prefers a live record over a completed one — a
+years-old completed one-off reminder used to win on date and report a vehicle permanently
+overdue — and breaks ties deterministically, so two screens feeding the same rows in
+different orders cannot disagree.
+
+**The downtime window did not cover the month it named.** Agency-local dates were passed
+to a `timestamptz` parameter and read at the server's midnight. It sends instants now.
+
+Plus: a page number past the last page clamps instead of rendering a blank list with no
+way back; an unknown actual cost shows as loading rather than `—`, which read as "this job
+was free"; the phone list no longer renders an empty card while loading.
+
+### Refuted, and left alone
+
+Ten findings did not survive, including a claimed grant widening on
+`maintenance_complete` (0/3), raw Postgres errors from absurd interval values (0/3),
+negative minutes from an inverted window (0/3), and the tab strip's ARIA (0/3).
+
+One finding I am **not** acting on, though it was confirmed twice: the fleet CSV export
+still carries a **Next service** column sourced from the legacy
+`vehicles.next_service_on`, which nothing can write any more. The reviewers are right that
+it is now misleading — frozen for old vehicles, permanently blank for new ones. I have
+left it because changing an export's column set is an outward-facing contract change you
+have not approved, and dropping the column would discard the stored history this work
+package was told to preserve. **It needs your decision:** keep it as a frozen historical
+column, relabel it, or remove it.
+
+### An honest note on the method
+
+Three of the nineteen were defects I introduced *while writing the code that warns against
+them*. The row-cap defect in §8 was one I found myself, after the review had already been
+launched against a commit that still contained it. Neither the review nor my own reading
+was sufficient alone.
+
+
+
+---
+
+## 15. Staging deployment evidence
+
+Published to `origin/staging` as a fast-forward. No force push, no history rewrite.
+**`origin/main` untouched at `31383a9`** throughout.
+
+```
+0766e82..cd6fc95  HEAD -> staging
+```
+
+**Final source commit: `cd6fc95`.** Nine commits, 52 files, +4,996 / −273.
+
+| Commit | |
+|---|---|
+| `3ba371e` | render error messages in a colour that exists |
+| `813d4a3` | one rule for whether a vehicle is due a service |
+| `11c9ba4` | show an editor what the service plan actually says |
+| `41daefa` | stop a general vehicle edit owning the next service date |
+| `97f63ce` | show a vehicle its real servicing, not an orphaned date |
+| `cbd94fc` | a completed service works out when the next one is due |
+| `906f679` | turn the maintenance list into an operational dashboard |
+| `4548b99` | stop the dashboard figures inheriting the 1000-row cap |
+| `cd6fc95` | nineteen defects found by adversarial review of this branch |
+
+### Artifacts
+
+| | SHA-256 | Files |
+|---|---|---|
+| Local guarded build | `f5e07fe48e3a17c0ee5d19c616473e99eae16aa88aeaf34592a7f15603749f2b` | 198 |
+| Deployed | `9a8ba920d0cbbee1a1c332b8a36e36998d68019652add28f9a34b776005de424` | 198 |
+
+The two differ, and are expected to. The host rebuilds from source rather than publishing
+the artifact checked here, and Tailwind emits a LAB colour component differing in the
+sixth decimal place, which moves every downstream content hash. Traced to the byte in the
+previous two releases and recorded there. **This remains an open gate: an artifact hash
+the deploying party cannot reproduce is a control that can only pass by accident.**
+
+### Verified by content, not by status code
+
+The host answers `200 text/html` for every path that does not exist, so an HTTP status
+proves nothing here. **172 asset files crawled** by following the chunk graph from
+`index.html` through the lazily loaded route chunks; **170 are `.js` and every one is
+served with a JavaScript content type**.
+
+Eight strings that exist only in this release, all found in the deployed bundle:
+
+| String | Chunk |
+|---|---|
+| `Service and maintenance` | `VehicleDetailPage-CYi9Bz84.js` |
+| `No service plan configured` | `VehicleDetailPage-CYi9Bz84.js` |
+| `Manage service plan` | `VehicleDetailPage-CYi9Bz84.js` |
+| `Set at least one reminder` | `MaintenanceDetailPage-ClRwakdO.js` |
+| `Enter the distance as a whole number` | `MaintenanceDetailPage-ClRwakdO.js` |
+| `Odometer at the service` | `MaintenanceDetailPage-ClRwakdO.js` |
+| `Preventive servicing` | `MaintenancePage-HFxu-P8H.js` |
+| `Vehicles in maintenance` · `Service overdue` | `MaintenancePage-HFxu-P8H.js` |
+
+The deployed `MaintenanceDetailPage` chunk is **23,979 bytes, exactly as built**, and
+**byte-identical to the local artifact** once the eight-character content hashes inside
+import specifiers are normalised — both `693a2fe4…`.
+
+**0 production project references. 0 leaked secret keys.** The build guard rejected
+neither, and the crawl confirms it on the served bytes.
+
+
 
 ---
 
