@@ -144,11 +144,17 @@ describe('what the interface offers a restricted agency', () => {
       'financingDocuments.view',
       'financingPayments.view',
       'gps.view',
+      // Incidents and maintenance are read-only here for the same reason the
+      // rest of this list is: what happened to a vehicle, and what was done
+      // about it, stays legible after the subscription stops paying for the
+      // ability to change it.
+      'incidents.view',
       // Reading an enquiry costs nothing, and erasing one is an obligation
       // that does not lapse with the subscription: see AVAILABLE_WHEN_RESTRICTED.
       'leads.delete',
       'leads.view',
       'lenders.view',
+      'maintenance.view',
       'organization.update',
       'organization.view',
       'payments.view',

@@ -45,6 +45,13 @@ const optionalWholeNumber = (max: number, label: string) =>
     .refine((value) => value === null || Number(value) <= max, `${label} looks too large.`)
     .transform((value) => (value === null ? null : Number(value)))
 
+/**
+ * Labels for an operational status, for reading only.
+ *
+ * Nobody edits this field any more: a maintenance restriction comes from a
+ * maintenance record, and an independent one from the off-road action. These
+ * labels are what the fleet table, badges and the CSV export print.
+ */
 export const VEHICLE_STATUS_OPTIONS = [
   { value: 'available', label: 'In service' },
   { value: 'maintenance', label: 'In maintenance' },
@@ -149,7 +156,6 @@ export function buildVehicleSchema(currency: string, now: Date = new Date()) {
 
       dailyRate,
       currency: z.string().refine(isValidCurrencyCode, 'Choose a currency.'),
-      status: z.enum(['available', 'maintenance', 'unavailable']),
 
       /*
        * Whether this car may be requested from the agency's public booking
@@ -203,7 +209,6 @@ export function emptyVehicleForm(currency: string): VehicleFormInput {
     odometer: '0',
     dailyRate: '',
     currency,
-    status: 'available',
     publicBookingEnabled: false,
     insuranceExpiresOn: '',
     inspectionExpiresOn: '',

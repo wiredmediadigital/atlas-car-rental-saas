@@ -20,7 +20,6 @@ import { getCurrencySymbol, minorToDecimalString } from '@/lib/money/money'
 import {
   FUEL_TYPE_OPTIONS,
   TRANSMISSION_OPTIONS,
-  VEHICLE_STATUS_OPTIONS,
   buildVehicleSchema,
   emptyVehicleForm,
   type VehicleFormInput,
@@ -183,14 +182,14 @@ export function VehicleForm({
               <Input inputMode="numeric" numeric suffix={distanceUnit} {...register('odometer')} />
             </Field>
 
-            <Field
-              label="Status"
-              error={errors.status?.message}
-              hint="Rented and reserved are set by contracts."
-              required
-            >
-              <Select options={VEHICLE_STATUS_OPTIONS} {...register('status')} />
-            </Field>
+            {/*
+              Status used to be edited here, and that was the bug. This form
+              submits the whole row, so the field cleared whatever restriction
+              the car was under every time somebody corrected a typo in its
+              notes. A restriction now comes from a maintenance record or from
+              the off-road action on the vehicle's own page, and the database
+              refuses an edit that tries to change the column.
+            */}
 
             <Field
               label="Show on the public booking page"
@@ -280,7 +279,6 @@ export function vehicleToFormInput(vehicle: {
   odometer: number
   daily_rate_minor: number
   currency: string
-  operational_status: VehicleFormInput['status']
   public_booking_enabled: boolean
   insurance_expires_on: string | null
   inspection_expires_on: string | null
@@ -304,7 +302,6 @@ export function vehicleToFormInput(vehicle: {
     // so saving without touching the field cannot round it.
     dailyRate: minorToDecimalString(vehicle.daily_rate_minor, vehicle.currency),
     currency: vehicle.currency,
-    status: vehicle.operational_status,
     publicBookingEnabled: vehicle.public_booking_enabled,
     insuranceExpiresOn: vehicle.insurance_expires_on ?? '',
     inspectionExpiresOn: vehicle.inspection_expires_on ?? '',

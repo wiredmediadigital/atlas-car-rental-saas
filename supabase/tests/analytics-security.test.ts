@@ -174,6 +174,28 @@ describe('nothing in the schema can bypass RLS', () => {
      * inside the person's own UPDATE on profiles, so the trigger puts a recorded
      * acceptance back and makes a first stamp say what the server knows.
      *
+     * And Incident, Maintenance and driver availability, added by their own
+     * work packages. The browser holds SELECT on maintenance_records and no
+     * write privilege at all, so every lifecycle change runs inside a function
+     * that checks has_min_role itself and enforces rules a policy cannot
+     * express: that only a scheduled record starts, that completing one record
+     * does not release a vehicle another still restricts, and that a vehicle
+     * and an incident belong to the same agency. The read-only members of the
+     * group — maintenance_conflicts, maintenance_due_summary,
+     * maintenance_actual_cost, maintenance_vehicle_downtime and
+     * driver_availability — are definer so they can read across rentals,
+     * expenses and vehicles on the caller's behalf, and each re-checks
+     * is_org_member before returning a row.
+     *
+     * And the three vehicle restriction actions, which replaced the operational
+     * status dropdown. vehicles.status is no longer writable by any browser
+     * role, so applying or releasing a restriction has to run inside a function
+     * that names which restriction it is touching. All three check manager
+     * membership. vehicle_return_to_service and
+     * vehicle_resolve_legacy_maintenance also ask app.billing_require_write;
+     * vehicle_take_off_road deliberately does not, for the reason written in
+     * the header of 20261125130000.
+     *
      * Anything else appearing in this list is a leak.
      *
      * Assignment lifecycle functions are also deliberate definer entry points:
@@ -196,6 +218,7 @@ describe('nothing in the schema can bypass RLS', () => {
       'change_team_member_role',
       'create_organization',
       'create_team_invitation',
+      'driver_availability',
       'financing_activate_agreement',
       'financing_generate_schedule',
       'gps_claim_action',
@@ -203,7 +226,22 @@ describe('nothing in the schema can bypass RLS', () => {
       'gps_disconnect_connection',
       'gps_read_credential',
       'gps_store_credential',
+      'incident_create',
+      'incident_resolve',
+      'incident_update',
       'leave_organization',
+      'maintenance_actual_cost',
+      'maintenance_cancel',
+      'maintenance_complete',
+      'maintenance_conflicts',
+      'maintenance_create',
+      'maintenance_due_summary',
+      'maintenance_link_expense',
+      'maintenance_reschedule',
+      'maintenance_set_service_plan',
+      'maintenance_start',
+      'maintenance_unlink_expense',
+      'maintenance_vehicle_downtime',
       'mfa_generate_recovery_codes',
       'mfa_record_enrolment',
       'notification_dismiss',
@@ -233,6 +271,9 @@ describe('nothing in the schema can bypass RLS', () => {
       'team_seat_summary',
       'transfer_organization_ownership',
       'vehicle_limit_status',
+      'vehicle_resolve_legacy_maintenance',
+      'vehicle_return_to_service',
+      'vehicle_take_off_road',
       'vehicles_import_batch',
     ])
   })

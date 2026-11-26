@@ -176,6 +176,14 @@ function buildAdapter(
       const fuelCell = read('fuelType').toLowerCase()
       const transmissionCell = read('transmission').toLowerCase()
 
+      /*
+       * The column is still read, so a file written for an older import is not
+       * silently misunderstood -- but it no longer assigns anything. A
+       * restriction comes from a maintenance record or from the off-road
+       * action, never from a spreadsheet cell, so an imported vehicle starts
+       * on the database's own safe default and is restricted afterwards by
+       * somebody who meant to.
+       */
       if (statusCell !== '' && !(statusCell in STATUS_SYNONYMS)) {
         issues.push({ field: 'status', message: `"${statusCell}" is not a status we recognise.` })
       }
@@ -224,7 +232,6 @@ function buildAdapter(
           odometer: odometerCell === '' ? '0' : odometerCell,
           dailyRate: read('dailyRate') || '0',
           currency,
-          status: STATUS_SYNONYMS[statusCell] ?? 'available',
           insuranceExpiresOn: normaliseImportedDate(read('insuranceExpiresOn')) ?? '',
           inspectionExpiresOn: normaliseImportedDate(read('inspectionExpiresOn')) ?? '',
           registrationExpiresOn: normaliseImportedDate(read('registrationExpiresOn')) ?? '',

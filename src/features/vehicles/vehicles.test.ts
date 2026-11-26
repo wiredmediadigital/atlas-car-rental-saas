@@ -119,10 +119,15 @@ describe('vehicle validation', () => {
     expect(schema.safeParse({ ...valid, modelYear: '' }).success).toBe(true)
   })
 
-  it('refuses a status the database cannot store', () => {
-    // 'rented' is derived from contracts and is not a storable operational state.
-    const result = schema.safeParse({ ...valid, status: 'rented' })
-    expect(result.success).toBe(false)
+  it('does not carry an operational status at all', () => {
+    /*
+     * The form submits the whole row, so a status field here cleared whatever
+     * restriction the vehicle was under whenever anybody edited anything else.
+     * A restriction now comes from a maintenance record or from the off-road
+     * action, and the database refuses an edit that changes the column.
+     */
+    const result = schema.parse({ ...valid, status: 'maintenance' })
+    expect(result).not.toHaveProperty('status')
   })
 
   it('turns blank optional fields into null rather than empty strings', () => {
@@ -277,19 +282,27 @@ describe('CSV import validation', () => {
     expect(result.validCount).toBe(0)
   })
 
-  it('reads the status words other systems use', () => {
+  it('accepts a status column without letting it restrict a vehicle', () => {
     const result = validate(
       'Make,Model,Plate,Status\nRenault,Clio,AA-11-BB,In Service\nDacia,Duster,CC-22-DD,Servicing\n',
     )
 
-    expect(result.rows[0]?.values?.status).toBe('available')
-    expect(result.rows[1]?.values?.status).toBe('maintenance')
+    /*
+     * A spreadsheet cell is not an operational decision. The column is still
+     * understood, so a file written for the older import is not rejected, but
+     * an imported vehicle starts on the database's safe default and is taken
+     * off the road afterwards by somebody who meant to.
+     */
+    expect(result.rows[0]?.values).not.toHaveProperty('status')
+    expect(result.rows[1]?.values).not.toHaveProperty('status')
+    expect(isImportable(result.rows[0]!)).toBe(true)
+    expect(isImportable(result.rows[1]!)).toBe(true)
   })
 
-  it('imports a vehicle marked rented as in service, because occupancy is not a column', () => {
+  it('imports a vehicle marked rented, because occupancy is not a column', () => {
     const result = validate('Make,Model,Plate,Status\nRenault,Clio,AA-11-BB,Rented\n')
 
-    expect(result.rows[0]?.values?.status).toBe('available')
+    expect(result.rows[0]?.values).not.toHaveProperty('status')
     expect(isImportable(result.rows[0]!)).toBe(true)
   })
 

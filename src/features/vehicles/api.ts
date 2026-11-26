@@ -10,7 +10,6 @@ import type {
   VehicleDocument,
   VehicleFleetEntry,
   VehicleImage,
-  VehicleOperationalStatus,
   VehicleStatus,
   VehicleUsageRow,
   TransmissionType,
@@ -257,7 +256,6 @@ interface VehicleWritePayload {
   daily_rate_minor: number
   public_booking_enabled: boolean
   currency: string
-  status: VehicleOperationalStatus
   insurance_expires_on: string | null
   inspection_expires_on: string | null
   registration_expires_on: string | null
@@ -280,7 +278,6 @@ function toRow(values: VehicleFormValues): VehicleWritePayload {
     odometer: values.odometer,
     daily_rate_minor: values.dailyRate,
     currency: values.currency,
-    status: values.status,
     public_booking_enabled: values.publicBookingEnabled,
     insurance_expires_on: values.insuranceExpiresOn,
     inspection_expires_on: values.inspectionExpiresOn,
@@ -336,20 +333,41 @@ export async function updateVehicle(
   return data
 }
 
-/** Operational status only — occupancy is never written. */
-export async function setVehicleStatus(
-  vehicleId: string,
-  status: VehicleOperationalStatus,
-): Promise<Vehicle> {
-  const { data, error } = await getSupabaseClient()
-    .from('vehicles')
-    .update({ status })
-    .eq('id', vehicleId)
-    .select('*')
-    .single()
-
+/**
+ * Takes a vehicle off the road for a reason that is not maintenance.
+ *
+ * The status column is no longer writable from here: the database refuses an
+ * edit that changes it, so a restriction can only be applied or released by
+ * the action that names it. The reason is recorded with the restriction, and
+ * Return to service releases that restriction and nothing else.
+ */
+export async function takeVehicleOffRoad(vehicleId: string, reason: string): Promise<void> {
+  const { error } = await getSupabaseClient().rpc('vehicle_take_off_road', {
+    p_vehicle_id: vehicleId,
+    p_reason: reason,
+  })
   if (error) throw toAppError(error)
-  return data
+}
+
+/** Releases the independent off-road restriction, and only that one. */
+export async function returnVehicleToService(vehicleId: string): Promise<void> {
+  const { error } = await getSupabaseClient().rpc('vehicle_return_to_service', {
+    p_vehicle_id: vehicleId,
+  })
+  if (error) throw toAppError(error)
+}
+
+/**
+ * Clears a maintenance restriction left behind by the old manual status, on a
+ * vehicle with no maintenance record to resolve. Refused while real work is
+ * still open, so it cannot be used to release a vehicle that is being repaired.
+ */
+export async function resolveLegacyMaintenance(vehicleId: string, reason: string): Promise<void> {
+  const { error } = await getSupabaseClient().rpc('vehicle_resolve_legacy_maintenance', {
+    p_vehicle_id: vehicleId,
+    p_reason: reason,
+  })
+  if (error) throw toAppError(error)
 }
 
 /** Records a new odometer reading and stamps when it was taken. */

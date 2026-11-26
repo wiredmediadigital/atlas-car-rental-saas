@@ -516,6 +516,12 @@ type VehicleFleetRow = {
   upcoming_maintenance_reference?: string | null
   upcoming_maintenance_start?: string | null
   upcoming_maintenance_expected_completion?: string | null
+  /* Restriction context, appended by the acceptance remediation. */
+  off_road_reason?: string | null
+  off_road_at?: string | null
+  legacy_maintenance_restriction?: boolean | null
+  off_road_restriction?: boolean | null
+  open_maintenance_count?: number | null
 }
 
 export type VehicleLimitStatusRow = {
@@ -2662,13 +2668,38 @@ export interface Database {
       }
       incidents: {
         Row: IncidentRow
-        Insert: Insertable<IncidentRow, 'organization_id' | 'vehicle_id' | 'description', 'id' | 'reference' | 'reported_by' | ManagedColumns>
-        Update: Updatable<IncidentRow, 'id' | 'organization_id' | 'vehicle_id' | 'rental_id' | 'customer_id' | 'reference' | 'reported_by' | ManagedColumns>
+        Insert: Insertable<
+          IncidentRow,
+          'organization_id' | 'vehicle_id' | 'description',
+          'id' | 'reference' | 'reported_by' | ManagedColumns
+        >
+        Update: Updatable<
+          IncidentRow,
+          | 'id'
+          | 'organization_id'
+          | 'vehicle_id'
+          | 'rental_id'
+          | 'customer_id'
+          | 'reference'
+          | 'reported_by'
+          | ManagedColumns
+        >
         Relationships: []
       }
       incident_attachments: {
         Row: IncidentAttachmentRow
-        Insert: Insertable<IncidentAttachmentRow, 'organization_id' | 'incident_id' | 'kind' | 'storage_path' | 'file_name' | 'content_type' | 'byte_size' | 'uploaded_by', 'id' | 'created_at'>
+        Insert: Insertable<
+          IncidentAttachmentRow,
+          | 'organization_id'
+          | 'incident_id'
+          | 'kind'
+          | 'storage_path'
+          | 'file_name'
+          | 'content_type'
+          | 'byte_size'
+          | 'uploaded_by',
+          'id' | 'created_at'
+        >
         Update: never
         Relationships: []
       }
@@ -3550,6 +3581,52 @@ export interface Database {
           p_exclude_rental_id?: string | null
         }
         Returns: string[]
+      }
+      vehicle_take_off_road: {
+        Args: { p_vehicle_id: string; p_reason: string }
+        Returns: VehicleRow
+      }
+      vehicle_return_to_service: {
+        Args: { p_vehicle_id: string }
+        Returns: VehicleRow
+      }
+      vehicle_resolve_legacy_maintenance: {
+        Args: { p_vehicle_id: string; p_reason: string }
+        Returns: VehicleRow
+      }
+      maintenance_vehicle_downtime: {
+        Args: { p_vehicle_id: string; p_from: string; p_to: string }
+        Returns: number
+      }
+      maintenance_actual_cost: {
+        Args: { p_maintenance_id: string }
+        Returns: number
+      }
+      maintenance_reschedule: {
+        Args: {
+          p_maintenance_id: string
+          p_scheduled_start: string | null
+          p_expected_completion: string | null
+        }
+        Returns: unknown
+      }
+      maintenance_set_service_plan: {
+        Args: {
+          p_maintenance_id: string
+          p_interval_days: number | null
+          p_interval_odometer: number | null
+          p_next_service_on: string | null
+          p_next_service_odometer: number | null
+        }
+        Returns: unknown
+      }
+      maintenance_link_expense: {
+        Args: { p_maintenance_id: string; p_expense_id: string }
+        Returns: unknown
+      }
+      maintenance_unlink_expense: {
+        Args: { p_expense_id: string }
+        Returns: unknown
       }
       mfa_generate_recovery_codes: {
         Args: Record<string, never>

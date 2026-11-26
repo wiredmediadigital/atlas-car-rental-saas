@@ -27,7 +27,9 @@ import {
   fetchVehicles,
   restoreVehicle,
   setPrimaryImage,
-  setVehicleStatus,
+  resolveLegacyMaintenance,
+  returnVehicleToService,
+  takeVehicleOffRoad,
   updateOdometer,
   updateVehicle,
 } from './api'
@@ -72,6 +74,31 @@ export const vehicleKeys = {
  */
 async function invalidateFleet(client: QueryClient, organizationId: string): Promise<void> {
   await client.invalidateQueries({ queryKey: vehicleKeys.all(organizationId) })
+}
+
+/**
+ * Everything that changes when a vehicle's restrictions change.
+ *
+ * A restriction is not a fleet-table detail: it decides which cars the rental
+ * forms may offer, what the calendar shows free, and what the maintenance and
+ * incident screens say about the vehicle. Invalidating only the fleet subtree
+ * left a stale "Bookable now" on screen until somebody reloaded the page, which
+ * is exactly what the owner saw. These are whole subtrees on purpose, so a
+ * query added later cannot be forgotten here.
+ */
+export async function invalidateVehicleRestrictions(
+  client: QueryClient,
+  organizationId: string,
+): Promise<void> {
+  await Promise.all([
+    client.invalidateQueries({ queryKey: ['organization', organizationId, 'vehicles'] }),
+    client.invalidateQueries({ queryKey: ['organization', organizationId, 'maintenance'] }),
+    client.invalidateQueries({ queryKey: ['organization', organizationId, 'rentals'] }),
+    client.invalidateQueries({ queryKey: ['organization', organizationId, 'availability'] }),
+    client.invalidateQueries({ queryKey: ['organization', organizationId, 'calendar'] }),
+    client.invalidateQueries({ queryKey: ['organization', organizationId, 'incidents'] }),
+    client.invalidateQueries({ queryKey: ['organization', organizationId, 'expenses'] }),
+  ])
 }
 
 export function useVehicleList(query: Omit<VehicleQuery, 'organizationId'>) {
@@ -304,37 +331,41 @@ export function useUpdateVehicle(vehicleId: string) {
 }
 
 /**
- * Status changes are applied optimistically.
+ * An operational restriction is applied and released by its own action.
  *
- * This is the one fleet mutation where it is clearly safe: a single enum on a
- * row the user is looking at, with no derived totals that would have to be
- * guessed. Anything touching money or occupancy waits for the server.
+ * Nothing here is optimistic. A restriction decides whether a car can be hired
+ * out, and the database is the only thing that knows whether releasing one is
+ * safe -- Return to service is refused while maintenance is still open. Showing
+ * the vehicle as free before the server has agreed would be showing a lie.
  */
-export function useSetVehicleStatus(vehicleId: string) {
+export function useTakeVehicleOffRoad(vehicleId: string) {
   const organization = useOrganization()
   const client = useQueryClient()
-  const key = vehicleKeys.detail(organization.id, vehicleId)
 
   return useMutation({
-    mutationFn: (status: 'available' | 'maintenance' | 'unavailable') =>
-      setVehicleStatus(vehicleId, status),
-    onMutate: async (status) => {
-      await client.cancelQueries({ queryKey: key })
-      const previous = client.getQueryData(key)
+    mutationFn: (reason: string) => takeVehicleOffRoad(vehicleId, reason),
+    onSuccess: () => invalidateVehicleRestrictions(client, organization.id),
+  })
+}
 
-      client.setQueryData(key, (current: unknown) => {
-        if (!current || typeof current !== 'object') return current
-        return { ...current, operational_status: status }
-      })
+export function useReturnVehicleToService(vehicleId: string) {
+  const organization = useOrganization()
+  const client = useQueryClient()
 
-      return { previous }
-    },
-    onError: (_error, _status, context) => {
-      if (context?.previous !== undefined) client.setQueryData(key, context.previous)
-    },
-    // Effective status also depends on contracts, so the server's answer always
-    // replaces the guess rather than being assumed correct.
-    onSettled: () => invalidateFleet(client, organization.id),
+  return useMutation({
+    mutationFn: () => returnVehicleToService(vehicleId),
+    onSuccess: () => invalidateVehicleRestrictions(client, organization.id),
+  })
+}
+
+/** Resolves a restriction left behind by the old manual status. */
+export function useResolveLegacyMaintenance(vehicleId: string) {
+  const organization = useOrganization()
+  const client = useQueryClient()
+
+  return useMutation({
+    mutationFn: (reason: string) => resolveLegacyMaintenance(vehicleId, reason),
+    onSuccess: () => invalidateVehicleRestrictions(client, organization.id),
   })
 }
 

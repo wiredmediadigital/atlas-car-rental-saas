@@ -323,26 +323,94 @@ describe('identifier uniqueness', () => {
   })
 })
 
-describe('status is operational only', () => {
+/**
+ * Operational status is no longer a field anybody edits.
+ *
+ * The owner rejected the manual status dropdown: a restriction now comes from
+ * a maintenance record or from an explicit off-road action, and editing a
+ * vehicle must never clear one as a side effect of submitting the whole row.
+ * These cover the rule at the database, where a direct PostgREST call lands.
+ */
+describe('status follows operational actions, not editing', () => {
   it('refuses to store an occupancy state on a vehicle', async () => {
     for (const status of ['rented', 'reserved']) {
       await db.expectRejection(
         () => db.sql(`update public.vehicles set status = $1 where id = $2`, [status, vehicleA]),
-        /vehicles_status_is_operational|violates check constraint/i,
+        /follow rental contracts|vehicles_status_is_operational|violates check constraint/i,
       )
     }
   })
 
-  it('accepts the three states an agency actually decides', async () => {
-    for (const status of ['maintenance', 'unavailable', 'available']) {
-      await db.sql(`update public.vehicles set status = $1 where id = $2`, [status, vehicleA])
-    }
+  it('refuses to assign a maintenance restriction by editing the vehicle', async () => {
+    await db.expectRejection(
+      () => db.sql(`update public.vehicles set status = 'maintenance' where id = $1`, [vehicleA]),
+      /Maintenance Management/i,
+    )
+  })
 
-    const [row] = await db.sql<{ status: string }>(
-      `select status from public.vehicles where id = $1`,
+  it('refuses to take a vehicle off the road by editing its status directly', async () => {
+    await db.expectRejection(
+      () => db.sql(`update public.vehicles set status = 'unavailable' where id = $1`, [vehicleA]),
+      /not set by editing the vehicle/i,
+    )
+  })
+
+  it('leaves an unchanged status alone, so editing other fields still works', async () => {
+    await db.sql(`update public.vehicles set status = 'available', notes = $2 where id = $1`, [
+      vehicleA,
+      'Edited without touching the restriction',
+    ])
+
+    const [row] = await db.sql<{ status: string; notes: string }>(
+      `select status, notes from public.vehicles where id = $1`,
       [vehicleA],
     )
     expect(row?.status).toBe('available')
+    expect(row?.notes).toBe('Edited without touching the restriction')
+  })
+
+  it('takes a vehicle off the road and back through its own actions, recording why', async () => {
+    await db.asUser(agencyA.userId, (session) =>
+      session.sql(`select public.vehicle_take_off_road($1, 'Cracked windscreen')`, [vehicleA]),
+    )
+
+    const [restricted] = await db.sql<{ status: string; off_road_reason: string }>(
+      `select status, off_road_reason from public.vehicles where id = $1`,
+      [vehicleA],
+    )
+    expect(restricted?.status).toBe('unavailable')
+    expect(restricted?.off_road_reason).toBe('Cracked windscreen')
+
+    await db.asUser(agencyA.userId, (session) =>
+      session.sql(`select public.vehicle_return_to_service($1)`, [vehicleA]),
+    )
+
+    const [released] = await db.sql<{ status: string; off_road_reason: string | null }>(
+      `select status, off_road_reason from public.vehicles where id = $1`,
+      [vehicleA],
+    )
+    expect(released?.status).toBe('available')
+    expect(released?.off_road_reason).toBeNull()
+  })
+
+  it('requires a reason before a vehicle goes off the road', async () => {
+    await db.expectRejection(
+      () =>
+        db.asUser(agencyA.userId, (session) =>
+          session.sql(`select public.vehicle_take_off_road($1, '  ')`, [vehicleA]),
+        ),
+      /reason is required/i,
+    )
+  })
+
+  it('refuses an off-road action from a member without the role for it', async () => {
+    await db.expectRejection(
+      () =>
+        db.asUser(agencyA.staffId, (session) =>
+          session.sql(`select public.vehicle_take_off_road($1, 'Not my call')`, [vehicleA]),
+        ),
+      /Vehicle not found|not permitted/i,
+    )
   })
 })
 

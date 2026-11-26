@@ -170,6 +170,51 @@ async function seed(agency: Agency): Promise<Seeded> {
      values ($1, $2, 'Extra driver', 1500, 'EUR')`,
     [org, rental.id],
   )
+  /*
+   * An incident and the repair it led to, each with a private document.
+   *
+   * These carry an organization_id and sit in private buckets, so a purge that
+   * skipped them would leave a closed agency's damage reports and service
+   * invoices behind — the files, not only the rows.
+   */
+  const incident = await one<{ id: string }>(
+    `insert into public.incidents
+       (organization_id, incident_type, vehicle_id, rental_id, occurred_at, description, reported_by)
+     values ($1, 'vehicle_damage', $2, $3, now() - interval '3 days',
+             'Seeded purge incident fixture', $4)
+     returning id`,
+    [org, vehicle.id, rental.id, agency.owner],
+  )
+  await db.sql(
+    `insert into public.incident_attachments
+       (organization_id, incident_id, kind, storage_path, file_name, content_type, byte_size, uploaded_by)
+     values ($1, $2, 'document', $3, 'incident-report.pdf', 'application/pdf', 2048, $4)`,
+    [
+      org,
+      incident.id,
+      at('incident-documents', `${incident.id}/incident-report.pdf`),
+      agency.owner,
+    ],
+  )
+  const maintenance = await one<{ id: string }>(
+    `insert into public.maintenance_records
+       (organization_id, vehicle_id, title, category, currency, incident_id, created_by)
+     values ($1, $2, 'Seeded purge maintenance fixture', 'bodywork_collision', 'EUR', $3, $4)
+     returning id`,
+    [org, vehicle.id, incident.id, agency.owner],
+  )
+  await db.sql(
+    `insert into public.maintenance_documents
+       (organization_id, maintenance_id, storage_path, file_name, content_type, byte_size, uploaded_by)
+     values ($1, $2, $3, 'service-invoice.pdf', 'application/pdf', 4096, $4)`,
+    [
+      org,
+      maintenance.id,
+      at('maintenance-documents', `${maintenance.id}/service-invoice.pdf`),
+      agency.owner,
+    ],
+  )
+
   // A request from the public booking page: a stranger's contact details, which
   // is exactly the kind of row closure exists to remove.
   await db.sql(

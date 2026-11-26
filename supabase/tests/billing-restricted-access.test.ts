@@ -759,6 +759,13 @@ describe('the gate, structurally', () => {
       'mfa_generate_recovery_codes',
       'mfa_record_enrolment',
       'record_terms_acceptance',
+      // Taking an unroadworthy vehicle off the road is a safety obligation, not
+      // a commercial one: it only ever makes a fleet smaller, so it cannot be
+      // used to work around a lapsed subscription. The reason is written in the
+      // header of 20261125130000, which added it. Returning a vehicle to
+      // service and resolving a legacy restriction both ask
+      // app.billing_require_write, because those put a car back on hire.
+      'vehicle_take_off_road',
     ]
     const rows = await db.sql<{ proname: string }>(
       `

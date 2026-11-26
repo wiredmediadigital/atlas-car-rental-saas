@@ -64,7 +64,10 @@ describe('atlas-setup skill queries', () => {
     expect(Number(rls?.rls_off)).toBe(0)
 
     const buckets = await db.sql<{ id: string; public: boolean }>(query('storage.buckets'))
-    expect(buckets).toHaveLength(7)
+    // Three more arrived with incident and maintenance management, each one
+    // private like the rest: incident-photos, incident-documents and
+    // maintenance-documents.
+    expect(buckets).toHaveLength(10)
     expect(buckets.every((bucket) => bucket.public === false)).toBe(true)
 
     const triggers = await db.sql<{ tgname: string }>(query('pg_trigger'))

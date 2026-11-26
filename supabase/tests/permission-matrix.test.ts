@@ -25,6 +25,12 @@ const PERMISSION_TARGETS: Partial<
 
   'team.view': { table: 'organization_members', command: 'select' },
 
+  'incidents.view': { table: 'incidents', command: 'select' },
+  'incidents.create': { table: 'incidents', command: 'insert' },
+  'incidents.update': { table: 'incidents', command: 'update' },
+
+  'maintenance.view': { table: 'maintenance_records', command: 'select' },
+
   'vehicles.view': { table: 'vehicles', command: 'select' },
   'vehicles.create': { table: 'vehicles', command: 'insert' },
   'vehicles.update': { table: 'vehicles', command: 'update' },
@@ -115,6 +121,22 @@ const PERMISSIONS_WITHOUT_A_TABLE: readonly Permission[] = [
    */
   'gps.connect',
   'gps.sync',
+  /*
+   * Maintenance has a read policy and nothing else, deliberately. Every change
+   * to a maintenance record goes through maintenance_create, _start,
+   * _complete, _cancel, _reschedule and _set_service_plan, which check the
+   * caller's role themselves and enforce the lifecycle rules a policy cannot
+   * express: that only a scheduled record can be started, that completing one
+   * record does not release a vehicle another record still restricts, and that
+   * the vehicle and incident both belong to the caller's agency. Granting the
+   * browser a direct INSERT or UPDATE would be a way around all of that, so it
+   * holds none. `supabase/tests/maintenance-acceptance.test.ts` covers the
+   * behaviour those functions are there to protect.
+   */
+  'maintenance.create',
+  'maintenance.update',
+  'maintenance.complete',
+  'maintenance.cancel',
   /*
    * Converting a lead has no policy of its own because it is not a write to
    * booking_leads that a client performs: public.convert_booking_lead creates

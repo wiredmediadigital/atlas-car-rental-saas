@@ -31,7 +31,6 @@ import {
   Field,
   Input,
   PageHeader,
-  Select,
   Skeleton,
   useToast,
 } from '@/components/ui'
@@ -46,12 +45,12 @@ import {
   VehicleStatusBadge,
   vehicleStatusHint,
 } from '@/features/vehicles/components/VehicleStatusBadge'
+import { VehicleRestrictions } from '@/features/vehicles/components/VehicleRestrictions'
 import { VehicleThumbnail } from '@/features/vehicles/components/VehicleThumbnail'
 import {
   useArchiveVehicle,
   useDeleteVehicle,
   useRestoreVehicle,
-  useSetVehicleStatus,
   useUpdateOdometer,
   useUpdateVehicle,
   useVehicle,
@@ -59,13 +58,12 @@ import {
   useVehiclePhotoUrls,
   useVehicleUsage,
 } from '@/features/vehicles/queries'
-import { VEHICLE_STATUS_OPTIONS, type VehicleFormValues } from '@/features/vehicles/schemas'
+import { type VehicleFormValues } from '@/features/vehicles/schemas'
 import { useComplianceOptions, useDistanceUnit } from '@/features/workspace/useOrganizationSettings'
 import { useOrganization, usePermission } from '@/features/workspace/workspace-context'
 import { formatDate, formatDateTime } from '@/lib/datetime/format'
 import { formatMoney } from '@/lib/money/money'
 import { toErrorMessage } from '@/lib/supabase/errors'
-import type { VehicleOperationalStatus } from '@/types/database'
 
 /**
  * Everything about one vehicle.
@@ -103,7 +101,6 @@ export function VehicleDetailPage() {
   const photoUrls = useVehiclePhotoUrls(imagesQuery.data ?? [])
 
   const update = useUpdateVehicle(vehicleId ?? '')
-  const setStatus = useSetVehicleStatus(vehicleId ?? '')
   const setOdometer = useUpdateOdometer(vehicleId ?? '')
   const archive = useArchiveVehicle(vehicleId ?? '')
   const restore = useRestoreVehicle(vehicleId ?? '')
@@ -304,39 +301,47 @@ export function VehicleDetailPage() {
                       {vehicle.maintenance_title ?? 'Active maintenance'}
                       {vehicle.maintenance_overdue ? ' · Overdue' : ''}
                     </p>
-                    <Link className="text-brand-700 mt-2 inline-block hover:underline" to={`${paths.maintenance}/${vehicle.maintenance_id}`}>
+                    <Link
+                      className="text-brand-700 mt-2 inline-block hover:underline"
+                      to={`${paths.maintenance}/${vehicle.maintenance_id}`}
+                    >
                       View maintenance details
                     </Link>
                   </div>
                 ) : vehicle.upcoming_maintenance_reference && vehicle.upcoming_maintenance_start ? (
                   <div className="border-line rounded-md border p-3 text-sm">
-                    <p className="font-medium">Upcoming maintenance · {vehicle.upcoming_maintenance_reference}</p>
-                    <p className="text-ink-muted mt-1">Starts {formatDate(new Date(vehicle.upcoming_maintenance_start), { locale: organization.locale, timeZone: compliance.timeZone })}</p>
-                    <Link className="text-brand-700 mt-2 inline-block hover:underline" to={`${paths.maintenance}/${vehicle.upcoming_maintenance_id}`}>
+                    <p className="font-medium">
+                      Upcoming maintenance · {vehicle.upcoming_maintenance_reference}
+                    </p>
+                    <p className="text-ink-muted mt-1">
+                      Starts{' '}
+                      {formatDate(new Date(vehicle.upcoming_maintenance_start), {
+                        locale: organization.locale,
+                        timeZone: compliance.timeZone,
+                      })}
+                    </p>
+                    <Link
+                      className="text-brand-700 mt-2 inline-block hover:underline"
+                      to={`${paths.maintenance}/${vehicle.upcoming_maintenance_id}`}
+                    >
                       View scheduled maintenance
                     </Link>
                   </div>
                 ) : null}
 
-                {canEdit && !isArchived ? (
-                  <div className="border-line max-w-xs border-t pt-4">
-                    <Field
-                      label="Operational status"
-                      hint="Rented and reserved come from contracts and cannot be set here."
-                    >
-                      <Select
-                        options={VEHICLE_STATUS_OPTIONS.filter((option) => option.value !== 'maintenance')}
-                        value={vehicle.operational_status}
-                        disabled={setStatus.isPending}
-                        onChange={(event) =>
-                          setStatus.mutate(event.target.value as VehicleOperationalStatus, {
-                            onSuccess: () => toast.success('Status updated'),
-                            onError: (cause) => setError(toErrorMessage(cause)),
-                          })
-                        }
-                      />
-                    </Field>
-                  </div>
+                {!isArchived ? (
+                  <VehicleRestrictions
+                    vehicleId={vehicle.vehicle_id}
+                    operationalStatus={vehicle.operational_status}
+                    offRoadReason={vehicle.off_road_reason ?? null}
+                    offRoadAt={vehicle.off_road_at ?? null}
+                    legacyMaintenanceRestriction={vehicle.legacy_maintenance_restriction ?? false}
+                    maintenanceId={vehicle.maintenance_id ?? null}
+                    maintenanceReference={vehicle.maintenance_reference ?? null}
+                    canManage={canEdit}
+                    locale={organization.locale}
+                    timeZone={compliance.timeZone}
+                  />
                 ) : null}
               </div>
             </div>
