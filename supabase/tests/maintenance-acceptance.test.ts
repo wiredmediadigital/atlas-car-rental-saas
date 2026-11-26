@@ -328,6 +328,62 @@ describe('standard rental integrity', () => {
     )
     expect(moved?.status).toBe('reserved')
   })
+
+  it('extends a reservation confirmed outside a member session', async () => {
+    /*
+     * The second doorway onto the same defect. public.rental_extend reaches
+     * app.sync_rental_assignment_schedule for a reserved rental, so a booking
+     * with no assignment row could not be lengthened either. Covered here
+     * because the repair is deliberately not narrowed to rescheduling.
+     */
+    const vehicle = await freshVehicle()
+    const [rental] = await db.sql<{ id: string }>(
+      `insert into public.rentals
+         (organization_id, vehicle_id, customer_id, starts_at, ends_at, currency, status, daily_rate_minor, billable_days)
+       values ($1, $2, $3, now() + interval '60 days', now() + interval '63 days', 'EUR', 'draft', 5000, 3)
+       returning id`,
+      [organizationId, vehicle, customerId],
+    )
+    await db.sql(
+      `insert into public.rental_drivers (organization_id, rental_id, customer_id, driver_role)
+       values ($1, $2, $3, 'primary')`,
+      [organizationId, rental!.id, customerId],
+    )
+    await db.sql(`select public.rental_confirm($1)`, [rental!.id])
+
+    await db.asUser(ownerId, (session) =>
+      session.sql(`select public.rental_extend($1, now() + interval '65 days')`, [rental!.id]),
+    )
+
+    const [extended] = await db.sql<{ status: string; ends_at: string }>(
+      `select status, ends_at from public.rentals where id = $1`,
+      [rental!.id],
+    )
+    expect(extended?.status).toBe('reserved')
+    const [assignment] = await db.sql<{ reason: string }>(
+      `select reason from public.rental_vehicle_assignments
+        where rental_id = $1 order by sequence_no desc limit 1`,
+      [rental!.id],
+    )
+    // The row records the booking nobody wrote down, not the extension.
+    expect(assignment?.reason).toBe('initial')
+  })
+
+  it('lets a signed-in member execute the maintenance restriction helper', async () => {
+    /*
+     * public.vehicles_available_between is SECURITY INVOKER and calls
+     * app.maintenance_restriction_range from its body, so the caller's own
+     * privileges decide. Without an explicit grant the hosted database raises
+     * 'permission denied for function' and no rental can be made anywhere.
+     */
+    const [row] = await db.sql<{ may: boolean }>(
+      `select has_function_privilege(
+                'authenticated',
+                'app.maintenance_restriction_range(public.maintenance_status, timestamptz, timestamptz, timestamptz)',
+                'EXECUTE') as may`,
+    )
+    expect(row?.may).toBe(true)
+  })
 })
 
 describe('legacy and independent restrictions', () => {

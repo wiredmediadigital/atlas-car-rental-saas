@@ -75,6 +75,14 @@ export const STORAGE_BUCKETS: readonly string[] = [
   'expense-receipts',
   'financing-documents',
   'organization-logos',
+  // Incident and maintenance evidence. app.organization_collect_objects writes
+  // ledger rows for these three, so the sweep has to be allowed to delete from
+  // them. A bucket the collector fills but this list omits yields rows nothing
+  // can ever sweep: the agency is reported closed with its files still in
+  // Storage, and the run reports work pending for ever.
+  'maintenance-documents',
+  'incident-photos',
+  'incident-documents',
 ]
 
 /**

@@ -18,6 +18,7 @@
  */
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 
+import { STORAGE_BUCKETS } from '../functions/_shared/account-closure'
 import { TestDatabase, signUp } from './support/harness'
 
 let db: TestDatabase
@@ -735,6 +736,18 @@ describe('purging an agency', () => {
       [a.organizationId],
     )
     expect(again.length).toBe(stored.length)
+
+    /*
+     * The two lists have to agree. The sweep deletes only from the buckets in
+     * STORAGE_BUCKETS, so a bucket the collector fills but that list omits
+     * produces a ledger row nothing can ever sweep: the agency is reported
+     * closed with its files still in Storage, and every later run re-lists it
+     * as having work pending. Nothing else in the codebase compares them --
+     * app.organization_purge_lists_agree covers tables, not buckets.
+     */
+    for (const bucket of new Set(stored.map((row) => row.bucket))) {
+      expect(STORAGE_BUCKETS).toContain(bucket)
+    }
   })
 
   it('purges, and writes the objects down before it deletes the first row', async () => {

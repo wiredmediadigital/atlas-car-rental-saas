@@ -26,7 +26,14 @@ set search_path = public, extensions, pg_temp;
 alter table public.vehicles add column if not exists off_road_reason text
   check (off_road_reason is null or char_length(btrim(off_road_reason)) between 1 and 500);
 alter table public.vehicles add column if not exists off_road_at timestamptz;
-alter table public.vehicles add column if not exists off_road_by uuid references auth.users(id);
+-- ON DELETE SET NULL, like every other actor column in the fleet schema. An
+-- Auth account that a vehicle row still names cannot be deleted under NO
+-- ACTION, and the last step of account closure deletes Auth accounts: a
+-- manager who took a car off the road in one agency would make their own
+-- erasure fail from inside another. Who applied the restriction is useful,
+-- never load-bearing, so losing the name is the right trade.
+alter table public.vehicles add column if not exists off_road_by uuid
+  references auth.users(id) on delete set null;
 
 -- ---------------------------------------------------------------------------
 -- 2. Operational status is written only by its own authorized actions
@@ -139,6 +146,18 @@ $$;
 
 comment on function app.maintenance_restriction_range(public.maintenance_status, timestamptz, timestamptz, timestamptz) is
   'The period a maintenance record restricts a vehicle for. Half-open, so a rental ending exactly when maintenance starts is allowed.';
+
+-- Granted explicitly, because public.vehicles_available_between is SECURITY
+-- INVOKER and calls this from its body: the signed-in caller's own privileges
+-- decide, and 20260821100500 removed the PUBLIC default for schema app. Without
+-- this line the vehicle picker and the availability search raise 'permission
+-- denied for function' for every member, which is to say no rental can be made
+-- anywhere in the product. The in-memory test harness does not register that
+-- migration's ALTER DEFAULT PRIVILEGES, so it grants PUBLIC anyway and the
+-- tests pass either way -- the grant is what makes the hosted database agree
+-- with them.
+revoke all on function app.maintenance_restriction_range(public.maintenance_status, timestamptz, timestamptz, timestamptz) from public, anon;
+grant execute on function app.maintenance_restriction_range(public.maintenance_status, timestamptz, timestamptz, timestamptz) to authenticated, service_role;
 
 -- ---------------------------------------------------------------------------
 -- 4. Availability, restored and made period-specific
@@ -608,6 +627,15 @@ grant select on public.vehicle_fleet to authenticated;
 -- the sync has something to update. It opens nothing when the lifecycle is
 -- off, and it never invents a vehicle: the assignment points at the vehicle
 -- the rental already carries.
+--
+-- TWO CALLERS, NOT ONE. public.rental_extend reaches this same function for a
+-- reserved rental, so extending one of those reservations stops failing too.
+-- That is stated rather than designed around: it is one defect in two doorways,
+-- and narrowing the repair to rescheduling would leave a member able to move a
+-- booking but not to lengthen it, for no reason they could ever discover. The
+-- row opened on the extend path carries reason 'initial' because that is what
+-- it records -- the original booking nobody wrote down -- not the extension.
+-- Both paths are covered in supabase/tests/maintenance-acceptance.test.ts.
 -- ---------------------------------------------------------------------------
 
 create or replace function app.sync_rental_assignment_schedule(
@@ -835,22 +863,29 @@ $assert$;
 
 
 -- ---------------------------------------------------------------------------
--- 12. The private app schema is not reachable by the anonymous role
+-- 12. A backstop on the private app schema, not a fix for a known exposure
 --
--- A function created without an explicit revoke is executable by PUBLIC, and
--- every role inherits PUBLIC — including anon, which this product grants
--- nothing. The incident, driver-availability and maintenance work packages
--- each added functions to app without a revoke, and so does this migration.
+-- Say plainly what this is, because the obvious reading is wrong: anon has
+-- never been able to reach schema app. 20260821100500 revoked USAGE on the
+-- schema from public and anon, revoked EXECUTE on everything then in it, and
+-- set ALTER DEFAULT PRIVILEGES so a function added later gets no PUBLIC grant
+-- either. On the hosted database this block therefore finds nothing to revoke
+-- and re-issues grants that already exist.
 --
--- Revoking from PUBLIC alone would also take away the privilege that
--- authenticated and service_role are relying on through PUBLIC, which would
--- break availability, closure and notifications. So the effective privileges
--- of those two roles are recorded first and granted back explicitly
--- afterwards: the same access as before, minus the inheritance that let anon
--- reach a private schema.
+-- It stays because it costs nothing and it is not a no-op everywhere. The
+-- in-memory test harness does not carry that migration's default privileges
+-- across, so functions created in app there DO land with the built-in PUBLIC
+-- grant; this block is what brings the harness back in line with hosted. It
+-- also holds if a future migration adds an app function without its own
+-- revoke, or if default privileges are ever reset by a restore.
 --
--- Ordinary callers are unaffected. anon loses a path it was never meant to
--- have.
+-- Whatever the starting state, the method is the same: record what
+-- authenticated and service_role can execute, revoke from public and anon,
+-- then grant back exactly what was recorded. Never more than was held before,
+-- and nothing a legitimate caller was relying on is taken away. A function
+-- that needs an invoker-context grant still states it explicitly, as section 3
+-- does -- this block must not be the only thing standing between a member and
+-- the vehicle picker.
 -- ---------------------------------------------------------------------------
 
 do $privileges$
@@ -863,15 +898,18 @@ begin
            has_function_privilege('service_role', p.oid, 'EXECUTE') as service_may
       from pg_proc p
       join pg_namespace n on n.oid = p.pronamespace
-     where n.nspname = 'app';
+     -- Functions and procedures. ROUTINE covers both below; an aggregate is
+     -- neither and would abort the loop, so it is excluded here rather than
+     -- left to fail the deploy on the day somebody adds one.
+     where n.nspname = 'app' and p.prokind in ('f', 'p');
 
   for v_function in
     select p.oid::regprocedure as signature
       from pg_proc p
       join pg_namespace n on n.oid = p.pronamespace
-     where n.nspname = 'app'
+     where n.nspname = 'app' and p.prokind in ('f', 'p')
   loop
-    execute format('revoke all on function %s from public, anon', v_function.signature);
+    execute format('revoke all on routine %s from public, anon', v_function.signature);
   end loop;
 
   for v_function in
@@ -879,7 +917,7 @@ begin
       from app_privilege_snapshot
      where authenticated_may
   loop
-    execute format('grant execute on function %s to authenticated', v_function.signature);
+    execute format('grant execute on routine %s to authenticated', v_function.signature);
   end loop;
 
   for v_function in
@@ -887,7 +925,7 @@ begin
       from app_privilege_snapshot
      where service_may
   loop
-    execute format('grant execute on function %s to service_role', v_function.signature);
+    execute format('grant execute on routine %s to service_role', v_function.signature);
   end loop;
 end;
 $privileges$;
