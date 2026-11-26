@@ -256,7 +256,6 @@ function buildAdapter(
           insuranceExpiresOn: normaliseImportedDate(read('insuranceExpiresOn')) ?? '',
           inspectionExpiresOn: normaliseImportedDate(read('inspectionExpiresOn')) ?? '',
           registrationExpiresOn: normaliseImportedDate(read('registrationExpiresOn')) ?? '',
-          nextServiceOn: '',
           notes: read('notes'),
         },
       }

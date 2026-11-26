@@ -259,10 +259,21 @@ interface VehicleWritePayload {
   insurance_expires_on: string | null
   inspection_expires_on: string | null
   registration_expires_on: string | null
-  next_service_on: string | null
   notes: string | null
 }
 
+/**
+ * The columns a general vehicle edit owns.
+ *
+ * `next_service_on` is deliberately absent. Preventive servicing is owned by
+ * Maintenance Management, and a vehicle edit must not be able to overwrite it
+ * -- but the stored legacy values are history and are not to be discarded, so
+ * the column is left out of the payload entirely rather than sent as null.
+ * `updateVehicle` issues an UPDATE naming only these columns, so one that is
+ * not named here cannot be touched by editing a vehicle. Putting the key back
+ * and leaving the form field out would clear the column for every vehicle
+ * anybody edits, silently and one at a time.
+ */
 function toRow(values: VehicleFormValues): VehicleWritePayload {
   return {
     make: values.make,
@@ -282,7 +293,6 @@ function toRow(values: VehicleFormValues): VehicleWritePayload {
     insurance_expires_on: values.insuranceExpiresOn,
     inspection_expires_on: values.inspectionExpiresOn,
     registration_expires_on: values.registrationExpiresOn,
-    next_service_on: values.nextServiceOn,
     notes: values.notes,
   }
 }

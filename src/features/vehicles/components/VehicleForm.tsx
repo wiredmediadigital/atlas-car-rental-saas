@@ -214,7 +214,7 @@ export function VehicleForm({
           description="Renewal dates. Leave anything you do not track blank — you will be warned as each one approaches."
         />
         <CardBody>
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             <Field label="Insurance expires" error={errors.insuranceExpiresOn?.message}>
               <Input type="date" {...register('insuranceExpiresOn')} />
             </Field>
@@ -225,10 +225,6 @@ export function VehicleForm({
 
             <Field label="Registration expires" error={errors.registrationExpiresOn?.message}>
               <Input type="date" {...register('registrationExpiresOn')} />
-            </Field>
-
-            <Field label="Next service due" error={errors.nextServiceOn?.message}>
-              <Input type="date" {...register('nextServiceOn')} />
             </Field>
           </div>
         </CardBody>
@@ -283,7 +279,6 @@ export function vehicleToFormInput(vehicle: {
   insurance_expires_on: string | null
   inspection_expires_on: string | null
   registration_expires_on: string | null
-  next_service_on: string | null
   notes: string | null
 }): VehicleFormInput {
   return {
@@ -306,7 +301,6 @@ export function vehicleToFormInput(vehicle: {
     insuranceExpiresOn: vehicle.insurance_expires_on ?? '',
     inspectionExpiresOn: vehicle.inspection_expires_on ?? '',
     registrationExpiresOn: vehicle.registration_expires_on ?? '',
-    nextServiceOn: vehicle.next_service_on ?? '',
     notes: vehicle.notes ?? '',
   }
 }

@@ -173,7 +173,6 @@ export function buildVehicleSchema(currency: string, now: Date = new Date()) {
       insuranceExpiresOn: optionalDate,
       inspectionExpiresOn: optionalDate,
       registrationExpiresOn: optionalDate,
-      nextServiceOn: optionalDate,
 
       notes: optionalText(4000),
     })
@@ -213,7 +212,6 @@ export function emptyVehicleForm(currency: string): VehicleFormInput {
     insuranceExpiresOn: '',
     inspectionExpiresOn: '',
     registrationExpiresOn: '',
-    nextServiceOn: '',
     notes: '',
   }
 }
