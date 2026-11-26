@@ -297,6 +297,27 @@ export function VehicleDetailPage() {
                   timeZone={compliance.timeZone}
                 />
 
+                {vehicle.maintenance_id && vehicle.maintenance_reference ? (
+                  <div className="border-line rounded-md border bg-surface-muted p-3 text-sm">
+                    <p className="font-medium">In maintenance · {vehicle.maintenance_reference}</p>
+                    <p className="text-ink-muted mt-1">
+                      {vehicle.maintenance_title ?? 'Active maintenance'}
+                      {vehicle.maintenance_overdue ? ' · Overdue' : ''}
+                    </p>
+                    <Link className="text-brand-700 mt-2 inline-block hover:underline" to={`${paths.maintenance}/${vehicle.maintenance_id}`}>
+                      View maintenance details
+                    </Link>
+                  </div>
+                ) : vehicle.upcoming_maintenance_reference && vehicle.upcoming_maintenance_start ? (
+                  <div className="border-line rounded-md border p-3 text-sm">
+                    <p className="font-medium">Upcoming maintenance · {vehicle.upcoming_maintenance_reference}</p>
+                    <p className="text-ink-muted mt-1">Starts {formatDate(new Date(vehicle.upcoming_maintenance_start), { locale: organization.locale, timeZone: compliance.timeZone })}</p>
+                    <Link className="text-brand-700 mt-2 inline-block hover:underline" to={`${paths.maintenance}/${vehicle.upcoming_maintenance_id}`}>
+                      View scheduled maintenance
+                    </Link>
+                  </div>
+                ) : null}
+
                 {canEdit && !isArchived ? (
                   <div className="border-line max-w-xs border-t pt-4">
                     <Field
@@ -304,7 +325,7 @@ export function VehicleDetailPage() {
                       hint="Rented and reserved come from contracts and cannot be set here."
                     >
                       <Select
-                        options={VEHICLE_STATUS_OPTIONS}
+                        options={VEHICLE_STATUS_OPTIONS.filter((option) => option.value !== 'maintenance')}
                         value={vehicle.operational_status}
                         disabled={setStatus.isPending}
                         onChange={(event) =>

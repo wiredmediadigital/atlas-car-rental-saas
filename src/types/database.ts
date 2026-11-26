@@ -505,6 +505,17 @@ type VehicleFleetRow = {
   acquisition_currency: string | null
   acquisition_supplier: string | null
   acquisition_notes: string | null
+  maintenance_id?: string | null
+  maintenance_reference?: string | null
+  maintenance_title?: string | null
+  maintenance_scheduled_start?: string | null
+  maintenance_expected_completion?: string | null
+  maintenance_actual_start?: string | null
+  maintenance_overdue?: boolean | null
+  upcoming_maintenance_id?: string | null
+  upcoming_maintenance_reference?: string | null
+  upcoming_maintenance_start?: string | null
+  upcoming_maintenance_expected_completion?: string | null
 }
 
 export type VehicleLimitStatusRow = {

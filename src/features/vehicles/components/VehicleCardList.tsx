@@ -87,6 +87,11 @@ export function VehicleCardList({
 
                 <div className="mt-2 flex flex-wrap items-center gap-1.5">
                   <VehicleStatusBadge status={vehicle.effective_status} />
+                  {vehicle.maintenance_id && vehicle.maintenance_reference ? (
+                    <Badge tone="caution">{vehicle.maintenance_reference}</Badge>
+                  ) : vehicle.upcoming_maintenance_reference ? (
+                    <Badge tone="info">Maintenance scheduled</Badge>
+                  ) : null}
                   {state.needsAttention ? (
                     <Badge
                       tone={state.overall === 'expired' ? 'critical' : 'caution'}

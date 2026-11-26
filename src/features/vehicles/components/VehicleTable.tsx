@@ -30,6 +30,12 @@ function formatOdometer(value: number, locale: string, unit: 'km' | 'mi'): strin
  * Only ever built from contracts that exist — never inferred or invented.
  */
 function rentalContext(vehicle: VehicleFleetEntry, options: ComplianceOptions, locale: string) {
+  if (vehicle.maintenance_id && vehicle.maintenance_reference) {
+    return `${vehicle.maintenance_reference}${vehicle.maintenance_overdue ? ' · Overdue' : ''}`
+  }
+  if (vehicle.upcoming_maintenance_reference && vehicle.upcoming_maintenance_start) {
+    return `Maintenance ${formatDate(new Date(vehicle.upcoming_maintenance_start), { locale, timeZone: options.timeZone })}`
+  }
   if (vehicle.current_rental_ends_at) {
     return `Back ${formatDate(new Date(vehicle.current_rental_ends_at), { locale, timeZone: options.timeZone })}`
   }
