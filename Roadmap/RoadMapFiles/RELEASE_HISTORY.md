@@ -52,3 +52,31 @@ no production deployment is claimed.**
 - Deployment report: `Roadmap/Reports/PEVVY_MAINTENANCE_STAGING_DEPLOYMENT_FINAL.md`
 - Manual acceptance: **NOT PERFORMED.** Owner baseline 11 passed / 11 failed / 4 pending
   stands unchanged.
+
+## 2026-11-26 — Maintenance expense workflow enhancement (staging)
+
+- Commits: `33769b6` (feature), `f41ea5e` (permission gate). Two fast-forwards to
+  `origin/staging`; no force push; `origin/main` unchanged at `31383a9`.
+- Database: **no migration.** Staging ledger unchanged at 140/140, zero drift.
+- Deployment environment: Supabase `yeklucfthspvejlkffln` + Hostinger staging
+  (`quantum-lavenderblush-buffalo-97.hostingersite.com`).
+- Feature flag status: no flag introduced.
+- Deployment result: **success.** Manifest `8cfefba1…`/196 → `9357a743…`/196 →
+  `7fec4e62…`/196. Verified by content: 170 asset files crawled, all four strings unique
+  to this change found in the deployed `MaintenanceDetailPage` chunk served as real
+  JavaScript, that chunk byte-identical to the local build once chunk content hashes are
+  normalised, 0 production references and 0 leaked secret keys.
+- Production verification result: **none. Production was not touched.**
+- Known issues: the deployed artifact hash is still not reproducible by the deploying
+  party — the host rebuilds from source and Tailwind emits a LAB colour component
+  differing by 0.000015, which moves every downstream content hash. Traced to four bytes
+  in `index.css` this release, as last. `npm run lint` is red on this baseline with 12
+  pre-existing errors in `incidents/api.ts`, `IncidentNewPage.tsx` and
+  `RentalNewPage.tsx`, so `npm run verify` cannot pass on `origin/staging`.
+- Rollback reference: previous staging tip `f7e331e2b65ef33604b40810b80aa41c803a1dfa`,
+  previously deployed artifact
+  `8cfefba1e5c966b91c3c5af667509dd4f5ee15b09b6ddf596e53260bc246b245`. Frontend-only —
+  no schema change to reverse.
+- Deployment report: `Roadmap/Reports/PEVVY_MAINTENANCE_EXPENSE_WORKFLOW_ENHANCEMENT.md`
+- Manual acceptance: **NOT PERFORMED.** Owner baseline 11 passed / 11 failed / 4 pending
+  stands unchanged. Suggested scenario 27 is in §11 of the report.

@@ -59,3 +59,27 @@ Published `caf6cd1` to `origin/staging` as a fast-forward; the owner applied mig
 
 Not accepted: the owner's 11 passed / 11 failed / 4 pending baseline is unchanged.
 Production untouched and NO-GO.
+
+## 2026-11-26 — Maintenance expense workflow enhancement deployed to staging
+
+Published `33769b6` and `f41ea5e` to `origin/staging` as fast-forwards. No migration:
+the schema was already sufficient.
+
+- A cost can now be recorded from the Costs section of a maintenance record. It opens
+  the existing expense form, prefilled with the vehicle, the maintenance reference and
+  title, and the expense category mapped from the maintenance category by its seeded
+  `system_key`, then attaches the new cost to the record. The same ledger, the same
+  validation and the same authorization as Finance → Record a cost.
+- A cost that is recorded but cannot be attached now says so. It used to be impossible
+  to report at all; the obvious implementation would have shown "The cost was not saved"
+  over a cost sitting in the ledger, which is how an invoice gets entered twice.
+- The Link an existing expense picker no longer offers costs that are already attached
+  to a maintenance record. Linking one used to move it off whatever record already had
+  it, quietly reducing that record's actual cost. Voided costs are excluded too.
+- When nothing is eligible to link, the card says so instead of hiding the picker.
+- Two pre-existing defects fixed in passing: the picker was gated on `maintenance.update`
+  where the database checks `expenses.create`, and its label pointed at an element id
+  that `Field` discards, so screen readers read an unlabelled combobox.
+
+Not accepted: the owner's 11 passed / 11 failed / 4 pending baseline is unchanged — this
+adds a scenario rather than resolving one. Production untouched and NO-GO.
