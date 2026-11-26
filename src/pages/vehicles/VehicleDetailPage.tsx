@@ -37,6 +37,7 @@ import {
 import { VehicleCostPanel } from '@/features/expenses/components/VehicleCostPanel'
 import { VehicleFinancingPanel } from '@/features/financing/components/VehicleFinancingPanel'
 import { VehicleGpsPanel } from '@/features/gps/components/VehicleGpsPanel'
+import { VehicleServicePanel } from '@/features/maintenance/components/VehicleServicePanel'
 import { VehicleCompliancePanel } from '@/features/vehicles/components/VehicleCompliancePanel'
 import { VehicleDocuments } from '@/features/vehicles/components/VehicleDocuments'
 import { VehicleForm, vehicleToFormInput } from '@/features/vehicles/components/VehicleForm'
@@ -85,6 +86,7 @@ export function VehicleDetailPage() {
   const canDelete = usePermission('vehicles.delete')
   const canViewExpenses = usePermission('expenses.view')
   const canViewMaintenance = usePermission('maintenance.view')
+  const canCreateMaintenance = usePermission('maintenance.create')
   const canRecordExpense = usePermission('expenses.create')
   const canViewFinancing = usePermission('financing.view')
   const canCreateFinancing = usePermission('financing.create')
@@ -442,6 +444,18 @@ export function VehicleDetailPage() {
               locale={organization.locale}
             />
           </Card>
+
+          {canViewMaintenance ? (
+            <VehicleServicePanel
+              vehicleId={vehicle.vehicle_id}
+              odometer={vehicle.odometer ?? null}
+              legacyNextServiceOn={vehicle.next_service_on ?? null}
+              distanceUnit={distanceUnit}
+              locale={organization.locale}
+              canSchedule={canCreateMaintenance && !isArchived}
+              serviceOptions={compliance}
+            />
+          ) : null}
 
           <Card>
             <VehicleDocuments

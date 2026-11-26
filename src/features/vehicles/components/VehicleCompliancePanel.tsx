@@ -1,12 +1,12 @@
-import { CalendarClock, ShieldCheck, Stamp, Wrench } from 'lucide-react'
+import { CalendarClock, ShieldCheck, Stamp } from 'lucide-react'
 import type { ComponentType } from 'react'
 
 import { CardBody, CardHeader } from '@/components/ui'
 import {
   describeCompliance,
-  evaluateCompliance,
   evaluateVehicleCompliance,
   type ComplianceOptions,
+  type ComplianceStatus,
 } from '@/lib/compliance/expiry'
 import { formatDate, parseIsoDate } from '@/lib/datetime/format'
 import { cn } from '@/lib/utils/cn'
@@ -30,12 +30,18 @@ const ROW_ACCENT: Record<string, string> = {
 }
 
 /**
- * The three renewal dates a vehicle carries, plus its next service.
+ * The three renewal dates a vehicle carries.
  *
  * Every state comes from the shared compliance rule, so "Expiring soon" here
  * means precisely what it means in the fleet list, on the dashboard, and in the
  * reminders that will be sent later. Urgency is carried by a hairline accent and
  * one badge rather than by colouring whole panels.
+ *
+ * Next service used to be a fourth row here, read from `vehicles.next_service_on`.
+ * It has moved to the Service and maintenance card, which reads the
+ * authoritative plan from the vehicle's maintenance records. A renewal date and
+ * a service interval are not the same kind of fact, and showing them in one
+ * list is what let two unrelated next-service dates exist side by side.
  */
 export function VehicleCompliancePanel({
   vehicle,
@@ -43,13 +49,12 @@ export function VehicleCompliancePanel({
   locale,
 }: VehicleCompliancePanelProps) {
   const state = evaluateVehicleCompliance(vehicle, compliance)
-  const service = evaluateCompliance(vehicle.next_service_on, compliance)
 
   const rows: {
     key: string
     label: string
     icon: ComponentType<{ className?: string }>
-    status: ReturnType<typeof evaluateCompliance>
+    status: ComplianceStatus
   }[] = [
     { key: 'insurance', label: 'Insurance', icon: ShieldCheck, status: state.insurance },
     { key: 'inspection', label: 'Technical inspection', icon: Stamp, status: state.inspection },
@@ -59,7 +64,6 @@ export function VehicleCompliancePanel({
       icon: CalendarClock,
       status: state.registration,
     },
-    { key: 'service', label: 'Next service', icon: Wrench, status: service },
   ]
 
   return (
