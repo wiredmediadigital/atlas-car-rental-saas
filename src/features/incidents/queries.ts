@@ -17,22 +17,37 @@ import {
 
 export const incidentKeys = {
   all: (org: string) => ['organization', org, 'incidents'] as const,
-  list: (org: string, filters: IncidentFilters) => ['organization', org, 'incidents', 'list', filters] as const,
+  list: (org: string, filters: IncidentFilters) =>
+    ['organization', org, 'incidents', 'list', filters] as const,
   detail: (org: string, id: string) => ['organization', org, 'incidents', 'detail', id] as const,
-  attachments: (org: string, id: string) => ['organization', org, 'incidents', 'attachments', id] as const,
+  attachments: (org: string, id: string) =>
+    ['organization', org, 'incidents', 'attachments', id] as const,
 }
 
 export function useIncidents(filters: IncidentFilters) {
   const org = useOrganization()
-  return useQuery({ queryKey: incidentKeys.list(org.id, filters), queryFn: () => fetchIncidents(org.id, filters), staleTime: 10_000 })
+  return useQuery({
+    queryKey: incidentKeys.list(org.id, filters),
+    queryFn: () => fetchIncidents(org.id, filters),
+    staleTime: 10_000,
+  })
 }
 export function useIncident(id: string | undefined) {
   const org = useOrganization()
-  return useQuery({ queryKey: incidentKeys.detail(org.id, id ?? 'none'), queryFn: () => fetchIncident(id!), enabled: Boolean(id), retry: false })
+  return useQuery({
+    queryKey: incidentKeys.detail(org.id, id ?? 'none'),
+    queryFn: () => fetchIncident(id!),
+    enabled: Boolean(id),
+    retry: false,
+  })
 }
 export function useIncidentAttachments(id: string | undefined) {
   const org = useOrganization()
-  return useQuery({ queryKey: incidentKeys.attachments(org.id, id ?? 'none'), queryFn: () => fetchIncidentAttachments(id!), enabled: Boolean(id) })
+  return useQuery({
+    queryKey: incidentKeys.attachments(org.id, id ?? 'none'),
+    queryFn: () => fetchIncidentAttachments(id!),
+    enabled: Boolean(id),
+  })
 }
 
 export function useIncidentRentalOptions(vehicleId: string | undefined) {
@@ -55,22 +70,36 @@ export function useIncidentRentalOption(id: string | undefined) {
   })
 }
 export function useCreateIncident() {
-  const org = useOrganization(); const qc = useQueryClient()
-  return useMutation({ mutationFn: (input: IncidentInput) => createIncident(org.id, input), onSuccess: () => qc.invalidateQueries({ queryKey: incidentKeys.all(org.id) }) })
+  const org = useOrganization()
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (input: IncidentInput) => createIncident(org.id, input),
+    onSuccess: () => qc.invalidateQueries({ queryKey: incidentKeys.all(org.id) }),
+  })
 }
 export function useResolveIncident(id: string) {
-  const org = useOrganization(); const qc = useQueryClient()
-  return useMutation({ mutationFn: (notes: string) => resolveIncident(id, notes), onSuccess: () => qc.invalidateQueries({ queryKey: incidentKeys.all(org.id) }) })
+  const org = useOrganization()
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (notes: string) => resolveIncident(id, notes),
+    onSuccess: () => qc.invalidateQueries({ queryKey: incidentKeys.all(org.id) }),
+  })
 }
 
 export function useUpdateIncident(id: string) {
-  const org = useOrganization(); const qc = useQueryClient()
+  const org = useOrganization()
+  const qc = useQueryClient()
   return useMutation({
     mutationFn: (input: IncidentUpdateInput) => updateIncident(id, input),
     onSuccess: () => qc.invalidateQueries({ queryKey: incidentKeys.all(org.id) }),
   })
 }
 export function useUploadIncidentAttachment(id: string) {
-  const org = useOrganization(); const qc = useQueryClient()
-  return useMutation({ mutationFn: ({ file, kind }: { file: File; kind: 'photo' | 'document' }) => uploadIncidentAttachment(org.id, id, file, kind), onSuccess: () => qc.invalidateQueries({ queryKey: incidentKeys.attachments(org.id, id) }) })
+  const org = useOrganization()
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ file, kind }: { file: File; kind: 'photo' | 'document' }) =>
+      uploadIncidentAttachment(org.id, id, file, kind),
+    onSuccess: () => qc.invalidateQueries({ queryKey: incidentKeys.attachments(org.id, id) }),
+  })
 }

@@ -75,12 +75,34 @@ const ExpenseDetailPage = lazy(() =>
     default: module.ExpenseDetailPage,
   })),
 )
-const IncidentsPage = lazy(() => import('@/pages/incidents/IncidentsPage').then((module) => ({ default: module.IncidentsPage })))
-const IncidentNewPage = lazy(() => import('@/pages/incidents/IncidentNewPage').then((module) => ({ default: module.IncidentNewPage })))
-const IncidentDetailPage = lazy(() => import('@/pages/incidents/IncidentDetailPage').then((module) => ({ default: module.IncidentDetailPage })))
-const MaintenancePage = lazy(() => import('@/pages/maintenance/MaintenancePage').then((module) => ({ default: module.MaintenancePage })))
-const MaintenanceNewPage = lazy(() => import('@/pages/maintenance/MaintenanceNewPage').then((module) => ({ default: module.MaintenanceNewPage })))
-const MaintenanceDetailPage = lazy(() => import('@/pages/maintenance/MaintenanceDetailPage').then((module) => ({ default: module.MaintenanceDetailPage })))
+const IncidentsPage = lazy(() =>
+  import('@/pages/incidents/IncidentsPage').then((module) => ({ default: module.IncidentsPage })),
+)
+const IncidentNewPage = lazy(() =>
+  import('@/pages/incidents/IncidentNewPage').then((module) => ({
+    default: module.IncidentNewPage,
+  })),
+)
+const IncidentDetailPage = lazy(() =>
+  import('@/pages/incidents/IncidentDetailPage').then((module) => ({
+    default: module.IncidentDetailPage,
+  })),
+)
+const MaintenancePage = lazy(() =>
+  import('@/pages/maintenance/MaintenancePage').then((module) => ({
+    default: module.MaintenancePage,
+  })),
+)
+const MaintenanceNewPage = lazy(() =>
+  import('@/pages/maintenance/MaintenanceNewPage').then((module) => ({
+    default: module.MaintenanceNewPage,
+  })),
+)
+const MaintenanceDetailPage = lazy(() =>
+  import('@/pages/maintenance/MaintenanceDetailPage').then((module) => ({
+    default: module.MaintenanceDetailPage,
+  })),
+)
 
 const FinancingPage = lazy(() =>
   import('@/pages/financing/FinancingPage').then((module) => ({ default: module.FinancingPage })),

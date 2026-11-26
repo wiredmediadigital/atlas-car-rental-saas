@@ -21,13 +21,22 @@ export const incidentResponsibilityLabels: Record<IncidentResponsibility, string
   undetermined: 'Undetermined',
 }
 
-export function vehicleLabel(vehicle: { registration_plate: string; make: string; model: string; model_year?: number | null } | null) {
+export function vehicleLabel(
+  vehicle: {
+    registration_plate: string
+    make: string
+    model: string
+    model_year?: number | null
+  } | null,
+) {
   if (!vehicle) return 'Vehicle unavailable'
   const year = vehicle.model_year ? ` (${vehicle.model_year})` : ''
   return `${vehicle.registration_plate} — ${vehicle.make} ${vehicle.model}${year}`
 }
 
-export function rentalLabel(rental: { reference: string; status: string; customer?: { display_name: string } | null } | null) {
+export function rentalLabel(
+  rental: { reference: string; status: string; customer?: { display_name: string } | null } | null,
+) {
   if (!rental) return 'No related rental'
   return `${rental.reference} — ${rental.customer?.display_name ?? 'Customer unavailable'} — ${rental.status.replace('_', ' ')}`
 }

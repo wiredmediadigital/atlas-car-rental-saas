@@ -261,11 +261,7 @@ export function RentalNewPage() {
   )
 
   useEffect(() => {
-    if (
-      renter &&
-      !primaryDriver &&
-      renterAvailabilityQuery.data?.[0]?.available === true
-    ) {
+    if (renter && !primaryDriver && renterAvailabilityQuery.data?.[0]?.available === true) {
       setPrimaryDriver(renter)
     }
   }, [primaryDriver, renter, renterAvailabilityQuery.data])
