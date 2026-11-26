@@ -21,6 +21,7 @@ import {
   useMaintenanceExpenses,
   useUnlinkMaintenanceExpense,
 } from '@/features/maintenance/queries'
+import { usePermission } from '@/features/workspace/workspace-context'
 import { formatDate } from '@/lib/datetime/format'
 import { formatMoney } from '@/lib/money/money'
 import { toErrorMessage } from '@/lib/supabase/errors'
@@ -68,6 +69,10 @@ export function MaintenanceExpenses({
   timeZone,
 }: MaintenanceExpensesProps) {
   const toast = useToast()
+  // Linking is a maintenance action; recording a cost is an expense action,
+  // and the database gates them separately. Offering the second on the
+  // strength of the first would put up a button the insert then refuses.
+  const canRecordCost = usePermission('expenses.create')
   const [selected, setSelected] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [isRecording, setIsRecording] = useState(false)
@@ -109,7 +114,7 @@ export function MaintenanceExpenses({
         title="Costs"
         description="Recorded in the expense ledger. Nothing here charges a customer."
         actions={
-          canManage ? (
+          canManage && canRecordCost ? (
             <Button variant="secondary" leadingIcon={<Plus />} onClick={() => setIsRecording(true)}>
               Record a cost
             </Button>
@@ -219,7 +224,9 @@ export function MaintenanceExpenses({
               <p className="text-ink-subtle text-[0.8125rem]">
                 {linkable.isPending
                   ? 'Looking for vehicle costs that could be linked…'
-                  : 'No unlinked vehicle costs for this vehicle. Record one with “Record a cost”, or record it in Finance against this vehicle and it will appear here.'}
+                  : canRecordCost
+                    ? 'No unlinked vehicle costs for this vehicle. Record one with “Record a cost”, or record it in Finance against this vehicle and it will appear here.'
+                    : 'No unlinked vehicle costs for this vehicle. Record it in Finance against this vehicle and it will appear here.'}
               </p>
             )}
           </div>
