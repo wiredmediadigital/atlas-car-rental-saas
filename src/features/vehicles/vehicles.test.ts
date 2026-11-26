@@ -282,9 +282,9 @@ describe('CSV import validation', () => {
     expect(result.validCount).toBe(0)
   })
 
-  it('accepts a status column without letting it restrict a vehicle', () => {
+  it('accepts an in-service status column without letting it assign anything', () => {
     const result = validate(
-      'Make,Model,Plate,Status\nRenault,Clio,AA-11-BB,In Service\nDacia,Duster,CC-22-DD,Servicing\n',
+      'Make,Model,Plate,Status\nRenault,Clio,AA-11-BB,In Service\nDacia,Duster,CC-22-DD,Available\n',
     )
 
     /*
@@ -297,6 +297,25 @@ describe('CSV import validation', () => {
     expect(result.rows[1]?.values).not.toHaveProperty('status')
     expect(isImportable(result.rows[0]!)).toBe(true)
     expect(isImportable(result.rows[1]!)).toBe(true)
+  })
+
+  it('holds back a row whose status says the vehicle is not available for hire', () => {
+    /*
+     * The hazard this closes: the column no longer assigns anything, so a file
+     * saying a car is in the workshop would otherwise import a car anybody can
+     * book. Importing cannot restrict a vehicle, so it says so instead.
+     */
+    const result = validate(
+      'Make,Model,Plate,Status\nRenault,Clio,AA-11-BB,Servicing\nDacia,Duster,CC-22-DD,Off the road\n',
+    )
+
+    for (const row of [result.rows[0]!, result.rows[1]!]) {
+      expect(isImportable(row)).toBe(false)
+      const issue = row.issues.find((candidate) => candidate.field === 'status')
+      expect(issue?.message).toContain('not available for hire')
+      expect(issue?.message).toContain('Clear the Status cell')
+    }
+    expect(result.validCount).toBe(0)
   })
 
   it('imports a vehicle marked rented, because occupancy is not a column', () => {

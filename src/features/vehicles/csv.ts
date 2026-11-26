@@ -123,6 +123,17 @@ const STATUS_SYNONYMS: Record<string, 'available' | 'maintenance' | 'unavailable
   booked: 'available',
 }
 
+/**
+ * The status words that claim a vehicle is not available for hire.
+ *
+ * Importing cannot act on them. A restriction comes from a maintenance record
+ * or from the off-road action, and each carries a reason, an author and a date
+ * that a spreadsheet cell does not. Dropping the cell quietly would be worse
+ * than refusing it: a file saying a car is off the road would produce a car
+ * anybody can book. So the row is held back and the operator is told why.
+ */
+const RESTRICTING_STATUSES: ReadonlySet<string> = new Set(['maintenance', 'unavailable'])
+
 const FUEL_SYNONYMS: Record<string, string> = {
   petrol: 'petrol',
   gasoline: 'petrol',
@@ -178,14 +189,24 @@ function buildAdapter(
 
       /*
        * The column is still read, so a file written for an older import is not
-       * silently misunderstood -- but it no longer assigns anything. A
-       * restriction comes from a maintenance record or from the off-road
-       * action, never from a spreadsheet cell, so an imported vehicle starts
-       * on the database's own safe default and is restricted afterwards by
-       * somebody who meant to.
+       * silently misunderstood -- but it no longer assigns anything. An
+       * imported vehicle starts on the database's own safe default and is
+       * restricted afterwards by somebody who meant to. A word this import
+       * cannot honour stops the row instead of passing quietly.
        */
-      if (statusCell !== '' && !(statusCell in STATUS_SYNONYMS)) {
-        issues.push({ field: 'status', message: `"${statusCell}" is not a status we recognise.` })
+      if (statusCell !== '') {
+        const claimed = STATUS_SYNONYMS[statusCell]
+        if (claimed === undefined) {
+          issues.push({ field: 'status', message: `"${statusCell}" is not a status we recognise.` })
+        } else if (RESTRICTING_STATUSES.has(claimed)) {
+          issues.push({
+            field: 'status',
+            message:
+              `"${statusCell}" says this vehicle is not available for hire, and importing ` +
+              `cannot take a vehicle off the road. Clear the Status cell to import it, then ` +
+              `schedule its maintenance or take it off the road in Pevvy.`,
+          })
+        }
       }
       if (fuelCell !== '' && !(fuelCell in FUEL_SYNONYMS)) {
         issues.push({
