@@ -232,7 +232,23 @@ describe('repricing', () => {
   })
 
   it('gives a booking with no base charge one', async () => {
-    await db.sql(`delete from public.rental_line_items where rental_id = $1`, [rentalId])
+    /*
+     * A booking that never had a base charge, built as a draft rather than by
+     * deleting from under a committed one. Posted charges stopped being
+     * destructible in 20261126130000, and a fixture that reached around that
+     * guard would be asserting against a database no deployment will have.
+     * Repricing accepts a draft or a confirmed reservation alike, so the
+     * behaviour under test is unchanged.
+     */
+    const bare = await createVehicle('BARE-0001', PREMIUM_RATE)
+    const [created] = await db.sql<{ id: string }>(
+      `insert into public.rentals
+         (organization_id, vehicle_id, customer_id, starts_at, ends_at, currency,
+          daily_rate_minor, billable_days, status)
+       values ($1, $2, $3, $4, $5, 'EUR', $6, 3, 'draft') returning id`,
+      [organizationId, bare, customerId, FROM, THREE_DAYS, PREMIUM_RATE],
+    )
+    rentalId = created!.id
     await reprice()
     const after = await lines()
     expect(after).toHaveLength(1)

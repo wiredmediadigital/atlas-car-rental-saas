@@ -110,18 +110,38 @@ async function totals(rentalId: string) {
   return row!
 }
 
+interface LineRow {
+  id: string
+  kind: string
+  description: string
+  unit_amount_minor: number
+  amount_minor: number
+  is_taxable: boolean
+  reverses_line_item_id: string | null
+  reversal_reason: string | null
+}
+
 async function lines(rentalId: string) {
-  return db.sql<{
-    kind: string
-    description: string
-    unit_amount_minor: number
-    amount_minor: number
-    is_taxable: boolean
-  }>(
-    `select kind, description, unit_amount_minor, amount_minor, is_taxable
+  return db.sql<LineRow>(
+    `select id, kind, description, unit_amount_minor, amount_minor, is_taxable,
+            reverses_line_item_id, reversal_reason
        from public.rental_line_items where rental_id = $1 order by sort_order, created_at`,
     [rentalId],
   )
+}
+
+/**
+ * The charges still standing: originals that nothing has reversed.
+ *
+ * Settlement stopped erasing lines in 20261126130000 and started reversing
+ * them, so the raw list now carries the history as well as the position. What
+ * a booking currently charges is the originals minus the ones that have picked
+ * up a reversal.
+ */
+async function standing(rentalId: string): Promise<LineRow[]> {
+  const rows = await lines(rentalId)
+  const reversed = new Set(rows.map((row) => row.reverses_line_item_id).filter(Boolean))
+  return rows.filter((row) => row.reverses_line_item_id === null && !reversed.has(row.id))
 }
 
 async function pay(rentalId: string, amountMinor: number): Promise<void> {
@@ -174,19 +194,28 @@ describe('cancelling settles the booking', () => {
     expect(Number(after.total_minor)).toBe(5_000)
   })
 
-  it('leaves the hire on the contract, saying what it now is', async () => {
-    // Zeroed, not deleted: what was booked is still readable, and the amount
-    // says the hire is not happening.
+  it('leaves the hire on the contract with its reversal beside it', async () => {
+    /*
+     * Reversed, not zeroed and not deleted. What was booked is still readable
+     * AT THE FIGURE IT WAS BOOKED AT, and a second line says it was taken
+     * back. Zeroing used to lose the original amount, which is the one number
+     * somebody querying the invoice later actually wants.
+     */
     const id = await bookedAt(40_000)
     await cancel(id, 5_000)
 
     const rows = await lines(id)
-    expect(rows).toHaveLength(2)
-    expect(rows[0]!.description).toBe('4 day hire')
-    expect(Number(rows[0]!.amount_minor)).toBe(0)
-    expect(Number(rows[0]!.unit_amount_minor)).toBe(0)
-    expect(rows[1]!.description).toBe('Cancellation fee')
-    expect(Number(rows[1]!.amount_minor)).toBe(5_000)
+    const hire = rows.find((row) => row.description === '4 day hire')!
+    const reversal = rows.find((row) => row.reverses_line_item_id === hire.id)!
+
+    expect(Number(hire.amount_minor)).toBe(40_000)
+    expect(Number(reversal.amount_minor)).toBe(-40_000)
+    expect(reversal.reversal_reason).toBe('Booking cancelled')
+
+    const left = await standing(id)
+    expect(left).toHaveLength(1)
+    expect(left[0]!.description).toBe('Cancellation fee')
+    expect(Number(left[0]!.amount_minor)).toBe(5_000)
   })
 
   it('charges nothing when nothing is kept', async () => {
@@ -194,16 +223,19 @@ describe('cancelling settles the booking', () => {
     await cancel(id)
 
     expect(Number((await totals(id)).total_minor)).toBe(0)
-    expect(await lines(id)).toHaveLength(1)
+    // Nothing is left charging, and both the hire and its reversal remain.
+    expect(await standing(id)).toHaveLength(0)
+    expect(await lines(id)).toHaveLength(2)
   })
 
-  it('removes a discount, which is the one line it cannot zero', async () => {
+  it('reverses a discount rather than deleting it', async () => {
     /*
-     * rental_line_items_discount_is_negative will not have a discount sitting
-     * at nothing, and a negative line left behind has nothing to reduce --
-     * which makes the recalculation refuse the contract as discounted below
-     * zero. Cancelling a booking carrying a discount would have failed outright
-     * either way.
+     * A discount used to be DELETED here, because a discount cannot sit at
+     * zero (rental_line_items_discount_is_negative) and a negative line with
+     * nothing left to reduce makes the recalculation refuse the contract.
+     * Reversing solves the same problem without destroying the record: the
+     * reversal of a discount is positive, so it is posted FIRST and the total
+     * rises before anything takes charges away.
      */
     const id = await bookedAt(40_000)
     await addLine(id, { kind: 'discount', description: 'Returning customer', amountMinor: -5_000 })
@@ -213,7 +245,11 @@ describe('cancelling settles the booking', () => {
     const after = await totals(id)
     expect(Number(after.discount_minor)).toBe(0)
     expect(Number(after.total_minor)).toBe(5_000)
-    expect((await lines(id)).map((row) => row.kind)).toEqual(['base_rental', 'cancellation_fee'])
+
+    const rows = await lines(id)
+    const discount = rows.find((row) => row.kind === 'discount' && row.amount_minor < 0)!
+    expect(rows.some((row) => row.reverses_line_item_id === discount.id)).toBe(true)
+    expect((await standing(id)).map((row) => row.kind)).toEqual(['cancellation_fee'])
   })
 
   it('keeps the fee out of the tax base unless the agency says otherwise', async () => {
@@ -225,7 +261,9 @@ describe('cancelling settles the booking', () => {
     const after = await totals(id)
     expect(Number(after.tax_minor)).toBe(0)
     expect(Number(after.total_minor)).toBe(5_000)
-    expect((await lines(id))[1]!.is_taxable).toBe(false)
+    // Selected by kind rather than by position: reversals now sit in the list.
+    const fee = (await standing(id)).find((row) => row.kind === 'cancellation_fee')!
+    expect(fee.is_taxable).toBe(false)
   })
 
   it('refuses a negative fee', async () => {
@@ -241,8 +279,11 @@ describe('changing what is kept afterwards', () => {
 
     await setFee(id, 7_500)
 
-    const rows = await lines(id)
-    expect(rows.filter((row) => row.kind === 'cancellation_fee')).toHaveLength(1)
+    // One fee STANDING, not one fee in existence: the first is reversed and
+    // both it and its reversal stay on the record.
+    const left = await standing(id)
+    expect(left.filter((row) => row.kind === 'cancellation_fee')).toHaveLength(1)
+    expect(Number(left.find((row) => row.kind === 'cancellation_fee')!.amount_minor)).toBe(7_500)
     expect(Number((await totals(id)).total_minor)).toBe(7_500)
   })
 
@@ -252,7 +293,7 @@ describe('changing what is kept afterwards', () => {
 
     await setFee(id, 0)
 
-    expect(await lines(id)).toHaveLength(1)
+    expect(await standing(id)).toHaveLength(0)
     expect(Number((await totals(id)).total_minor)).toBe(0)
   })
 
