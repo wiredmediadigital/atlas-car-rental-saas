@@ -55,6 +55,7 @@ import {
   issueContract,
   recordPayment,
   removeCharge,
+  reverseCharge,
   signContract,
   repriceRental,
   substituteVehicle,
@@ -586,6 +587,17 @@ export function useRemoveCharge() {
 
   return useMutation({
     mutationFn: (lineItemId: string) => removeCharge(lineItemId),
+    onSuccess: () => invalidateRentals(client, organization.id),
+  })
+}
+
+export function useReverseCharge() {
+  const organization = useOrganization()
+  const client = useQueryClient()
+
+  return useMutation({
+    mutationFn: ({ lineItemId, reason }: { lineItemId: string; reason: string }) =>
+      reverseCharge(lineItemId, reason),
     onSuccess: () => invalidateRentals(client, organization.id),
   })
 }

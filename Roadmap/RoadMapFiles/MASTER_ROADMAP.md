@@ -97,3 +97,43 @@ Next is **Rental Financial Adjustments**, which has not been started and for whi
 package has yet been supplied. The owner's approved Maintenance downtime caption
 correction is committed and deliberately held unpushed, to travel with that package's
 deployment rather than prompt one of its own.
+
+## Work Package 4 — Rental Financial Adjustments — 2026-11-27
+
+Commissioned as an enhancement and verification assignment, not a new financial system.
+No parallel adjustment ledger, payment ledger, pricing engine, tax engine or customer
+credit system was built, and the Charges / Money / Agency costs architecture is unchanged.
+
+The brief required the existing delete action on rental charge lines to be investigated
+rather than assumed unsafe. It was unsafe: the delete was a direct PostgREST `DELETE`
+whose only backend control was a policy that said nothing about the state of the rental,
+so a staff member could destroy a charge after the contract was issued, after payment and
+after completion. The only lifecycle gate was in the browser.
+
+Migration `20261126130000_rental_charge_integrity.sql` closes it. Corrections after a
+rental is committed are posted as mirrored reversal lines that preserve the original,
+carry an operator, a timestamp and a reason, and cannot be posted twice. The base hire is
+covered by the same protection; repricing and extension continue to restate it through
+`public.rental_extend` and `public.rental_reprice`, now privileged functions carrying the
+tenant, role, billing and state checks that row-level security previously applied on their
+behalf. Public RPC signatures are unchanged. Cancellation settles by reversal with its
+pricing outcome unchanged.
+
+The migration is applied to **staging only** — 142 local / 142 remote, zero drift — and
+the applied statements were compared against the approved checksum rather than trusted
+from a ledger row. Production has not been accessed and remains NO-GO.
+
+Rental Details is now four tabs — Overview, Financials, Inspections, Documents, and
+deliberately no Activity tab — with an authoritative financial overview strip whose six
+figures are all read from the database rather than recomputed in the browser. Reversing a
+charge is a manager's authority. Destructive actions on finalized charges are gone.
+
+**Not accepted.** Scenarios 30–34 in
+`Reports/PEVVY_RENTAL_FINANCIAL_ADJUSTMENTS_ACCEPTANCE.md` are the owner's pass, and the
+acceptance gate closed for Maintenance (28/28) and Incident Management (scenario 29) is
+open again for this package. One requirement is declared **incomplete in advance**:
+a confirmed reservation repriced before any contract is issued leaves no record of the
+previous hire amount, which needs a further migration and its own authorization.
+
+Maintenance Management (28/28), Incident Management (scenario 29) and Driver availability
+(9/9) are preserved and not reopened.

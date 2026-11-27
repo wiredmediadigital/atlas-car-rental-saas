@@ -59,6 +59,15 @@ const PERMISSION_TARGETS: Partial<
   'rentals.create': { table: 'rentals', command: 'insert' },
   'rentals.update': { table: 'rentals', command: 'update' },
   'rentals.delete': { table: 'rentals', command: 'delete' },
+  /*
+   * Correcting a committed charge is an INSERT of a mirrored line, so the
+   * policy that gates it is rental_line_items_insert. Ordinary charges need
+   * only 'staff' there; the manager clause exists solely for reversals, which
+   * is what this assertion pins down. If somebody loosened that clause the
+   * interface would still hide the control and the database would quietly
+   * start accepting staff corrections.
+   */
+  'rentals.reverse_charge': { table: 'rental_line_items', command: 'insert' },
 
   'payments.view': { table: 'payments', command: 'select' },
   'payments.create': { table: 'payments', command: 'insert' },

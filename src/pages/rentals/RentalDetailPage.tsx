@@ -9,7 +9,7 @@ import {
   XCircle,
 } from 'lucide-react'
 import { useMemo, useState } from 'react'
-import { Link, useNavigate, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 
 import { customerDetailPath, paths, vehicleDetailPath } from '@/app/routes/paths'
 import { ErrorState } from '@/components/feedback/ErrorState'
@@ -32,18 +32,21 @@ import {
 } from '@/components/ui'
 import { RentalCostPanel } from '@/features/expenses/components/RentalCostPanel'
 import { AddChargeForm } from '@/features/rentals/components/AddChargeForm'
+import { ChargesPanel } from '@/features/rentals/components/ChargesPanel'
 import { ConditionPhotos } from '@/features/rentals/components/ConditionPhotos'
 import { ContractPanel } from '@/features/rentals/components/ContractPanel'
 import { ExtendDialog } from '@/features/rentals/components/ExtendDialog'
 import { HandoverDialog } from '@/features/rentals/components/HandoverDialog'
 import { PaymentDialog } from '@/features/rentals/components/PaymentDialog'
 import { PaymentsPanel } from '@/features/rentals/components/PaymentsPanel'
-import { QuoteSummary } from '@/features/rentals/components/QuoteSummary'
+import { FinancialOverview } from '@/features/rentals/components/FinancialOverview'
+import { QuoteTotals } from '@/features/rentals/components/QuoteSummary'
 import {
   OverdueBadge,
   PaymentStatusBadge,
   RentalStatusBadge,
 } from '@/features/rentals/components/RentalBadges'
+import { RentalTabs, isRentalTab, type RentalTab } from '@/features/rentals/components/RentalTabs'
 import { SubstituteVehicleDialog } from '@/features/rentals/components/SubstituteVehicleDialog'
 import {
   ACTION_LABELS,
@@ -63,6 +66,7 @@ import {
   useDeleteRental,
   useRemoveCharge,
   useRental,
+  useReverseCharge,
   useRepriceRental,
   useRentalBoardEntry,
   useRentalDrivers,
@@ -98,6 +102,7 @@ export function RentalDetailPage() {
   const canManagePhotos = usePermission('rentals.update')
   const canRemovePhotos = usePermission('rentals.delete')
   const canViewExpenses = usePermission('expenses.view')
+  const canReverseCharge = usePermission('rentals.reverse_charge')
   const canRecordExpense = usePermission('expenses.create')
 
   const rentalQuery = useRental(rentalId)
@@ -114,7 +119,17 @@ export function RentalDetailPage() {
   const moveToAccount = useMoveToAccount(rentalId ?? '')
   const addCharge = useAddCharge(rentalId ?? '')
   const removeCharge = useRemoveCharge()
+  const reverseCharge = useReverseCharge()
   const deleteRental = useDeleteRental()
+
+  /*
+   * The tab lives in the address bar, not in component state. Somebody looking
+   * at a disputed charge sends a colleague the link, and a link that always
+   * lands on Overview makes them hunt for what they were shown.
+   */
+  const [params, setParams] = useSearchParams()
+  const tabParam = params.get('tab')
+  const tab: RentalTab = isRentalTab(tabParam) ? tabParam : 'overview'
 
   const [handover, setHandover] = useState<'pickup' | 'return' | null>(null)
   const [payment, setPayment] = useState<'charge' | 'deposit' | 'refund-deposit' | 'refund' | null>(
@@ -199,6 +214,19 @@ export function RentalDetailPage() {
       </div>
     )
   }
+
+  /*
+   * Past the point where a charge may be deleted outright.
+   *
+   * app.rental_is_finalized asks three questions: is the rental past draft, has
+   * a contract been issued, and has anything been paid that was not voided. A
+   * draft cannot be contracted, so the first and the last are the two this
+   * screen can see. Getting this wrong is only ever a presentation error — the
+   * trigger is what actually refuses the delete — but offering a button that
+   * always fails is its own kind of lie.
+   */
+  const isFinalized =
+    rental.status !== 'draft' || rental.amount_paid_minor !== 0 || rental.deposit_held_minor !== 0
 
   const snapshot = {
     status: rental.status,
@@ -387,6 +415,17 @@ export function RentalDetailPage() {
         ) : null}
       </div>
 
+      <FinancialOverview
+        rentalId={rentalId}
+        currency={currency}
+        locale={locale}
+        totalMinor={rental.total_minor}
+        amountPaidMinor={rental.amount_paid_minor}
+        balanceDueMinor={rental.balance_due_minor}
+        depositHeldMinor={rental.deposit_held_minor}
+        canViewCosts={canViewExpenses}
+      />
+
       {next && !state(next).available ? (
         <Alert tone="caution" title={`Cannot ${ACTION_LABELS[next].toLowerCase()} yet`}>
           {state(next).reason}
@@ -468,8 +507,24 @@ export function RentalDetailPage() {
         </Alert>
       ) : null}
 
-      <div className="grid gap-6 lg:grid-cols-[1fr_22rem]">
-        <div className="space-y-6">
+      <RentalTabs
+        tab={tab}
+        onChange={(next) =>
+          setParams(
+            (params) => {
+              const updated = new URLSearchParams(params)
+              if (next === 'overview') updated.delete('tab')
+              else updated.set('tab', next)
+              return updated
+            },
+            { replace: true },
+          )
+        }
+        counts={{ financials: lines.length }}
+      />
+
+      {tab === 'overview' ? (
+        <div className="grid gap-6 lg:grid-cols-2">
           <Card>
             <CardHeader title="The hire" />
             <CardBody>
@@ -543,26 +598,39 @@ export function RentalDetailPage() {
               ) : null}
             </CardBody>
           </Card>
+        </div>
+      ) : null}
 
+      {tab === 'financials' ? (
+        <div className="space-y-6">
           <Card>
             <CardHeader
               title="Charges"
               description="What the contract totals to. Every figure comes from these lines."
             />
             <CardBody className="space-y-4">
-              <QuoteSummary
+              <ChargesPanel
+                lines={lines}
+                currency={currency}
+                locale={locale}
+                timeZone={timeZone}
+                isFinalized={isFinalized}
+                canRemove={canUpdate}
+                canReverse={canReverseCharge}
+                isRemoving={removeCharge.isPending}
+                isReversing={reverseCharge.isPending}
+                onRemove={(lineItemId) => void removeCharge.mutateAsync(lineItemId)}
+                onReverse={(lineItemId, reason) =>
+                  reverseCharge.mutateAsync({ lineItemId, reason })
+                }
+                error={removeCharge.error ? toErrorMessage(removeCharge.error) : null}
+              />
+
+              <QuoteTotals
                 quote={quote}
                 locale={locale}
                 depositMinor={rental.deposit_minor}
                 taxLabel={rental.tax_label}
-                {...(canUpdate && rental.status !== 'completed' && rental.status !== 'cancelled'
-                  ? {
-                      onRemoveLine: (index: number) => {
-                        const line = lines[index]
-                        if (line) void removeCharge.mutateAsync(line.id)
-                      },
-                    }
-                  : {})}
               />
 
               {canUpdate && rental.status !== 'completed' && rental.status !== 'cancelled' ? (
@@ -615,19 +683,16 @@ export function RentalDetailPage() {
               canRecord={canRecordExpense && rental.status !== 'cancelled'}
             />
           ) : null}
-
-          <ConditionPhotos
-            rentalId={rentalId}
-            canUpload={canManagePhotos}
-            canDelete={canRemovePhotos}
-            locale={locale}
-            timeZone={timeZone}
-          />
         </div>
+      ) : null}
 
-        <aside className="space-y-6">
+      {tab === 'inspections' ? (
+        <div className="grid gap-6 lg:grid-cols-[22rem_1fr]">
           <Card>
-            <CardHeader title="Hand-over" />
+            <CardHeader
+              title="Hand-over"
+              description="The condition the vehicle left in, and the condition it came back in."
+            />
             <CardBody>
               <dl className="space-y-3">
                 <Detail label="Collected">
@@ -680,6 +745,18 @@ export function RentalDetailPage() {
             </CardBody>
           </Card>
 
+          <ConditionPhotos
+            rentalId={rentalId}
+            canUpload={canManagePhotos}
+            canDelete={canRemovePhotos}
+            locale={locale}
+            timeZone={timeZone}
+          />
+        </div>
+      ) : null}
+
+      {tab === 'documents' ? (
+        <div className="max-w-2xl">
           <ContractPanel
             rentalId={rentalId}
             organizationId={organization.id}
@@ -688,8 +765,8 @@ export function RentalDetailPage() {
             locale={locale}
             timeZone={timeZone}
           />
-        </aside>
-      </div>
+        </div>
+      ) : null}
 
       {handover ? (
         <HandoverDialog

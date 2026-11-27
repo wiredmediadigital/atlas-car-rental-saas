@@ -107,3 +107,62 @@ needs to find is the old one nobody closed.
 
 This architecture is owner-accepted across Maintenance Management (28/28) and Incident
 Management (scenario 29, 13/13), and is frozen.
+
+## 2026-11-27 — A function is redefined from its effective definition, not its file
+
+A migration that redefines an existing database function must start from the definition
+that is live after every preceding migration has run, read with `pg_get_functiondef`, and
+not from the `create or replace` statement in whichever older migration file happens to
+mention it.
+
+This is not a style preference. `20261120100000_assignment_feature_activation.sql` does
+not edit a file: it loops over every function whose body mentions the assignment feature
+flag and rewrites that body in place, replacing a session-level GUC check with
+`app.assignment_lifecycle_active(organization_id)`. Any function it touched therefore has
+a live definition that exists in no migration file at all.
+
+Redefining `public.rental_extend` from its original file reverted exactly that rewrite.
+The function still compiled, still passed its own tests, and silently returned the
+assignment lifecycle to a session flag that nothing sets — so a confirmed reservation
+stopped opening its vehicle assignment row. Nothing in the rental test suites noticed. The
+maintenance acceptance suite did, through one scenario about a reservation confirmed
+outside a member session, which is a thin thread to have been hanging by.
+
+Any future migration redefining `rental_extend`, `rental_reprice`, `rental_confirm`,
+`rental_check_out`, `rental_check_in`, `rental_complete`, `rental_reschedule`,
+`rental_substitute_vehicle` or `rental_swap_vehicle` must check the live body first and
+preserve the per-organization gate.
+
+## 2026-11-27 — The trusted financial mutation boundary
+
+Any function owned by the table owner and marked SECURITY DEFINER that can write
+`rental_line_items` is part of the trusted financial mutation boundary, because the
+integrity trigger deliberately stands aside for the table owner.
+
+That is how the guard tells an authorized pricing operation from a direct PostgREST
+write: `app.guard_rental_line_item_integrity` is SECURITY INVOKER, so `current_user` names
+whoever is actually writing, and it compares that against the owner of
+`public.rental_line_items`. A signed-in role cannot become the owner. A client-settable
+session flag was rejected for this: `set_config` is callable by anyone, so a GUC the
+trigger trusts is a GUC an attacker sets first.
+
+The cost of that choice is that the exemption is granted by ownership rather than by
+intent. A new owner-owned definer function that touches charge lines inherits the
+exemption whether or not its author considered the question. Every such function must
+therefore be reviewed for: tenant membership, minimum role, billing entitlement, its
+EXECUTE grants (`anon` revoked, `authenticated` granted explicitly rather than through
+PUBLIC), a fixed `search_path`, and whether it can be made to write a charge line that
+the trigger would otherwise refuse.
+
+The permission-matrix and billing definer allow-list regression tests enforce the grant
+half of this and must not be weakened. Two helpers the guard itself calls —
+`app.rental_is_finalized` and `app.rental_charges_purge_exempt` — are executable by
+`authenticated` by necessity, since the guard runs as the caller. Both are read-only and
+return a boolean about a rental id the caller must already know. This is a known and
+accepted residual exposure, recorded here so it is not rediscovered as a surprise.
+
+## 2026-11-27 — Desktop, tablet and mobile are not optional
+
+Every subsequent Pevvy work package is responsive work. Desktop, iPad portrait, iPad
+landscape and mobile usability are acceptance requirements, not a later pass, and a
+feature is not complete at desktop width alone.

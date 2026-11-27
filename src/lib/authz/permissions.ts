@@ -135,6 +135,16 @@ export const PERMISSIONS = {
   'rentals.update': 'staff',
   'rentals.delete': 'manager',
 
+  /*
+   * Correcting a charge on a committed rental, by posting a reversal.
+   *
+   * Deliberately NOT 'staff', even though staff may add and (while the rental
+   * is still a draft) remove charges. The database draws the same line in
+   * rental_line_items_insert, and this mirrors it so the desk is told before
+   * it acts rather than refused afterwards.
+   */
+  'rentals.reverse_charge': 'manager',
+
   'payments.view': 'staff',
   'payments.create': 'staff',
   'payments.update': 'manager',

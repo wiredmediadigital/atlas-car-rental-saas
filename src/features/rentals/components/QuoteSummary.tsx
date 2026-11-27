@@ -68,56 +68,79 @@ export function QuoteSummary({
         ) : null}
       </ul>
 
-      <dl className="border-line space-y-1 border-t pt-3">
-        <div className="flex justify-between gap-3">
-          <dt className="text-ink-muted text-[0.8125rem]">Rental</dt>
-          <dd data-numeric="" className="text-ink text-[0.8125rem]">
-            {cash(quote.subtotalMinor)}
-          </dd>
-        </div>
-        {quote.extrasMinor > 0 ? (
-          <div className="flex justify-between gap-3">
-            <dt className="text-ink-muted text-[0.8125rem]">Extras</dt>
-            <dd data-numeric="" className="text-ink text-[0.8125rem]">
-              {cash(quote.extrasMinor)}
-            </dd>
-          </div>
-        ) : null}
-        {quote.discountMinor > 0 ? (
-          <div className="flex justify-between gap-3">
-            <dt className="text-ink-muted text-[0.8125rem]">Discount</dt>
-            <dd data-numeric="" className="text-ink text-[0.8125rem]">
-              −{cash(quote.discountMinor)}
-            </dd>
-          </div>
-        ) : null}
-        {quote.taxRateBps > 0 ? (
-          <div className="flex justify-between gap-3">
-            <dt className="text-ink-muted text-[0.8125rem]">
-              {taxLabel || 'Tax'} ({formatTaxRate(quote.taxRateBps)})
-            </dt>
-            <dd data-numeric="" className="text-ink text-[0.8125rem]">
-              {cash(quote.taxMinor)}
-            </dd>
-          </div>
-        ) : null}
-
-        <div className="border-line mt-2 flex justify-between gap-3 border-t pt-2">
-          <dt className="text-ink text-[0.9375rem] font-semibold">Total</dt>
-          <dd data-numeric="" className="text-ink text-[0.9375rem] font-semibold">
-            {cash(quote.totalMinor)}
-          </dd>
-        </div>
-
-        {depositMinor > 0 ? (
-          <div className="flex justify-between gap-3 pt-1">
-            <dt className="text-ink-subtle text-[0.75rem]">Refundable deposit, held separately</dt>
-            <dd data-numeric="" className="text-ink-subtle text-[0.75rem]">
-              {cash(depositMinor)}
-            </dd>
-          </div>
-        ) : null}
-      </dl>
+      <QuoteTotals quote={quote} locale={locale} depositMinor={depositMinor} taxLabel={taxLabel} />
     </div>
+  )
+}
+
+export interface QuoteTotalsProps {
+  quote: Quote
+  locale: string
+  depositMinor: number
+  taxLabel: string | null
+}
+
+/**
+ * The subtotal, tax and total of a quote, without the lines above them.
+ *
+ * Split out because the rental screen now draws the charge lines itself, so
+ * that a reversed charge can be shown struck through beside the line that took
+ * it back. The totals are the same totals either way, and keeping one copy is
+ * what stops the two screens quietly disagreeing about what tax is called.
+ */
+export function QuoteTotals({ quote, locale, depositMinor, taxLabel }: QuoteTotalsProps) {
+  const cash = (minor: number) => formatMoney(minor, quote.currency, { locale })
+
+  return (
+    <dl className="border-line space-y-1 border-t pt-3">
+      <div className="flex justify-between gap-3">
+        <dt className="text-ink-muted text-[0.8125rem]">Rental</dt>
+        <dd data-numeric="" className="text-ink text-[0.8125rem]">
+          {cash(quote.subtotalMinor)}
+        </dd>
+      </div>
+      {quote.extrasMinor > 0 ? (
+        <div className="flex justify-between gap-3">
+          <dt className="text-ink-muted text-[0.8125rem]">Extras</dt>
+          <dd data-numeric="" className="text-ink text-[0.8125rem]">
+            {cash(quote.extrasMinor)}
+          </dd>
+        </div>
+      ) : null}
+      {quote.discountMinor > 0 ? (
+        <div className="flex justify-between gap-3">
+          <dt className="text-ink-muted text-[0.8125rem]">Discount</dt>
+          <dd data-numeric="" className="text-ink text-[0.8125rem]">
+            −{cash(quote.discountMinor)}
+          </dd>
+        </div>
+      ) : null}
+      {quote.taxRateBps > 0 ? (
+        <div className="flex justify-between gap-3">
+          <dt className="text-ink-muted text-[0.8125rem]">
+            {taxLabel || 'Tax'} ({formatTaxRate(quote.taxRateBps)})
+          </dt>
+          <dd data-numeric="" className="text-ink text-[0.8125rem]">
+            {cash(quote.taxMinor)}
+          </dd>
+        </div>
+      ) : null}
+
+      <div className="border-line mt-2 flex justify-between gap-3 border-t pt-2">
+        <dt className="text-ink text-[0.9375rem] font-semibold">Total</dt>
+        <dd data-numeric="" className="text-ink text-[0.9375rem] font-semibold">
+          {cash(quote.totalMinor)}
+        </dd>
+      </div>
+
+      {depositMinor > 0 ? (
+        <div className="flex justify-between gap-3 pt-1">
+          <dt className="text-ink-subtle text-[0.75rem]">Refundable deposit, held separately</dt>
+          <dd data-numeric="" className="text-ink-subtle text-[0.75rem]">
+            {cash(depositMinor)}
+          </dd>
+        </div>
+      ) : null}
+    </dl>
   )
 }

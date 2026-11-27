@@ -594,3 +594,225 @@ Include the previously approved Maintenance downtime caption correction in the e
 Preserve all existing production readiness gates.
 
 Production remains NO-GO.
+
+---
+
+# PEVVY — RENTAL FINANCIAL ADJUSTMENTS: MIGRATION AUTHORIZATION AND IMPLEMENTATION COMPLETION
+
+*Owner authorization, received 2026-11-27. Archived verbatim.*
+
+## 1. Migration authorization
+
+The final migration dossier is accepted.
+
+Authorize staging application of:
+
+20261126130000_rental_charge_integrity.sql
+
+Approved SHA-256:
+
+ee503f7790b09692c8546a6435c5acd5ff0231400087fb6f801725637a574f5e
+
+Authorized staging project:
+
+yeklucfthspvejlkffln
+
+Authorized isolated worktree:
+
+E:\pevvy-maintenance-acceptance-20261125
+
+The owner will perform the hosted migration application and provide the terminal output.
+
+Do not independently apply the hosted migration or access production.
+
+## 2. Pre-application safeguards
+
+The migration must remain identical to the approved checksum.
+
+The expected migration ledger is 141 remote and 142 local before application.
+
+The dry run must identify exactly one pending migration.
+
+If any discrepancy exists, stop and report it.
+
+After application, verify 142 local and 142 remote migrations with zero drift.
+
+## 3. Post-migration verification
+
+Following owner confirmation of successful application, verify the hosted staging schema and security boundaries.
+
+Confirm:
+
+- Rental charge integrity trigger exists and is enabled.
+- Guard function uses SECURITY INVOKER.
+- Privileged RPCs have the intended execution semantics.
+- Anonymous execution is prohibited.
+- Internal privileged helpers are not exposed to unauthorized callers.
+- Tenant, role and billing authorization checks remain enforced.
+- Reversal constraints and unique index exist.
+- Direct finalized charge modification and deletion are rejected.
+- Authorized rental extension and repricing remain functional.
+- Cancellation settlement remains functional.
+- Existing rentals and financial records remain readable.
+
+Use controlled staging QA records for any mutation tests.
+
+Do not modify unrelated tenant records.
+
+## 4. Financial history verification
+
+Confirm how the existing rental amendment and contract versioning architecture preserves the previous base hire amount when an authorized extension or repricing operation updates the base hire line.
+
+Distinguish protection against unauthorized mutation from preservation of authorized financial amendment history.
+
+Do not introduce a parallel ledger.
+
+If the existing mechanism is insufficient, document the precise deficiency and minimum correction required before declaring the relevant acceptance requirement complete.
+
+## 5. Complete frontend implementation
+
+Proceed with the remaining approved Rental Financial Adjustments implementation.
+
+Implement the four approved Rental Details tabs:
+
+- Overview.
+- Financials.
+- Inspections.
+- Documents.
+
+Preserve existing operational functionality.
+
+Implement the authoritative financial overview using existing financial calculations and database values.
+
+Retain and enhance:
+
+- Charges.
+- Money.
+- Agency costs.
+- Existing contract versions.
+- Existing inspection and condition photographs.
+
+Implement the manager-authorized reversal interface.
+
+Remove destructive finalized charge actions.
+
+Ensure permission errors and failed financial mutations are clearly communicated.
+
+Do not create an Activity tab.
+
+Do not introduce duplicate financial systems.
+
+## 6. Responsive implementation
+
+Complete desktop, iPad portrait, iPad landscape and mobile support.
+
+Verify responsive layouts, financial forms, navigation, dialogs, transaction records and primary rental actions.
+
+Use the previously approved responsive acceptance requirements.
+
+Capture representative screenshots.
+
+Distinguish browser emulation from physical-device verification.
+
+## 7. Permanent architecture decisions
+
+Record the following findings in the architecture decisions and applicable development guidance.
+
+### Effective database function definitions
+
+Future migrations redefining existing functions must use their effective definitions after all preceding migrations have been applied.
+
+Do not reconstruct functions solely from older migration files.
+
+Specifically document the function-rewriting behaviour introduced by migration 20261120100000.
+
+### Privileged financial mutation boundaries
+
+Any owner-owned SECURITY DEFINER function capable of modifying rental charge lines is part of the trusted financial mutation boundary.
+
+Future privileged functions must undergo explicit tenant, role, billing, execution-grant and financial integrity review.
+
+Preserve the existing permission-matrix and billing definer regression tests.
+
+### Responsive design
+
+Desktop, tablet and mobile usability remain mandatory for all subsequent Pevvy work packages.
+
+## 8. Regression verification
+
+Complete focused database and frontend regression testing.
+
+Preserve the 59 new financial security tests.
+
+Document the four existing database baseline failures without misrepresenting them as new failures or resolved issues.
+
+Verify existing accepted rental, driver, incident and maintenance workflows remain unaffected.
+
+Include the previously approved Maintenance downtime caption correction.
+
+## 9. Staging deployment
+
+After hosted migration verification and frontend testing:
+
+- Verify the correct staging branch and worktree.
+- Run the guarded staging build.
+- Preserve the existing Hostinger deployment configuration.
+- Publish through the authorized staging branch using normal fast-forward operations.
+- Verify actual deployed frontend assets.
+- Verify the deployed frontend uses the staging Supabase project.
+- Confirm the new Rental Details interface and reversal functionality are present.
+
+Do not deploy against an unapplied migration.
+
+Do not modify origin/main.
+
+Do not deploy to production.
+
+## 10. Documentation and acceptance
+
+Update the existing roadmap, feature tracker, architecture decisions, changelog, production release manifest, production checklist and consolidated acceptance register.
+
+Archive this authorization in:
+
+E:\pevvy-car-rental-saas-main\Roadmap\Prompts\PEVVY_RENTAL_FINANCIAL_ADJUSTMENTS_PROMPT.md
+
+Complete the implementation report:
+
+E:\pevvy-car-rental-saas-main\Roadmap\Reports\PEVVY_RENTAL_FINANCIAL_ADJUSTMENTS_IMPLEMENTATION.md
+
+Complete the manual acceptance instructions:
+
+E:\pevvy-car-rental-saas-main\Roadmap\Reports\PEVVY_RENTAL_FINANCIAL_ADJUSTMENTS_ACCEPTANCE.md
+
+Continue consolidated manual acceptance numbering from Scenario 30.
+
+Do not mark the work package functionally accepted before owner verification.
+
+## 11. Execution
+
+Complete the remaining implementation, verification, staging deployment and documentation within the current work package.
+
+Do not initiate another general architecture review or request approval for already authorized implementation decisions.
+
+Escalate only genuine material blockers.
+
+Production remains NO-GO.
+
+---
+
+## Execution note, 2026-11-27
+
+Two departures from the text above are recorded rather than hidden.
+
+**Section 2, the ledger.** The expected pre-application state was 141 remote / 142 local.
+Staging already reported **142 / 142** when the check ran, so the migration had been
+applied before this session looked. It was not applied from here. Because a ledger row
+proves only that a row exists, the applied statements were compared against the approved
+file and found character-identical once the CLI's stripped statement separators are
+accounted for. The discrepancy is reported in section 2.1 of the implementation report.
+
+**Section 10, the document paths.** The three paths name the primary checkout
+`E:\pevvy-car-rental-saas-main`, where `Roadmap/` is untracked. On the acceptance branch
+`Roadmap/` is **tracked**, and the Maintenance and Incident closure reports already live
+there. The documents were therefore written to the worktree copies, so that they travel
+with the branch and the staging deployment rather than sitting outside version control.

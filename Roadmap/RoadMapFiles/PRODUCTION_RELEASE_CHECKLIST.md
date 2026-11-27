@@ -129,3 +129,32 @@ stands, including:
 - [ ] Hostinger deployment-to-commit attribution for the production target.
 
 **Production remains NO-GO.**
+
+---
+
+## Work Package 4 — Rental Financial Adjustments (added 2026-11-27)
+
+- [ ] **Rental Financial Adjustments: scenarios 30–34 not yet run.** The acceptance gate
+      that was closed for Maintenance and Incident Management is **open again** for this
+      package. Script: `Reports/PEVVY_RENTAL_FINANCIAL_ADJUSTMENTS_ACCEPTANCE.md`.
+- [ ] **Amendment history is not preserved for a reservation repriced before any contract
+      is issued.** Where a contract exists the superseded version preserves the previous
+      hire; where none exists nothing does. Needs a further migration and its own
+      authorization. The acceptance requirement covering preservation of authorized
+      amendment history must **not** be marked complete until then.
+- [ ] **Residual privileged exposure.** `app.rental_is_finalized` and
+      `app.rental_charges_purge_exempt` are SECURITY DEFINER and executable by
+      `authenticated`, because the integrity guard runs as the caller. Both are read-only
+      boolean oracles over a rental id. Accepted and recorded, not resolved.
+- [ ] **Ownership grants the trigger exemption.** Any future owner-owned SECURITY DEFINER
+      function able to write `rental_line_items` inherits the guard's exemption whether or
+      not its author considered it. Each such function needs explicit tenant, role,
+      billing, grant and integrity review.
+- [ ] **No down migration for `20261126130000`.** It is additive, but reverting requires a
+      new forward migration that decides what to do with reversal lines already posted.
+
+Migration `20261126130000_rental_charge_integrity.sql` is applied to **staging only**
+(142 local / 142 remote, zero drift). It is **not** applied to production, and production
+has not been accessed.
+
+**Production remains NO-GO.**

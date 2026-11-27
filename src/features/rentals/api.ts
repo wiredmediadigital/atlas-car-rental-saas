@@ -855,11 +855,33 @@ export async function addCharge(input: AddChargeInput): Promise<RentalLineItem> 
   return data
 }
 
+/**
+ * Deletes a charge outright. The database permits this only while the rental is
+ * still a draft: once it is reserved, contracted or paid against, the delete is
+ * refused and `reverseCharge` is the way to correct it.
+ */
 export async function removeCharge(lineItemId: string): Promise<void> {
   const { error } = await getSupabaseClient()
     .from('rental_line_items')
     .delete()
     .eq('id', lineItemId)
+  if (error) throw toAppError(error)
+}
+
+/**
+ * Corrects a posted charge by mirroring it, leaving both lines on the contract.
+ *
+ * This goes through the RPC rather than inserting the mirrored line directly:
+ * the function is what checks that the original is reversible, that it has not
+ * been reversed already, and that the amounts and tax treatment match. Doing it
+ * from here would mean re-implementing those rules in the browser, where they
+ * could drift.
+ */
+export async function reverseCharge(lineItemId: string, reason: string): Promise<void> {
+  const { error } = await getSupabaseClient().rpc('rental_reverse_charge', {
+    p_line_item_id: lineItemId,
+    p_reason: reason,
+  })
   if (error) throw toAppError(error)
 }
 

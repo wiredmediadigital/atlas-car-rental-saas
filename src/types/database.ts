@@ -993,6 +993,16 @@ type RentalLineItemRow = {
   currency: string
   is_taxable: boolean
   sort_order: number
+  /**
+   * The charge this line reverses, or null for an ordinary charge.
+   *
+   * A correction after a rental is committed is posted as a mirrored line
+   * rather than by editing or deleting the original, so what was charged and
+   * what was taken back both stay on the contract.
+   */
+  reverses_line_item_id: string | null
+  /** Why the reversal was posted. Required on a reversal, null otherwise. */
+  reversal_reason: string | null
   created_by: string | null
   created_at: string
   updated_at: string
@@ -3051,6 +3061,10 @@ export interface Database {
       }
       rental_reprice: {
         Args: { p_rental_id: string }
+        Returns: Json
+      }
+      rental_reverse_charge: {
+        Args: { p_line_item_id: string; p_reason: string }
         Returns: Json
       }
       rental_billable_days: {

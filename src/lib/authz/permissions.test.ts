@@ -96,6 +96,17 @@ describe('permission matrix', () => {
     expect(can('staff', 'organization.view')).toBe(true)
   })
 
+  it('does not let a staff member correct a charge merely because they may add one', () => {
+    /*
+     * The database draws this line in rental_line_items_insert. If the two ever
+     * disagree the desk is offered a button that fails, which is how people
+     * learn to distrust a screen.
+     */
+    expect(can('staff', 'rentals.update')).toBe(true)
+    expect(can('staff', 'rentals.reverse_charge')).toBe(false)
+    expect(can('manager', 'rentals.reverse_charge')).toBe(true)
+  })
+
   it('reserves destructive financial actions for administrators and above', () => {
     expect(can('manager', 'payments.delete')).toBe(false)
     expect(can('admin', 'payments.delete')).toBe(true)

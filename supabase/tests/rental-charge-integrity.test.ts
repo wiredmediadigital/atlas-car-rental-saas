@@ -28,7 +28,6 @@ let vehicleId: string
 let customerId: string
 
 let otherOrganizationId: string
-let otherOwnerId: string
 let otherVehicleId: string
 let otherCustomerId: string
 
@@ -169,7 +168,6 @@ beforeAll(async () => {
   customerId = await makeCustomer(organizationId)
 
   const other = await signUp(db, { email: 'owner@other.test', organizationName: 'Other Co' })
-  otherOwnerId = other.userId
   otherOrganizationId = other.organizationId!
   otherVehicleId = await makeVehicle(otherOrganizationId)
   otherCustomerId = await makeCustomer(otherOrganizationId)
@@ -589,7 +587,9 @@ describe('cancelling a booking settles it by reversing', () => {
     await addLine(rental, { kind: 'base_rental', amount: 20_000, taxable: false })
     await addLine(rental, { kind: 'discount', amount: -5_000, taxable: false })
 
-    await db.asUser(ownerId, (s) => s.sql(`select public.rental_cancel($1, 'Called off', 0)`, [rental]))
+    await db.asUser(ownerId, (s) =>
+      s.sql(`select public.rental_cancel($1, 'Called off', 0)`, [rental]),
+    )
 
     const after = await totals(rental)
     expect(after.total_minor).toBe(0)
@@ -606,7 +606,9 @@ describe('cancelling a booking settles it by reversing', () => {
       [organizationId, rental],
     )
 
-    await db.asUser(ownerId, (s) => s.sql(`select public.rental_cancel($1, 'Called off', 5000)`, [rental]))
+    await db.asUser(ownerId, (s) =>
+      s.sql(`select public.rental_cancel($1, 'Called off', 5000)`, [rental]),
+    )
 
     const after = await totals(rental)
     expect(after.total_minor).toBe(5_000)
@@ -631,7 +633,9 @@ describe('cancelling a booking settles it by reversing', () => {
       [organizationId, rental, ownerId],
     )
 
-    await db.asUser(ownerId, (s) => s.sql(`select public.rental_cancel($1, 'Called off', 0)`, [rental]))
+    await db.asUser(ownerId, (s) =>
+      s.sql(`select public.rental_cancel($1, 'Called off', 0)`, [rental]),
+    )
 
     const [contract] = await db.sql<{ status: string; snapshot: { total_minor: number } }>(
       `select status, snapshot from public.rental_contracts where rental_id = $1`,
@@ -646,7 +650,9 @@ describe('cancelling a booking settles it by reversing', () => {
     const rental = await makeRental({ status: 'reserved' })
     await addLine(rental, { kind: 'base_rental', amount: 20_000, taxable: false })
 
-    await db.asUser(ownerId, (s) => s.sql(`select public.rental_cancel($1, 'Called off', 5000)`, [rental]))
+    await db.asUser(ownerId, (s) =>
+      s.sql(`select public.rental_cancel($1, 'Called off', 5000)`, [rental]),
+    )
     const afterFirst = await lineCount(rental)
 
     await db.asUser(ownerId, (s) =>
@@ -662,7 +668,9 @@ describe('cancelling a booking settles it by reversing', () => {
     const rental = await makeRental({ status: 'reserved' })
     await addLine(rental, { kind: 'base_rental', amount: 20_000, taxable: false })
 
-    await db.asUser(ownerId, (s) => s.sql(`select public.rental_cancel($1, 'Called off', 0)`, [rental]))
+    await db.asUser(ownerId, (s) =>
+      s.sql(`select public.rental_cancel($1, 'Called off', 0)`, [rental]),
+    )
     const afterOnce = await lineCount(rental)
 
     await db.sql(`select app.settle_cancelled_rental($1, 0)`, [rental])

@@ -1,5 +1,31 @@
 # Changelog
 
+## Unreleased — Work Package 4: Rental Financial Adjustments (2026-11-27)
+
+- A posted rental charge can no longer be destroyed. Deleting a charge is permitted
+  only while the rental is still a draft; once it is confirmed, contracted or paid
+  against, the database refuses the delete and a correction is posted as a reversal
+  instead. Previously the only gate was in the browser.
+- Corrections are additive and attributed: a reversal mirrors the original line,
+  records who posted it, when and why, and cannot be posted twice against the same
+  charge. The original charge stays on the contract.
+- The base hire is covered by the same protection. Repricing and extension continue
+  to restate it, through `public.rental_extend` and `public.rental_reprice`, which are
+  now privileged functions carrying the tenant, role, billing and rental-state checks
+  that row-level security used to apply on their behalf. Their signatures are unchanged.
+- Cancellation settlement posts reversals rather than erasing the hire. The pricing
+  outcome is unchanged.
+- Reversing a charge is a manager's authority, not a staff member's, matching the
+  database rule rather than inheriting the old staff-level delete permission.
+- Rental Details is now four tabs — Overview, Financials, Inspections, Documents — with
+  a financial overview strip above them reporting the rental total, payments received,
+  outstanding, customer credit, deposit held and agency costs. Every figure is read from
+  the database; none is recomputed in the browser.
+- Corrected the Maintenance downtime caption, which blamed an applied migration.
+- Known limitation: a confirmed reservation repriced before any contract is issued
+  leaves no record of the previous hire amount. Where a contract exists, the superseded
+  version preserves it.
+
 ## Unreleased — Work Package 3
 
 - Added tenant-scoped Maintenance Management lifecycle and UI.
