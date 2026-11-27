@@ -245,3 +245,24 @@ Everything listed under the Incident Management entry above, unchanged, plus:
 - Acceptance: **scenario 35 added, not run.** Scenarios 30–34 remain not run.
 - Production project `ysnumxtzcgzyabrghxwq`: unchanged, not accessed, not linked.
 - Production release: **NO-GO.**
+
+## Rental financial and lifecycle integrity closure — 2026-11-27
+
+- **Migration amended in place, still NOT applied.**
+  `20261127100000_rental_pricing_amendment_history.sql`, SHA-256
+  `d0d9ca39487486c1cb7e492364a7a7e28bcf4e4f317c4dcc70234ee74b553890`, 798 lines /
+  35,823 bytes. Supersedes the earlier `27b8f62d…` at 621 lines. Ledger **143 local /
+  142 remote — exactly one pending**, confirmed by a read-only dry run.
+- No previously applied migration was modified and no second migration file created.
+- Adds `app.guard_rental_pricing_inputs` and trigger `rentals_guard_pricing_inputs`;
+  tightens `app.require_rental_pricing_amendment_evidence` to match each mutation's
+  signature; changes `rental_pricing_amendments.amended_at` to `clock_timestamp()`.
+- **No change to the assignment gate** — the reported defect is absent from the effective
+  schema. A regression test was added.
+- Hosted application still requires separate owner authorization. No remote command
+  beyond read-only ledger verification and a dry run was run. Production not accessed.
+- No frontend depending on this migration has been deployed. `origin/staging` remains
+  `aa94dc3`; `origin/main` remains `31383a9`.
+- Acceptance: scenario 35 gains sub-check 35h for lifecycle integrity. The register is
+  not expanded. Scenarios 30–35 remain not run.
+- Production release: **NO-GO.**

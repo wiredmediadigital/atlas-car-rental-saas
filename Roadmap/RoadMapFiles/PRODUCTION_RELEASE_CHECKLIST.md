@@ -185,3 +185,28 @@ has not been accessed.
       recorded and are not reconstructed.
 
 **Production remains NO-GO.**
+
+---
+
+## Financial and lifecycle integrity closure (added 2026-11-27)
+
+- [ ] **Hosted application of `20261127100000` remains unauthorized.** Checksum is now
+      `d0d9ca39…3890` (was `27b8f62d…7308`); the earlier value is superseded.
+- [ ] **Concurrency is still proven sequentially, not concurrently.** PGlite is a single
+      connection. What is proven: each amendment shares a transaction with its pricing
+      change, both pricing functions take the rental row `for update`, and
+      `pg_current_xact_id()` cannot be shared across transactions. Genuine concurrent
+      execution against hosted Postgres remains a gate, beside driver availability.
+- [ ] **One residual gap inside the evidence check.** A single transaction that moved the
+      hire 100 → 200 → 100 → 200 and recorded only the first change would have its third
+      mutation matched by the first amendment's signature. Requires the caller to already
+      be inside an owner-owned SECURITY DEFINER function. Recorded, not fixed.
+- [ ] **`service_role` still bypasses row-level security entirely**, as it always has.
+      Pre-existing and architectural.
+- [ ] **A future owner-owned SECURITY DEFINER function inherits the trigger exemptions**
+      on both `rental_line_items` and `rentals` by construction, and must be reviewed
+      explicitly.
+- [ ] **No down migration** for `20261127100000`. Reverting requires a new forward
+      migration that drops the constraint trigger before the table.
+
+**Production remains NO-GO.**

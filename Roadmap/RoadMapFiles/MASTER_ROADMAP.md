@@ -166,3 +166,33 @@ remains NO-GO.
 
 Scenario 35 is added to the consolidated acceptance register and cannot be run until the
 migration is applied. Scenarios 30–34 keep their status, which is not yet run.
+
+## Work Package 4 — financial and lifecycle integrity closure — 2026-11-27
+
+The owner accepted the amendment history architecture in principle and held hosted
+application pending focused checks. Three things came out of them.
+
+**One real gap, found by the owner asking the right question.** The deferred constraint
+matched on rental and transaction only, so a single amendment row satisfied every hire
+restatement in that transaction. Proved with a failing test, then closed by matching the
+evidence to the specific mutation — rental, organization, charge line, and the before and
+after of every field that qualifies a change.
+
+**One reported defect that was not real.** The obsolete session-GUC wording in
+`rental_substitute_vehicle` and `rental_reschedule` exists in migration `20261120220000`
+but is corrected by `20261124100000`, which re-runs the rewrite. Queried against the
+effective schema, no function carries it. The earlier report asserted it from reading
+migration files; that was wrong, and is corrected rather than acted on. A regression test
+was added instead.
+
+**One vulnerability broader than reported.** A direct PATCH on `public.rentals` could
+change the day rate, tax rate, currency, deposit, billable days, return date and customer
+of a completed rental, and erase its hand-over record. `app.guard_rental_pricing_inputs`
+closes it, exempting the table owner — which required first establishing that most
+lifecycle RPCs are SECURITY INVOKER and write only status, the hand-over timestamps and
+`original_ends_at`.
+
+All three corrections were folded into the existing unpublished migration, which is now
+798 lines, SHA-256 `d0d9ca39…3890`. **Still created and locally tested only; 143 local,
+142 remote.** Hosted application needs the owner's authorization. Production remains
+NO-GO.

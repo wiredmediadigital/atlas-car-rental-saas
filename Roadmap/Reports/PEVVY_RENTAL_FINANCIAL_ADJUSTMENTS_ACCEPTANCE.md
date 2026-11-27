@@ -139,8 +139,8 @@ cut off and nothing requiring a sideways scroll of the page.
 
 ## Scenario 35 — Financial amendment history
 
-**Requires migration `20261127100000_rental_pricing_amendment_history.sql` to be applied
-to staging first.** Until the owner authorizes and applies it, the Hire amendments panel
+**Requires migration `20261127100000_rental_pricing_amendment_history.sql` (SHA-256
+`d0d9ca39…3890`) to be applied to staging first.** Until the owner authorizes and applies it, the Hire amendments panel
 will report that the history could not be read, and this scenario cannot be run.
 
 This closes the limitation declared under scenarios 30–34: a confirmed reservation
@@ -211,6 +211,30 @@ Repeat at **desktop**, **iPad portrait**, **iPad landscape** and **mobile**:
 2. Confirm the amounts stay legible and are not truncated.
 3. Confirm the panel sits inside the Financials tab and does not displace Charges, Money
    or Agency costs.
+
+### 35h — A finished rental cannot be rewritten by hand
+
+Added by the financial and lifecycle integrity closure. These checks need no special
+tooling: they confirm from the interface that the protections are present, and the
+database-level proof is in the automated suite.
+
+1. Open a **completed** rental. Confirm the interface offers no way to change its
+   collection or return dates, its day rate, its tax rate, its currency, its deposit or
+   the customer it belongs to.
+2. Confirm the hand-over readings — collection and return times, odometer out and in,
+   fuel out and in — are shown as a record and not as editable fields.
+3. Confirm **notes can still be added** to a completed rental. That is deliberate: the
+   desk has to be able to annotate a finished hire.
+4. On a **draft** rental, confirm the day rate, dates and deposit are all still editable.
+   A draft is still being written.
+5. On a **confirmed reservation**, confirm the authorized actions still work: reschedule
+   it, substitute the vehicle before collection, and reprice it. Each should succeed.
+6. Check a rental out and back in, and complete it. Confirm every step still works and
+   the odometer and fuel readings are recorded.
+7. Cancel a reservation and confirm it still settles.
+
+**Expected:** the figures a committed rental is priced from, and the hand-over record of
+a finished one, can be changed only through the actions that are meant to change them.
 
 ### Known limitation to confirm, not to fail on
 

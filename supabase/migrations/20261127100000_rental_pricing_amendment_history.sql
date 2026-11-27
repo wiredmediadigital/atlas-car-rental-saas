@@ -99,7 +99,17 @@ create table if not exists public.rental_pricing_amendments (
   reason text check (reason is null or char_length(reason) <= 500),
 
   amended_by uuid references auth.users (id) on delete set null,
-  amended_at timestamptz not null default now(),
+
+  /**
+   * `clock_timestamp()`, not `now()`.
+   *
+   * `now()` is the transaction timestamp, so two amendments recorded in one
+   * transaction would share it exactly and could not be put in order -- and
+   * the order of a financial history is part of what it says. This is the wall
+   * clock at the moment the row was written, which is the honest answer to
+   * "when did this happen" for a record of one act.
+   */
+  amended_at timestamptz not null default clock_timestamp(),
 
   /**
    * The transaction that wrote this row.
@@ -289,10 +299,40 @@ begin
     return new;
   end if;
 
+  /*
+   * The evidence has to describe THIS mutation, not merely exist.
+   *
+   * Matching on rental and transaction alone was not enough: one amendment
+   * row then satisfied every hire restatement in the same transaction, so a
+   * function that recorded its first change and then quietly made a second
+   * committed happily. The record now has to agree with what actually
+   * happened -- same rental, same agency, same charge line, and the same
+   * before and after on every field that qualifies a mutation.
+   *
+   * `changes` carries only the keys that moved, so a key's absence is itself
+   * a claim: the amendment is asserting that field did not change, and the
+   * mutation has to agree.
+   */
   if not exists (
     select 1 from public.rental_pricing_amendments a
-     where a.rental_id = new.rental_id
-       and a.recorded_in_xact = pg_current_xact_id()
+     where a.recorded_in_xact  = pg_current_xact_id()
+       and a.rental_id         = new.rental_id
+       and a.organization_id   = new.organization_id
+       and a.line_item_id      = new.id
+       and a.previous_amount_minor = old.amount_minor
+       and a.revised_amount_minor  = new.amount_minor
+       and (case when a.changes ? 'quantity'
+                 then (a.changes #>> '{quantity,from}')::numeric = old.quantity
+                  and (a.changes #>> '{quantity,to}')::numeric   = new.quantity
+                 else old.quantity is not distinct from new.quantity end)
+       and (case when a.changes ? 'unit_amount_minor'
+                 then (a.changes #>> '{unit_amount_minor,from}')::bigint = old.unit_amount_minor
+                  and (a.changes #>> '{unit_amount_minor,to}')::bigint   = new.unit_amount_minor
+                 else old.unit_amount_minor is not distinct from new.unit_amount_minor end)
+       and (case when a.changes ? 'is_taxable'
+                 then (a.changes #>> '{is_taxable,from}')::boolean = old.is_taxable
+                  and (a.changes #>> '{is_taxable,to}')::boolean   = new.is_taxable
+                 else old.is_taxable is not distinct from new.is_taxable end)
   ) then
     raise exception
       'The hire on a committed rental was restated without recording what changed.'
@@ -619,3 +659,140 @@ grant execute on function public.rental_extend(uuid, timestamptz, bigint, text, 
 
 revoke all on function public.rental_reprice(uuid) from public, anon;
 grant execute on function public.rental_reprice(uuid) to authenticated, service_role;
+
+-- -----------------------------------------------------------------------------
+-- The pricing inputs of a committed rental
+--
+-- The charge LINES have been protected since 20261126130000. The figures those
+-- charges are computed FROM were not. A staff member could PATCH
+-- public.rentals directly and, on a completed rental, change the day rate, the
+-- tax rate, the currency, the deposit, the billable days, the return date and
+-- even the customer the hire belongs to. Nothing refused it, because
+-- rentals_update asks only for a role and a billing entitlement and says
+-- nothing about the state of the rental.
+--
+-- That does not move money by itself -- the charge lines still say what was
+-- charged -- which is precisely why it is worth closing. It desynchronises the
+-- booking from the contract silently, and the screen that compares them only
+-- looks while the rental is a draft or a reservation.
+--
+-- WHO IS WRITING, AGAIN. The same discriminator as the charge guard: a
+-- SECURITY DEFINER function owned by the table's owner runs with `current_user`
+-- set to that owner, and a signed-in role cannot become the owner. So this
+-- trigger is SECURITY INVOKER -- as a definer it would run as its own owner
+-- whoever wrote the row, and `current_user` would be a constant that said
+-- nothing.
+--
+-- WHY THE EXEMPTION IS SAFE HERE, which had to be checked rather than assumed.
+-- Only five rental functions are SECURITY DEFINER: rental_extend,
+-- rental_reprice, rental_reschedule, rental_substitute_vehicle and
+-- rental_swap_vehicle. Each takes the rental row FOR UPDATE and checks tenant
+-- membership, the staff role and app.billing_require_write before it writes.
+-- Every other lifecycle RPC -- confirm, check-out, check-in, complete, cancel --
+-- is SECURITY INVOKER and runs as the caller, so an owner-only exemption would
+-- have broken all of them. They are unaffected because they write only status,
+-- picked_up_at, returned_at and original_ends_at, none of which is frozen here.
+-- -----------------------------------------------------------------------------
+
+create or replace function app.guard_rental_pricing_inputs()
+returns trigger
+language plpgsql
+security invoker
+set search_path = ''
+as $$
+declare
+  v_owner text;
+  v_field text;
+begin
+  select pg_catalog.pg_get_userbyid(c.relowner) into v_owner
+    from pg_catalog.pg_class c
+   where c.oid = 'public.rentals'::regclass;
+
+  -- An authorized pricing or scheduling function, running as the table owner.
+  if current_user = v_owner then
+    return new;
+  end if;
+
+  -- A draft is still being written. Editing one is the normal way to build a
+  -- booking, and nothing has been agreed with anybody yet.
+  if old.status = 'draft' then
+    return new;
+  end if;
+
+  /*
+   * An agency being purged is allowed to take its records apart. The purge
+   * runs as the caller, so without this it would be refused halfway.
+   */
+  if app.rental_charges_purge_exempt(old.id) then
+    return new;
+  end if;
+
+  v_field := case
+    when new.starts_at        is distinct from old.starts_at        then 'collection date'
+    when new.ends_at          is distinct from old.ends_at          then 'return date'
+    when new.billable_days    is distinct from old.billable_days    then 'number of days charged'
+    when new.daily_rate_minor is distinct from old.daily_rate_minor then 'day rate'
+    when new.tax_rate_bps     is distinct from old.tax_rate_bps     then 'tax rate'
+    when new.currency         is distinct from old.currency         then 'currency'
+    when new.deposit_minor    is distinct from old.deposit_minor    then 'deposit'
+    when new.customer_id      is distinct from old.customer_id      then 'customer'
+    when new.vehicle_id       is distinct from old.vehicle_id       then 'vehicle'
+    else null
+  end;
+
+  if v_field is not null then
+    raise exception
+      'The % of a committed rental cannot be changed directly.', v_field
+      using errcode = '42501',
+            hint = 'Reschedule, substitute the vehicle, extend or reprice the rental instead.';
+  end if;
+
+  /*
+   * A finished rental's hand-over record is history too.
+   *
+   * Only checked in the terminal states, because that is the whole point:
+   * rental_check_out and rental_check_in are SECURITY INVOKER and legitimately
+   * write these columns -- but they do so on a reserved or active rental. Once
+   * the hire is completed or called off, the odometer and fuel readings are
+   * what the vehicle was handed over at, and nothing should be quietly
+   * rewriting them.
+   */
+  if old.status in ('completed', 'cancelled') then
+    v_field := case
+      when new.picked_up_at           is distinct from old.picked_up_at           then 'collection time'
+      when new.returned_at            is distinct from old.returned_at            then 'return time'
+      when new.pickup_odometer        is distinct from old.pickup_odometer        then 'odometer out'
+      when new.return_odometer        is distinct from old.return_odometer        then 'odometer in'
+      when new.pickup_fuel_percent    is distinct from old.pickup_fuel_percent    then 'fuel out'
+      when new.return_fuel_percent    is distinct from old.return_fuel_percent    then 'fuel in'
+      else null
+    end;
+
+    if v_field is not null then
+      raise exception
+        'The % of a finished rental cannot be changed directly.', v_field
+        using errcode = '42501',
+              hint = 'The hand-over record of a completed or cancelled rental is history.';
+    end if;
+  end if;
+
+  return new;
+end;
+$$;
+
+comment on function app.guard_rental_pricing_inputs() is
+  'Refuses a direct client change to the figures a committed rental is priced from. SECURITY INVOKER on purpose: current_user has to name the real writer, so that the authorized SECURITY DEFINER pricing functions are the only exemption.';
+
+revoke all on function app.guard_rental_pricing_inputs() from public, anon, authenticated;
+
+/*
+ * Fires before rentals_freeze_columns, which restores rather than refuses.
+ * Trigger order is alphabetical, and "guard_pricing_inputs" sorts before
+ * "rentals_freeze_columns" only by accident of naming, so the name is chosen
+ * deliberately: both run, and a refusal is a refusal whichever fires first.
+ */
+drop trigger if exists rentals_guard_pricing_inputs on public.rentals;
+create trigger rentals_guard_pricing_inputs
+  before update on public.rentals
+  for each row
+  execute function app.guard_rental_pricing_inputs();

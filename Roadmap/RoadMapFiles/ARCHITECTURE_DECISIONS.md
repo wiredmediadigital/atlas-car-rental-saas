@@ -207,3 +207,61 @@ longer restate a finalized hire silently.
 
 History begins at this migration. Nothing is reconstructed for amendments made before
 it, and no previous pricing is inferred from balances or payments.
+
+## 2026-11-27 — The figures a rental is priced from are part of the contract
+
+The charge lines were protected first, and that left the inputs exposed. A direct
+PostgREST PATCH on `public.rentals` could change the day rate, the tax rate, the
+currency, the deposit, the billable days, the return date and the customer of a
+**completed** hire, because `rentals_update` asks for a role and a billing entitlement
+and says nothing about the state of the rental.
+
+That does not move money by itself, which is exactly why it had survived: the charge
+lines still said what was charged. It desynchronises the booking from the contract
+silently, and the screen that compares the two only looks while the rental is a draft or
+a reservation.
+
+The guard uses the same discriminator as the charge guard — `current_user` against the
+table owner, with the trigger SECURITY INVOKER so that `current_user` names the real
+writer. Reusing it required checking a fact that is easy to assume and was not true:
+**most lifecycle RPCs are SECURITY INVOKER.** `rental_confirm`, `rental_check_out`,
+`rental_check_in`, `rental_complete` and `rental_cancel` all run as the caller, and an
+owner-only exemption would have broken every one of them.
+
+It does not, because of what they write. They touch only `status`, `picked_up_at`,
+`returned_at` and `original_ends_at`, none of which is frozen in the states those
+functions run in. The hand-over columns are frozen only once the rental is completed or
+cancelled, which is after check-out and check-in have finished with them. `original_ends_at`
+is left editable because `rental_confirm` writes it.
+
+Two rules follow for anything added later.
+
+**A new trigger on a lifecycle table must be checked against the invoker RPCs, not only
+the definer ones.** The definer list is short and obvious; the invoker list is longer and
+is where a protection breaks the desk.
+
+**Non-financial metadata stays editable.** `notes` is deliberately not frozen. A
+protection that stops the desk recording what a customer said on the phone is a
+protection that gets switched off.
+
+## 2026-11-27 — Evidence has to describe the mutation it vouches for
+
+The deferred constraint that requires an amendment for a restated hire originally matched
+on rental and transaction alone. That let one amendment row vouch for every hire
+restatement in the same transaction: a function that recorded its first change and then
+quietly made a second committed happily.
+
+The requirement is not "a record exists" but "this change is recorded". The check now
+compares the amendment against the mutation it is offered for — rental, organization,
+charge line, previous and revised amount, and the quantity, unit-rate and tax-treatment
+changes. `changes` carries only the keys that moved, so a key's absence is itself a claim
+that the field did not move, and the mutation has to agree with that too.
+
+The same reasoning applies to any future evidence requirement: existence checks are
+satisfied by the wrong evidence, and the wrong evidence is indistinguishable from the
+right evidence until somebody looks.
+
+A consequence worth keeping: `amended_at` defaults to `clock_timestamp()`, not `now()`.
+`now()` is the transaction timestamp, so two amendments in one transaction would share it
+exactly and could not be ordered — and the order of a financial history is part of what
+it says.

@@ -6,7 +6,7 @@
 | Driver availability | Manual acceptance 9/9 PASS; independent concurrency outstanding | Prior staging evidence |
 | Incident Management | Preserved | Staging baseline |
 | Billing | Preserved | Base `112cc994` |
-| Rental Financial Adjustments | Implemented, on staging, awaiting owner acceptance (scenarios 30-35) | `Reports/PEVVY_RENTAL_FINANCIAL_ADJUSTMENTS_IMPLEMENTATION.md` |
+| Rental Financial Adjustments | Implemented + lifecycle integrity closure; one migration awaiting owner application (scenarios 30-35) | `Reports/PEVVY_RENTAL_FINANCIAL_ADJUSTMENTS_IMPLEMENTATION.md` |
 
 Roadmap identifiers P3-05 (maintenance work orders), P3-06 (repair expenses),
 and P3-07 (vehicle downtime) are implemented locally and database-validated;

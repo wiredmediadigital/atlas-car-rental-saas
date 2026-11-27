@@ -1,5 +1,27 @@
 # Changelog
 
+## Unreleased — Rental financial and lifecycle integrity closure (2026-11-27)
+
+- The evidence a restated hire has to leave now has to describe that change
+  specifically. Matching on the rental and the transaction alone let one record
+  vouch for every restatement in the same transaction, so an operation that
+  recorded its first change and then made a second committed happily.
+- The figures a committed rental is priced from can no longer be changed by a
+  direct write. On a completed hire it had been possible to change the day rate,
+  the tax rate, the currency, the deposit, the days charged, the return date and
+  the customer the rental belonged to.
+- The hand-over record of a completed or cancelled rental — collection and return
+  times, odometer and fuel readings — is likewise no longer directly editable.
+- Notes stay editable on any rental. Draft editing, rescheduling, pre-checkout
+  substitution, extension, repricing, checkout, return and cancellation all keep
+  working exactly as before.
+- Amendment records are ordered by the wall clock rather than the transaction
+  timestamp, so two recorded in one transaction can be told apart.
+- No change was made to the assignment feature gate: the obsolete session-flag
+  wording reported earlier is not present in the effective schema, having been
+  corrected by migration 20261124100000. A regression test now holds that
+  property, which has already been lost once.
+
 ## Unreleased — Financial amendment history remediation (2026-11-27)
 
 - An authorized restatement of a finalized base hire now records what it changed,

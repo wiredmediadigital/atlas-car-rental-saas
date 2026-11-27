@@ -162,6 +162,11 @@ async function endsAtOf(rentalId: string): Promise<string> {
   return row!.ends_at.toISOString()
 }
 
+/** A uuid as a SQL literal; a DO block takes no parameters. */
+function literal(value: string): string {
+  return `'${value.replace(/'/g, "''")}'`
+}
+
 beforeAll(async () => {
   db = await TestDatabase.create()
 
@@ -630,5 +635,189 @@ describe('everything that already worked still works', () => {
     )
     expect(lines.some((l) => l.is_reversal)).toBe(true)
     expect(lines.some((l) => Number(l.amount_minor) === 18_000 && !l.is_reversal)).toBe(true)
+  })
+})
+
+describe('the evidence has to describe the mutation it is offered for', () => {
+  /*
+   * Matching on rental and transaction alone was not enough, and this is the
+   * case that proved it: one amendment row satisfied every hire restatement in
+   * the same transaction, so an operation that recorded its first change and
+   * then quietly made a second committed happily.
+   */
+  const restateTwiceRecordingOnce = (rentalId: string, lineId: string) =>
+    db.sql(`do $t$
+      declare
+        v_before public.rentals;
+        v_after  public.rentals;
+        v_line   public.rental_line_items;
+        v_new    public.rental_line_items;
+      begin
+        select * into v_before from public.rentals where id = ${literal(rentalId)};
+        select * into v_line from public.rental_line_items where id = ${literal(lineId)};
+        update public.rental_line_items set amount_minor = 20000 where id = ${literal(lineId)}
+        returning * into v_new;
+        select * into v_after from public.rentals where id = ${literal(rentalId)};
+        perform app.record_rental_pricing_amendment(
+          v_before, v_line, v_after, v_new,
+          'reprice'::public.rental_amendment_kind, 'the only one recorded');
+        update public.rental_line_items set amount_minor = 99999 where id = ${literal(lineId)};
+      end
+      $t$;`)
+
+  it('refuses a second restatement that rode on the first one’s record', async () => {
+    const rental = await makeRental({ status: 'reserved' })
+    const hire = await addHire(rental, 10_000)
+
+    await db.expectRejection(
+      () => restateTwiceRecordingOnce(rental, hire),
+      /restated without recording what changed/i,
+    )
+
+    expect(Number((await hireOf(rental))[0]!.amount_minor)).toBe(10_000)
+    expect(await amendments(rental)).toHaveLength(0)
+  })
+
+  it('refuses when the recorded amounts do not match what actually happened', async () => {
+    const rental = await makeRental({ status: 'reserved' })
+    const hire = await addHire(rental, 10_000)
+
+    await db.expectRejection(
+      () =>
+        db.sql(`do $t$
+          declare
+            v_before public.rentals; v_after public.rentals;
+            v_line public.rental_line_items; v_new public.rental_line_items;
+          begin
+            select * into v_before from public.rentals where id = ${literal(rental)};
+            select * into v_line from public.rental_line_items where id = ${literal(hire)};
+            update public.rental_line_items set amount_minor = 20000 where id = ${literal(hire)}
+            returning * into v_new;
+            select * into v_after from public.rentals where id = ${literal(rental)};
+            -- the record claims a different revised figure than the one written
+            v_new.amount_minor := 12345;
+            perform app.record_rental_pricing_amendment(
+              v_before, v_line, v_after, v_new,
+              'reprice'::public.rental_amendment_kind, 'wrong figure');
+          end
+          $t$;`),
+      /restated without recording what changed/i,
+    )
+
+    expect(Number((await hireOf(rental))[0]!.amount_minor)).toBe(10_000)
+  })
+
+  it('refuses an amendment recorded against a different rental', async () => {
+    const amended = await makeRental({ status: 'reserved' })
+    const hire = await addHire(amended, 10_000)
+    const other = await makeRental({ status: 'reserved' })
+    const otherHire = await addHire(other, 10_000)
+
+    await db.expectRejection(
+      () =>
+        db.sql(`do $t$
+          declare
+            v_before public.rentals; v_after public.rentals;
+            v_line public.rental_line_items; v_new public.rental_line_items;
+          begin
+            -- record a genuine amendment for the OTHER rental
+            select * into v_before from public.rentals where id = ${literal(other)};
+            select * into v_line from public.rental_line_items where id = ${literal(otherHire)};
+            update public.rental_line_items set amount_minor = 20000 where id = ${literal(otherHire)}
+            returning * into v_new;
+            select * into v_after from public.rentals where id = ${literal(other)};
+            perform app.record_rental_pricing_amendment(
+              v_before, v_line, v_after, v_new,
+              'reprice'::public.rental_amendment_kind, 'for the other rental');
+            -- then restate THIS one without recording anything for it
+            update public.rental_line_items set amount_minor = 77777 where id = ${literal(hire)};
+          end
+          $t$;`),
+      /restated without recording what changed/i,
+    )
+
+    expect(Number((await hireOf(amended))[0]!.amount_minor)).toBe(10_000)
+  })
+
+  it('does not accept an amendment left behind by an earlier transaction', async () => {
+    // pg_current_xact_id() differs per transaction, so yesterday's record
+    // cannot vouch for today's change.
+    const rental = await makeRental({ status: 'reserved' })
+    const hire = await addHire(rental, 1)
+
+    await repriceAs(staffId, rental)
+    expect(await amendments(rental)).toHaveLength(1)
+
+    await db.expectRejection(
+      () => db.sql(`update public.rental_line_items set amount_minor = 1 where id = $1`, [hire]),
+      /restated without recording what changed/i,
+    )
+
+    expect(await amendments(rental)).toHaveLength(1)
+  })
+
+  it('rolls back the pricing change and its record together', async () => {
+    const rental = await makeRental({ status: 'reserved' })
+    const hire = await addHire(rental, 10_000)
+
+    await db.expectRejection(
+      () =>
+        db.sql(`do $t$
+          declare
+            v_before public.rentals; v_after public.rentals;
+            v_line public.rental_line_items; v_new public.rental_line_items;
+          begin
+            select * into v_before from public.rentals where id = ${literal(rental)};
+            select * into v_line from public.rental_line_items where id = ${literal(hire)};
+            update public.rental_line_items set amount_minor = 20000 where id = ${literal(hire)}
+            returning * into v_new;
+            select * into v_after from public.rentals where id = ${literal(rental)};
+            perform app.record_rental_pricing_amendment(
+              v_before, v_line, v_after, v_new,
+              'reprice'::public.rental_amendment_kind, 'then fail');
+            raise exception 'deliberate failure after a valid amendment';
+          end
+          $t$;`),
+      /deliberate failure/i,
+    )
+
+    expect(Number((await hireOf(rental))[0]!.amount_minor)).toBe(10_000)
+    expect(await amendments(rental)).toHaveLength(0)
+  })
+
+  it('keeps each of two genuinely recorded restatements in one transaction', async () => {
+    // The tightening must not refuse honest work: two changes, two records.
+    const rental = await makeRental({ status: 'reserved' })
+    const hire = await addHire(rental, 10_000)
+
+    await db.sql(`do $t$
+      declare
+        v_before public.rentals; v_after public.rentals;
+        v_line public.rental_line_items; v_new public.rental_line_items;
+      begin
+        select * into v_before from public.rentals where id = ${literal(rental)};
+        select * into v_line from public.rental_line_items where id = ${literal(hire)};
+        update public.rental_line_items set amount_minor = 20000 where id = ${literal(hire)}
+        returning * into v_new;
+        select * into v_after from public.rentals where id = ${literal(rental)};
+        perform app.record_rental_pricing_amendment(
+          v_before, v_line, v_after, v_new,
+          'reprice'::public.rental_amendment_kind, 'first');
+
+        v_before := v_after; v_line := v_new;
+        update public.rental_line_items set amount_minor = 30000 where id = ${literal(hire)}
+        returning * into v_new;
+        select * into v_after from public.rentals where id = ${literal(rental)};
+        perform app.record_rental_pricing_amendment(
+          v_before, v_line, v_after, v_new,
+          'reprice'::public.rental_amendment_kind, 'second');
+      end
+      $t$;`)
+
+    const history = await amendments(rental)
+    expect(history).toHaveLength(2)
+    expect(history.map((a) => Number(a.previous_amount_minor))).toEqual([10_000, 20_000])
+    expect(history.map((a) => Number(a.revised_amount_minor))).toEqual([20_000, 30_000])
+    expect(Number((await hireOf(rental))[0]!.amount_minor)).toBe(30_000)
   })
 })
