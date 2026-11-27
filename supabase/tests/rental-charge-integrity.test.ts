@@ -736,3 +736,260 @@ describe('the settlement helper is not a way in', () => {
     )
   })
 })
+
+describe('the base hire is no longer the exception', () => {
+  /*
+   * The first version of this migration froze every charge an operator could
+   * add and left the hire mutable, because repricing and extension restate it
+   * and ran as the caller. That left the largest amount on the contract as the
+   * one figure a direct PostgREST call could still rewrite.
+   */
+  async function committedHire(): Promise<{ rental: string; line: string }> {
+    const rental = await makeRental({ status: 'reserved' })
+    const line = await addLine(rental, { kind: 'base_rental', amount: 20_000 })
+    return { rental, line }
+  }
+
+  it.each([
+    ['the amount', `amount_minor = 1`],
+    ['the quantity', `quantity = 99`],
+    ['the day rate', `unit_amount_minor = 1`],
+    ['the tax treatment', `is_taxable = false`],
+  ])('refuses a direct change to %s', async (_label, assignment) => {
+    const { line } = await committedHire()
+
+    await db.expectRejection(
+      () =>
+        db.asUser(staffId, (s) =>
+          s.sql(`update public.rental_line_items set ${assignment} where id = $1`, [line]),
+        ),
+      /cannot be changed|post a reversal/i,
+    )
+
+    const [row] = await db.sql<{ amount_minor: number; is_taxable: boolean }>(
+      `select amount_minor, is_taxable from public.rental_line_items where id = $1`,
+      [line],
+    )
+    expect(Number(row!.amount_minor)).toBe(20_000)
+    expect(row!.is_taxable).toBe(true)
+  })
+
+  it('refuses deleting the hire line', async () => {
+    const { line } = await committedHire()
+
+    await db.expectRejection(() => deleteAs(ownerId, line), /cannot be deleted|Reverse it instead/i)
+  })
+
+  it('refuses replacing the hire by posting a second one', async () => {
+    /*
+     * Freezing the existing line is not enough on its own. The pricing
+     * functions read "the earliest base_rental line", so an operator able to
+     * post another could restate the hire by addition instead of by edit.
+     */
+    const { rental } = await committedHire()
+
+    await db.expectRejection(
+      () =>
+        db.asUser(staffId, (s) =>
+          s.sql(
+            `insert into public.rental_line_items
+               (organization_id, rental_id, kind, description, quantity,
+                unit_amount_minor, amount_minor, currency, is_taxable)
+             values ($1, $2, 'base_rental', 'Replacement hire', 1, 1, 1, 'EUR', true)`,
+            [organizationId, rental],
+          ),
+        ),
+      /not by adding another hire line/i,
+    )
+  })
+
+  it('still lets an ordinary extra be added to a committed rental', async () => {
+    // The protection is about the hire and about rewriting posted money, not
+    // about stopping an agency charging for a cleaning it actually did.
+    const { rental } = await committedHire()
+
+    await db.asUser(staffId, (s) =>
+      s.sql(
+        `insert into public.rental_line_items
+           (organization_id, rental_id, kind, description, quantity,
+            unit_amount_minor, amount_minor, currency, is_taxable)
+         values ($1, $2, 'cleaning', 'Valet', 1, 3000, 3000, 'EUR', true)`,
+        [organizationId, rental],
+      ),
+    )
+
+    expect(Number((await totals(rental)).extras_minor)).toBe(3_000)
+  })
+})
+
+describe('the authorized pricing paths still work', () => {
+  it('reprices a draft', async () => {
+    const rental = await makeRental({ status: 'draft' })
+    await addLine(rental, { kind: 'base_rental', amount: 1 })
+
+    await db.asUser(staffId, (s) => s.sql(`select public.rental_reprice($1)`, [rental]))
+
+    expect(Number((await totals(rental)).subtotal_minor)).toBeGreaterThan(1)
+  })
+
+  it('reprices a confirmed reservation, whose hire is otherwise frozen', async () => {
+    /*
+     * The point of the privileged boundary: the same line a direct UPDATE
+     * cannot touch is restated here through the function that is allowed to.
+     */
+    const rental = await makeRental({ status: 'reserved' })
+    await addLine(rental, { kind: 'base_rental', amount: 1 })
+
+    await db.asUser(staffId, (s) => s.sql(`select public.rental_reprice($1)`, [rental]))
+
+    expect(Number((await totals(rental)).subtotal_minor)).toBeGreaterThan(1)
+  })
+
+  it('extends an active hire and bills for it', async () => {
+    const rental = await makeRental({ status: 'active' })
+    await addLine(rental, { kind: 'base_rental', amount: 15_000, taxable: false })
+    const [before] = await db.sql<{ ends_at: Date }>(
+      `select ends_at from public.rentals where id = $1`,
+      [rental],
+    )
+    const later = new Date(before!.ends_at.getTime() + 2 * DAY).toISOString()
+
+    await db.asUser(staffId, (s) =>
+      s.sql(`select public.rental_extend($1, $2::timestamptz, 10000, null, 2)`, [rental, later]),
+    )
+
+    expect(Number((await totals(rental)).subtotal_minor)).toBe(25_000)
+  })
+
+  it('keeps the existing state rule: a finished hire cannot be repriced', async () => {
+    const rental = await makeRental({ status: 'completed' })
+    await addLine(rental, { kind: 'base_rental', amount: 15_000 })
+
+    await db.expectRejection(
+      () => db.asUser(staffId, (s) => s.sql(`select public.rental_reprice($1)`, [rental])),
+      /draft or a confirmed reservation/i,
+    )
+  })
+
+  it('keeps the existing state rule: only a reservation or an active hire extends', async () => {
+    const rental = await makeRental({ status: 'completed' })
+    const [row] = await db.sql<{ ends_at: Date }>(
+      `select ends_at from public.rentals where id = $1`,
+      [rental],
+    )
+    const later = new Date(row!.ends_at.getTime() + DAY).toISOString()
+
+    await db.expectRejection(
+      () =>
+        db.asUser(staffId, (s) =>
+          s.sql(`select public.rental_extend($1, $2::timestamptz)`, [rental, later]),
+        ),
+      /reservation or an active rental/i,
+    )
+  })
+})
+
+describe('the privileged pricing boundary', () => {
+  it('refuses another agency’s rental without confirming it exists', async () => {
+    /*
+     * SECURITY DEFINER removes row level security from these functions, so the
+     * tenant check has to be inside them. The refusal deliberately says "not
+     * found" rather than "not yours": telling another agency that an id is
+     * real is itself a leak.
+     */
+    const theirs = await makeRental({
+      status: 'reserved',
+      orgId: otherOrganizationId,
+      vehicle: otherVehicleId,
+      customer: otherCustomerId,
+    })
+    await addLine(theirs, { kind: 'base_rental', amount: 9_000, orgId: otherOrganizationId })
+
+    await db.expectRejection(
+      () => db.asUser(managerId, (s) => s.sql(`select public.rental_reprice($1)`, [theirs])),
+      /not found/i,
+    )
+  })
+
+  it('leaves no cross-tenant financial change behind after a refusal', async () => {
+    const theirs = await makeRental({
+      status: 'reserved',
+      orgId: otherOrganizationId,
+      vehicle: otherVehicleId,
+      customer: otherCustomerId,
+    })
+    await addLine(theirs, { kind: 'base_rental', amount: 9_000, orgId: otherOrganizationId })
+    const before = await totals(theirs)
+
+    await db.expectRejection(() =>
+      db.asUser(managerId, (s) => s.sql(`select public.rental_reprice($1)`, [theirs])),
+    )
+
+    expect((await totals(theirs)).total_minor).toBe(before.total_minor)
+  })
+
+  it('asks the billing entitlement that row level security used to apply', async () => {
+    /*
+     * Asserted on the function body rather than by suspending a subscription,
+     * which billing-restricted-access.test.ts already exercises end to end.
+     * What matters here is that making these definer did not silently drop a
+     * gate: RLS applied `billing_may_write` on their behalf and no longer can.
+     */
+    for (const proname of ['rental_extend', 'rental_reprice']) {
+      const [row] = await db.sql<{ security_definer: boolean; body: string }>(
+        `select p.prosecdef as security_definer, pg_get_functiondef(p.oid) as body
+           from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+          where n.nspname = 'public' and p.proname = $1
+          order by p.oid desc limit 1`,
+        [proname],
+      )
+      expect(row?.security_definer, proname).toBe(true)
+      expect(row?.body, proname).toMatch(/billing_require_write\s*\(/)
+      expect(row?.body, proname).toMatch(/has_min_role/)
+      expect(row?.body, proname).toMatch(/search_path/)
+    }
+  })
+
+  it('keeps anonymous callers out of both', async () => {
+    const reachable = await db.sql<{ proname: string }>(
+      `select p.proname from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+        where n.nspname = 'public'
+          and p.proname in ('rental_extend', 'rental_reprice')
+          and has_function_privilege('anon', p.oid, 'EXECUTE')`,
+    )
+    expect(reachable).toEqual([])
+  })
+
+  it('leaves the booking untouched when an extension is refused', async () => {
+    /*
+     * An extension is one event: the extra days and their charge are the same
+     * transaction. A refusal partway would leave the vehicle committed for
+     * longer with nothing billed for it.
+     */
+    const rental = await makeRental({ status: 'active' })
+    await addLine(rental, { kind: 'base_rental', amount: 15_000, taxable: false })
+    const before = await totals(rental)
+    const [row] = await db.sql<{ ends_at: Date }>(
+      `select ends_at from public.rentals where id = $1`,
+      [rental],
+    )
+    const earlier = new Date(row!.ends_at.getTime() - DAY).toISOString()
+
+    await db.expectRejection(
+      () =>
+        db.asUser(staffId, (s) =>
+          s.sql(`select public.rental_extend($1, $2::timestamptz, 5000)`, [rental, earlier]),
+        ),
+      /must end after/i,
+    )
+
+    const after = await totals(rental)
+    expect(after.total_minor).toBe(before.total_minor)
+    const [unchanged] = await db.sql<{ ends_at: Date; extension_count: number }>(
+      `select ends_at, extension_count from public.rentals where id = $1`,
+      [rental],
+    )
+    expect(unchanged!.ends_at.getTime()).toBe(row!.ends_at.getTime())
+    expect(Number(unchanged!.extension_count)).toBe(0)
+  })
+})

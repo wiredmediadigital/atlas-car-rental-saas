@@ -264,6 +264,22 @@ describe('nothing in the schema can bypass RLS', () => {
       'record_invitation_delivery',
       'record_terms_acceptance',
       'remove_team_member',
+      /*
+       * The two pricing paths became SECURITY DEFINER in 20261126130000, and
+       * that is the whole point of the migration rather than a side effect:
+       * the base hire line is now frozen against every direct write, and these
+       * are the only two functions permitted to restate it. Running as the
+       * owner is what makes them distinguishable from an operator editing the
+       * figure by hand -- the guard trigger asks who the writer is, and a
+       * signed-in role cannot become the owner.
+       *
+       * Removing row level security from their writes means every gate it was
+       * applying on their behalf is restated inside them: tenant membership,
+       * the staff role the policies required, and app.billing_require_write.
+       * Asserted directly in supabase/tests/rental-charge-integrity.test.ts.
+       */
+      'rental_extend',
+      'rental_reprice',
       'rental_reschedule',
       'rental_substitute_vehicle',
       'rental_swap_vehicle',
