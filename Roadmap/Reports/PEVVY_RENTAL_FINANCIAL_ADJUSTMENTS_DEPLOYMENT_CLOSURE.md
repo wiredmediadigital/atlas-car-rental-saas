@@ -248,7 +248,74 @@ history, which is accurate rather than missing. Nothing was reconstructed.
 
 ---
 
-## 8. Work package status
+## 9. Delivery verification
+
+Fifteen deliverables. The fourteen documents are **mirrored byte-identically** into the
+primary checkout at the paths the authorization names; the migration lives only on the
+branch, where it belongs.
+
+| File | Bytes | Modified | SHA-256 | Mirrored | Status |
+|---|---|---|---|---|---|
+| `PEVVY_RENTAL_FINANCIAL_ADJUSTMENTS_DEPLOYMENT_CLOSURE.md` | 12,807 | 2026-11-27 13:43:51 | `8e509fe629eae217...` | identical | COMPLETE |
+| `PEVVY_RENTAL_FINANCIAL_AMENDMENT_HISTORY_REMEDIATION.md` | 40,317 | 2026-11-27 13:44:08 | `9a1f55ff10070130...` | identical | COMPLETE |
+| `PEVVY_RENTAL_FINANCIAL_ADJUSTMENTS_IMPLEMENTATION.md` | 27,606 | 2026-11-27 13:44:08 | `5adf5d0a5950bc03...` | identical | COMPLETE |
+| `PEVVY_RENTAL_FINANCIAL_ADJUSTMENTS_ACCEPTANCE.md` | 16,710 | 2026-11-27 13:45:06 | `813a122252627741...` | identical | COMPLETE |
+| `PEVVY_RENTAL_FINANCIAL_ADJUSTMENTS_DEPLOYMENT_CLOSURE_PROMPT.md` | 8,046 | 2026-11-27 13:39:25 | `856b4e2914de614c...` | identical | COMPLETE |
+| `PEVVY_RENTAL_FINANCIAL_LIFECYCLE_INTEGRITY_CLOSURE_PROMPT.md` | 10,136 | 2026-11-27 13:10:59 | `f6a88ef1d0c872f7...` | identical | COMPLETE |
+| `PEVVY_RENTAL_FINANCIAL_AMENDMENT_HISTORY_REMEDIATION_PROMPT.md` | 16,199 | 2026-11-27 11:50:03 | `d03757b50f0c66d6...` | identical | COMPLETE |
+| `PEVVY_RENTAL_FINANCIAL_ADJUSTMENTS_PROMPT.md` | 29,380 | 2026-11-27 11:06:49 | `37aa45741d41c8d2...` | identical | COMPLETE |
+| `ARCHITECTURE_DECISIONS.md` | 16,760 | 2026-11-27 13:45:06 | `044903ebd69b3ab6...` | identical | COMPLETE |
+| `CHANGELOG.md` | 19,460 | 2026-11-27 13:44:53 | `24d620ae05d08c08...` | identical | COMPLETE |
+| `FEATURE_TRACKER.md` | 8,274 | 2026-11-27 13:44:53 | `8aa8a345abba70ae...` | identical | COMPLETE |
+| `MASTER_ROADMAP.md` | 13,159 | 2026-11-27 13:44:53 | `e91d8c66fc9b0e9d...` | identical | COMPLETE |
+| `PRODUCTION_RELEASE_CHECKLIST.md` | 13,917 | 2026-11-27 13:44:53 | `f2dcec3c49c1940e...` | identical | COMPLETE |
+| `PRODUCTION_RELEASE_MANIFEST.md` | 18,811 | 2026-11-27 13:44:53 | `fcc78a9a5377857f...` | identical | COMPLETE |
+| `20261127100000_rental_pricing_amendment_history.sql` | 35,823 | 2026-11-27 13:07:33 | `d0d9ca39487486c1...` | branch only | COMPLETE |
+
+Absolute paths, worktree:
+
+```
+E:\pevvy-maintenance-acceptance-20261125\Roadmap\Reports\PEVVY_RENTAL_FINANCIAL_ADJUSTMENTS_DEPLOYMENT_CLOSURE.md
+E:\pevvy-maintenance-acceptance-20261125\Roadmap\Reports\PEVVY_RENTAL_FINANCIAL_AMENDMENT_HISTORY_REMEDIATION.md
+E:\pevvy-maintenance-acceptance-20261125\Roadmap\Reports\PEVVY_RENTAL_FINANCIAL_ADJUSTMENTS_IMPLEMENTATION.md
+E:\pevvy-maintenance-acceptance-20261125\Roadmap\Reports\PEVVY_RENTAL_FINANCIAL_ADJUSTMENTS_ACCEPTANCE.md
+E:\pevvy-maintenance-acceptance-20261125\Roadmap\Prompts\PEVVY_RENTAL_FINANCIAL_ADJUSTMENTS_DEPLOYMENT_CLOSURE_PROMPT.md
+E:\pevvy-maintenance-acceptance-20261125\Roadmap\Prompts\PEVVY_RENTAL_FINANCIAL_LIFECYCLE_INTEGRITY_CLOSURE_PROMPT.md
+E:\pevvy-maintenance-acceptance-20261125\Roadmap\Prompts\PEVVY_RENTAL_FINANCIAL_AMENDMENT_HISTORY_REMEDIATION_PROMPT.md
+E:\pevvy-maintenance-acceptance-20261125\Roadmap\Prompts\PEVVY_RENTAL_FINANCIAL_ADJUSTMENTS_PROMPT.md
+E:\pevvy-maintenance-acceptance-20261125\Roadmap\RoadMapFiles\ARCHITECTURE_DECISIONS.md
+E:\pevvy-maintenance-acceptance-20261125\Roadmap\RoadMapFiles\CHANGELOG.md
+E:\pevvy-maintenance-acceptance-20261125\Roadmap\RoadMapFiles\FEATURE_TRACKER.md
+E:\pevvy-maintenance-acceptance-20261125\Roadmap\RoadMapFiles\MASTER_ROADMAP.md
+E:\pevvy-maintenance-acceptance-20261125\Roadmap\RoadMapFiles\PRODUCTION_RELEASE_CHECKLIST.md
+E:\pevvy-maintenance-acceptance-20261125\Roadmap\RoadMapFiles\PRODUCTION_RELEASE_MANIFEST.md
+E:\pevvy-maintenance-acceptance-20261125\supabase\migrations\20261127100000_rental_pricing_amendment_history.sql
+```
+
+Absolute paths, primary checkout (documents only):
+
+```
+E:\pevvy-car-rental-saas-main\Roadmap\Reports\PEVVY_RENTAL_FINANCIAL_ADJUSTMENTS_DEPLOYMENT_CLOSURE.md
+E:\pevvy-car-rental-saas-main\Roadmap\Reports\PEVVY_RENTAL_FINANCIAL_AMENDMENT_HISTORY_REMEDIATION.md
+E:\pevvy-car-rental-saas-main\Roadmap\Reports\PEVVY_RENTAL_FINANCIAL_ADJUSTMENTS_IMPLEMENTATION.md
+E:\pevvy-car-rental-saas-main\Roadmap\Reports\PEVVY_RENTAL_FINANCIAL_ADJUSTMENTS_ACCEPTANCE.md
+E:\pevvy-car-rental-saas-main\Roadmap\Prompts\PEVVY_RENTAL_FINANCIAL_ADJUSTMENTS_DEPLOYMENT_CLOSURE_PROMPT.md
+E:\pevvy-car-rental-saas-main\Roadmap\Prompts\PEVVY_RENTAL_FINANCIAL_LIFECYCLE_INTEGRITY_CLOSURE_PROMPT.md
+E:\pevvy-car-rental-saas-main\Roadmap\Prompts\PEVVY_RENTAL_FINANCIAL_AMENDMENT_HISTORY_REMEDIATION_PROMPT.md
+E:\pevvy-car-rental-saas-main\Roadmap\Prompts\PEVVY_RENTAL_FINANCIAL_ADJUSTMENTS_PROMPT.md
+E:\pevvy-car-rental-saas-main\Roadmap\RoadMapFiles\ARCHITECTURE_DECISIONS.md
+E:\pevvy-car-rental-saas-main\Roadmap\RoadMapFiles\CHANGELOG.md
+E:\pevvy-car-rental-saas-main\Roadmap\RoadMapFiles\FEATURE_TRACKER.md
+E:\pevvy-car-rental-saas-main\Roadmap\RoadMapFiles\MASTER_ROADMAP.md
+E:\pevvy-car-rental-saas-main\Roadmap\RoadMapFiles\PRODUCTION_RELEASE_CHECKLIST.md
+E:\pevvy-car-rental-saas-main\Roadmap\RoadMapFiles\PRODUCTION_RELEASE_MANIFEST.md
+```
+
+**No deliverable is incomplete.** Every file exists, is non-empty, and carries the
+evidence its section describes.
+
+---
+## 10. Work package status
 
 **Work Package 4 — Rental Financial Adjustments: IMPLEMENTED AND DEPLOYED TO STAGING —
 OWNER ACCEPTANCE PENDING.**
