@@ -70,3 +70,27 @@ expense links, and the CSV import restriction safeguard.
 
 The owner's acceptance baseline of 11 passed, 11 failed and 4 pending remains the
 historical record and is not superseded by any automated result here.
+
+## Maintenance Management — FUNCTIONALLY ACCEPTED, CLOSED (2026-11-26)
+
+| Field | Value |
+|---|---|
+| Status | **FUNCTIONALLY ACCEPTED — CLOSED** |
+| Owner final acceptance | **28 scenarios / 28 passed / 0 failed / 0 pending**, no observations |
+| Last two confirmed | Scenario 19 preventive servicing; scenario 28 dashboard |
+| Accepted staging commit | `131ac9a0fbb8f82787c0a17079d042c7c5bb37d0` |
+| Migrations | through `20261126120000`, 141 applied, zero drift |
+| Scope | **Frozen** — not reopened without an identified regression |
+| Production | **NO-GO** — functional acceptance is not deployment authorization |
+
+| Area | State | Evidence |
+|---|---|---|
+| Authoritative service plan architecture | Accepted | `src/lib/compliance/service.ts`, `maintenance_set_service_plan` |
+| Maintenance Management dashboard | Accepted | scenario 28 PASS |
+| Maintenance expense integration | Accepted | preserved through the servicing work |
+| Fleet availability integration | Accepted | `app.maintenance_restriction_range` |
+| Incident Management dashboard | **Next package** | design reference: the accepted Maintenance dashboard |
+| Rental Financial Adjustments | Not started | after owner acceptance of the Incident dashboard |
+
+The owner's interim 11 passed / 11 failed / 4 pending baseline is superseded by this final
+acceptance and is preserved as history in `Handoff/KNOWN_ISSUES_AND_ACCEPTANCE.md`.

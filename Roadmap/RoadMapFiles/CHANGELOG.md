@@ -156,3 +156,19 @@ emitted as a shared chunk now that the Vehicles page reaches it.
 Not accepted: 26 passed / 1 failed / 0 untested stands unchanged. Scenario 19 and the
 dashboard's scenario 28 both await owner verification. No migration was created,
 production was not touched, and it remains NO-GO.
+
+## 2026-11-26 — Maintenance Management functionally accepted
+
+The owner confirmed scenario 19 (preventive servicing) and scenario 28 (Maintenance
+Management dashboard) as PASS. Final consolidated result: **28 scenarios, 28 passed, 0
+failed, 0 pending, no observations.** Maintenance Management is **FUNCTIONALLY ACCEPTED —
+CLOSED** and its scope is frozen.
+
+Accepted as functionality: the authoritative service plan architecture, the Maintenance
+Management dashboard, maintenance expense integration, and fleet availability integration.
+
+The interim 11 passed / 11 failed / 4 pending result is preserved as history in
+`Handoff/KNOWN_ISSUES_AND_ACCEPTANCE.md` and is superseded, not deleted.
+
+Functional acceptance is **not** production deployment authorization. Maintenance remains
+production NO-GO and every remaining gate in the production release checklist stands.

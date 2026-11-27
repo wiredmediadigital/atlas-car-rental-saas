@@ -48,3 +48,32 @@ open. Each records why.
 The reason is not tidiness. The vehicle form submits the whole row, so a status
 field on it cleared whatever restriction a vehicle was under every time somebody
 corrected a typo in its notes.
+
+## 2026-11-26 — One authoritative service plan, accepted
+
+Preventive servicing has exactly one home. A vehicle's next service is recorded on the
+maintenance record that services it, written only by `maintenance_set_service_plan`, and
+every surface reads it through `evaluateVehicleServicing` in
+`src/lib/compliance/service.ts`. Maintenance Details, Vehicle Details, the fleet-wide
+servicing tab and the fleet CSV export all call that one function, so they cannot disagree
+about the same car on the same day.
+
+The reason is not elegance. The product previously had two independently editable
+next-service dates — one on the maintenance record and the legacy `vehicles.next_service_on`
+— and they never agreed. Removing the second editor required taking the column out of the
+vehicle write payload *before* taking the field off the form: the vehicle form submits the
+whole row, so a blanked field would have nulled a stored date every time somebody corrected
+a typo. The legacy column is now read-only history, surfaced only where no plan exists.
+
+Recurrence is computed at completion, not on read. Completing a record that carries an
+interval recomputes the next thresholds from the completion actually recorded — the date in
+the agency's own time zone, and the reading taken at the garage. `vehicles.odometer` is
+deliberately not substituted for a missing service reading: it is the last rental hand-over
+figure, and borrowing it would manufacture evidence that somebody read the odometer during
+a service when nobody did.
+
+A due or overdue service is **informational**. It does not take a vehicle off the road,
+change maintenance status, cancel a rental or create an expense. Availability is decided by
+maintenance records and explicit off-road restrictions, and by nothing else.
+
+This architecture is owner-accepted as of the 28/28 final acceptance and is frozen.

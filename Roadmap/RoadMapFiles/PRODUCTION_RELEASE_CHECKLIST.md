@@ -77,9 +77,14 @@ Phase 1B-02 staging validation is complete for the authorized staging-only scope
 
 Staging is deployed and verified. These remain before production can be considered.
 
-- [ ] Owner manual acceptance of all 26 scenarios on hosted staging, signed in.
-      Start with scenario 22, the standard rental regression. The 11/11/4 baseline
-      stands until each is individually confirmed.
+- [x] **Owner manual acceptance — COMPLETE (2026-11-26).** 28 scenarios, 28 passed,
+      0 failed, 0 pending, no owner observations. Scenario 19 (preventive servicing) and
+      scenario 28 (Maintenance Management dashboard) were the last two confirmed. The
+      11/11/4 interim baseline is superseded. Maintenance Management is **FUNCTIONALLY
+      ACCEPTED — CLOSED**. Evidence:
+      `Reports/PEVVY_MAINTENANCE_MANAGEMENT_FINAL_ACCEPTANCE.md`.
+      **This closes the acceptance gate only. Every unchecked item below still stands, and
+      functional acceptance is not production deployment authorization.**
 - [ ] Decision: assignment activation defaults ON, contradicting the STG-02 contract.
       Either revert the default or amend the contract.
 - [ ] Decision: should the eleven incident and maintenance `SECURITY DEFINER` write RPCs

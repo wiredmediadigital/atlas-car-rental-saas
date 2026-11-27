@@ -43,3 +43,25 @@ not been started.
 Blocking anything hosted beyond maintenance: six of nine Edge Functions are not deployed
 to staging, so public booking, account closure, MFA reset and team invitations cannot be
 accepted there. Deploying them needs its own owner approval.
+
+## Maintenance Management — FUNCTIONALLY ACCEPTED, CLOSED (2026-11-26)
+
+The owner confirmed final manual acceptance on hosted staging: **28 scenarios, 28 passed,
+0 failed, 0 pending, no observations.** Scenario 19 (preventive servicing) and scenario 28
+(Maintenance Management dashboard) were the last two, both PASS.
+
+Accepted as functionality: the authoritative service plan architecture, the Maintenance
+Management dashboard, maintenance expense integration, and fleet availability integration.
+
+**Scope is frozen.** Maintenance Management is not reopened for enhancements,
+architectural changes or further testing unless an actual regression is identified.
+
+**Functional acceptance is not production deployment authorization.** Maintenance remains
+**production NO-GO**, and every gate in `PRODUCTION_RELEASE_CHECKLIST.md` stands —
+including the six undeployed Edge Functions, the unreproducible deployment artifact hash
+and independent concurrency verification.
+
+Driver Availability keeps its owner manual acceptance of 9/9. Next is the **Incident
+Management dashboard enhancement**, using the accepted Maintenance dashboard as its design
+reference; owner acceptance of that is requested before Rental Financial Adjustments,
+which remains not started.

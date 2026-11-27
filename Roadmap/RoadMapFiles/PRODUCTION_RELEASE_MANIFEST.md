@@ -124,3 +124,20 @@ owner approval and was not attempted.
 - Assignment activation defaulting ON against the STG-02 contract — owner decision.
 - Whether eleven incident and maintenance write RPCs should call
   `app.billing_require_write` — owner decision.
+
+## Maintenance Management functional acceptance — 2026-11-26
+
+- Owner final manual acceptance: **28 scenarios, 28 passed, 0 failed, 0 pending**, no
+  owner observations. Scenario 19 and scenario 28 were the last two confirmed.
+- Accepted staging commit: `131ac9a0fbb8f82787c0a17079d042c7c5bb37d0`, deployed artifact
+  `e4c586445ed429e7986c344e5d10d17328938eaaf2e10a8d3836785be2a1f698`, 199 files, verified
+  by content.
+- Migration ledger at acceptance: **141 local / 141 applied / zero drift**, last applied
+  `20261126120000`.
+- Status: **FUNCTIONALLY ACCEPTED — CLOSED.** Scope frozen.
+- **Production release: NO-GO.** Functional acceptance is not production deployment
+  authorization. Every outstanding gate in `PRODUCTION_RELEASE_CHECKLIST.md` is preserved
+  unchanged — notably the six undeployed Edge Functions, the unreproducible deployment
+  artifact hash, independent concurrency verification, the STG-02 assignment-activation
+  decision, the `app.billing_require_write` decision, and the absence of a down migration.
+- Production project `ysnumxtzcgzyabrghxwq`: unchanged, not accessed, not linked.
