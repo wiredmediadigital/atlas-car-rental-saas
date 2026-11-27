@@ -23,7 +23,15 @@ export interface MaintenanceSummaryProps {
   isLoading: boolean
   isSpendLoading: boolean
   isDowntimeLoading: boolean
-  /** True while the corrective migration has not been applied yet. */
+  /**
+   * True when the downtime figure could not be read.
+   *
+   * This once meant one specific thing -- the service plan migration had not
+   * been applied -- and both this comment and the caption said so. The owner
+   * applied it on 2026-11-26, so the only causes left are ordinary ones, and a
+   * message naming a migration would send somebody to look at the database over
+   * a dropped request.
+   */
   isDowntimeUnavailable?: boolean
 }
 
@@ -96,7 +104,7 @@ export function MaintenanceSummary({
           value={isDowntimeUnavailable ? 'Unavailable' : formatDuration(downtimeMinutes)}
           caption={
             isDowntimeUnavailable
-              ? 'Needs the maintenance service plan migration to be applied to this project.'
+              ? 'Actual downtime is temporarily unavailable. Refresh the page or try again later.'
               : 'Time vehicles were actually out of service. Work scheduled but never started is not counted, and two jobs on one vehicle count once.'
           }
         />
