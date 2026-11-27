@@ -312,7 +312,67 @@ frontend test — and removed; the count is back to the baseline three.
 
 ---
 
-## 7. Remaining material limitations
+## 7. Delivery evidence (§21)
+
+Every deliverable, in the tracked worktree it is committed to. The eleven documents are
+**mirrored byte-identically** into the primary checkout at the paths the authorization
+names; the migration is deliberately **not** mirrored, because it belongs to the branch
+and the primary checkout must not acquire an unapplied migration.
+
+| File | Bytes | Modified | SHA-256 | Mirrored identical | Status |
+|---|---|---|---|---|---|
+| `PEVVY_RENTAL_FINANCIAL_AMENDMENT_HISTORY_REMEDIATION.md` | 19,339 | 2026-11-27 12:33:46 | `fde66618a021e0e4...` | yes | COMPLETE |
+| `PEVVY_RENTAL_FINANCIAL_ADJUSTMENTS_IMPLEMENTATION.md` | 27,256 | 2026-11-27 12:30:59 | `6414d38836366b8e...` | yes | COMPLETE |
+| `PEVVY_RENTAL_FINANCIAL_ADJUSTMENTS_ACCEPTANCE.md` | 11,650 | 2026-11-27 12:29:34 | `7484f126aea8a4db...` | yes | COMPLETE |
+| `PEVVY_RENTAL_FINANCIAL_AMENDMENT_HISTORY_REMEDIATION_PROMPT.md` | 16,199 | 2026-11-27 11:50:03 | `d03757b50f0c66d6...` | yes | COMPLETE |
+| `PEVVY_RENTAL_FINANCIAL_ADJUSTMENTS_PROMPT.md` | 29,380 | 2026-11-27 11:06:49 | `37aa45741d41c8d2...` | yes | COMPLETE |
+| `ARCHITECTURE_DECISIONS.md` | 12,312 | 2026-11-27 12:30:45 | `e20d7a4160eb19dd...` | yes | COMPLETE |
+| `CHANGELOG.md` | 17,292 | 2026-11-27 12:30:29 | `c5c9f5ca6b497384...` | yes | COMPLETE |
+| `FEATURE_TRACKER.md` | 8,237 | 2026-11-27 12:30:30 | `3e4f24d8508fb9e7...` | yes | COMPLETE |
+| `MASTER_ROADMAP.md` | 10,002 | 2026-11-27 12:30:30 | `98a8e10213652cbb...` | yes | COMPLETE |
+| `PRODUCTION_RELEASE_CHECKLIST.md` | 10,554 | 2026-11-27 12:30:30 | `a49af26637df7d87...` | yes | COMPLETE |
+| `PRODUCTION_RELEASE_MANIFEST.md` | 15,521 | 2026-11-27 12:30:30 | `b8e193d637d90519...` | yes | COMPLETE |
+| `20261127100000_rental_pricing_amendment_history.sql` | 26,305 | 2026-11-27 12:00:46 | `27b8f62d7ee1f7df...` | n/a - branch only | COMPLETE |
+
+Absolute paths, worktree:
+
+```
+E:\pevvy-maintenance-acceptance-20261125\Roadmap\Reports\PEVVY_RENTAL_FINANCIAL_AMENDMENT_HISTORY_REMEDIATION.md
+E:\pevvy-maintenance-acceptance-20261125\Roadmap\Reports\PEVVY_RENTAL_FINANCIAL_ADJUSTMENTS_IMPLEMENTATION.md
+E:\pevvy-maintenance-acceptance-20261125\Roadmap\Reports\PEVVY_RENTAL_FINANCIAL_ADJUSTMENTS_ACCEPTANCE.md
+E:\pevvy-maintenance-acceptance-20261125\Roadmap\Prompts\PEVVY_RENTAL_FINANCIAL_AMENDMENT_HISTORY_REMEDIATION_PROMPT.md
+E:\pevvy-maintenance-acceptance-20261125\Roadmap\Prompts\PEVVY_RENTAL_FINANCIAL_ADJUSTMENTS_PROMPT.md
+E:\pevvy-maintenance-acceptance-20261125\Roadmap\RoadMapFiles\ARCHITECTURE_DECISIONS.md
+E:\pevvy-maintenance-acceptance-20261125\Roadmap\RoadMapFiles\CHANGELOG.md
+E:\pevvy-maintenance-acceptance-20261125\Roadmap\RoadMapFiles\FEATURE_TRACKER.md
+E:\pevvy-maintenance-acceptance-20261125\Roadmap\RoadMapFiles\MASTER_ROADMAP.md
+E:\pevvy-maintenance-acceptance-20261125\Roadmap\RoadMapFiles\PRODUCTION_RELEASE_CHECKLIST.md
+E:\pevvy-maintenance-acceptance-20261125\Roadmap\RoadMapFiles\PRODUCTION_RELEASE_MANIFEST.md
+E:\pevvy-maintenance-acceptance-20261125\supabase\migrations\20261127100000_rental_pricing_amendment_history.sql
+```
+
+Absolute paths, primary checkout (documents only):
+
+```
+E:\pevvy-car-rental-saas-main\Roadmap\Reports\PEVVY_RENTAL_FINANCIAL_AMENDMENT_HISTORY_REMEDIATION.md
+E:\pevvy-car-rental-saas-main\Roadmap\Reports\PEVVY_RENTAL_FINANCIAL_ADJUSTMENTS_IMPLEMENTATION.md
+E:\pevvy-car-rental-saas-main\Roadmap\Reports\PEVVY_RENTAL_FINANCIAL_ADJUSTMENTS_ACCEPTANCE.md
+E:\pevvy-car-rental-saas-main\Roadmap\Prompts\PEVVY_RENTAL_FINANCIAL_AMENDMENT_HISTORY_REMEDIATION_PROMPT.md
+E:\pevvy-car-rental-saas-main\Roadmap\Prompts\PEVVY_RENTAL_FINANCIAL_ADJUSTMENTS_PROMPT.md
+E:\pevvy-car-rental-saas-main\Roadmap\RoadMapFiles\ARCHITECTURE_DECISIONS.md
+E:\pevvy-car-rental-saas-main\Roadmap\RoadMapFiles\CHANGELOG.md
+E:\pevvy-car-rental-saas-main\Roadmap\RoadMapFiles\FEATURE_TRACKER.md
+E:\pevvy-car-rental-saas-main\Roadmap\RoadMapFiles\MASTER_ROADMAP.md
+E:\pevvy-car-rental-saas-main\Roadmap\RoadMapFiles\PRODUCTION_RELEASE_CHECKLIST.md
+E:\pevvy-car-rental-saas-main\Roadmap\RoadMapFiles\PRODUCTION_RELEASE_MANIFEST.md
+```
+
+**No deliverable is incomplete.** Every file above exists, is non-empty, and carries the
+evidence its section of this report describes.
+
+---
+
+## 8. Remaining material limitations
 
 **This remediation's own limit.** History begins now. No record is manufactured for
 amendments made before this migration, per §15, so an existing rental that was repriced
