@@ -94,3 +94,23 @@ historical record and is not superseded by any automated result here.
 
 The owner's interim 11 passed / 11 failed / 4 pending baseline is superseded by this final
 acceptance and is preserved as history in `Handoff/KNOWN_ISSUES_AND_ACCEPTANCE.md`.
+
+## Incident Management dashboard — 2026-11-26
+
+| Field | Value |
+|---|---|
+| Status | Deployed to staging; **scenario 29 awaiting owner acceptance** |
+| Staging commit | `b163cc63d3375d4e606e152d5a1e48cabb21fb7a` |
+| Deployed artifact | `ff41ee11…`, 199 files, verified by content |
+| Migration | **none** — frontend only |
+| Accepted incident functionality | **not reopened** |
+| Production | NO-GO |
+
+| Area | State | Evidence |
+|---|---|---|
+| Incident dashboard summary | Six figures, period vs current state distinguished | `src/features/incidents/dashboard.ts` |
+| Incident records table | Eight columns, business identifiers, responsive | `IncidentTable.tsx` |
+| Search and filtering | Reference, vehicle, rental, customer, free text; seven filters; All time | `IncidentToolbar.tsx` |
+| Maintenance integration | Counts per incident, outstanding flagged, lifecycles independent | `fetchIncidentMaintenanceLinks` |
+| Tenant isolation | Proved in both directions for both new reads | `supabase/tests/incident-dashboard.test.ts` |
+| Rental Financial Adjustments | **Not started** — after owner acceptance of scenario 29 | — |

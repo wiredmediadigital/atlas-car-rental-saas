@@ -48,3 +48,17 @@ Relevant evidence: `Roadmap/Reports/PEVVY_MAINTENANCE_MANAGEMENT_DEPLOYMENT_CLOS
 Final acceptance evidence: `Roadmap/Reports/PEVVY_MAINTENANCE_MANAGEMENT_FINAL_ACCEPTANCE.md`,
 with the two closing deployments in `PEVVY_PREVENTIVE_SERVICING_FINAL_CORRECTION.md` and
 `PEVVY_PREVENTIVE_SERVICING_DEPLOYMENT_CLOSURE.md`.
+
+## Incident Management dashboard — scenario 29 (2026-11-26)
+
+Incident Management functionality was accepted previously and is **not reopened**. The
+dashboard enhancement is deployed to staging at `b163cc6` and is recorded as a separate
+scenario:
+
+- **Scenario 29 — Incident Management dashboard: OUTSTANDING.** Not marked accepted.
+
+The manual acceptance script is in
+`Roadmap/Reports/PEVVY_INCIDENT_MANAGEMENT_DASHBOARD_ENHANCEMENT.md` §10. A failure should
+be reported against its step number.
+
+Frontend only; no migration. Production remains NO-GO.

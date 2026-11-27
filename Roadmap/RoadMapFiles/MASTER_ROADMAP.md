@@ -65,3 +65,17 @@ Driver Availability keeps its owner manual acceptance of 9/9. Next is the **Inci
 Management dashboard enhancement**, using the accepted Maintenance dashboard as its design
 reference; owner acceptance of that is requested before Rental Financial Adjustments,
 which remains not started.
+
+## Incident Management dashboard — staging deployed, acceptance outstanding (2026-11-26)
+
+Staging runs the Incident Management dashboard at `b163cc6`, built on the accepted
+Maintenance dashboard and deployed with **no migration**. Verified by content on the
+deployed bundle.
+
+Acceptance is recorded as **scenario 29** and is outstanding. No previously accepted
+incident functionality was reopened, and Maintenance Management stays closed at 28/28.
+
+**Rental Financial Adjustments remains not started.** Per the owner's instruction,
+acceptance of the Incident dashboard is requested before it begins. Maintenance and
+Incidents both remain production NO-GO; every gate in the production release checklist
+stands.

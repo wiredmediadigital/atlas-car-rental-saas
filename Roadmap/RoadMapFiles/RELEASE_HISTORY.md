@@ -155,3 +155,32 @@ no production deployment is claimed.**
 - Deployment report: `Roadmap/Reports/PEVVY_PREVENTIVE_SERVICING_DEPLOYMENT_CLOSURE.md`
 - Manual acceptance: **NOT PERFORMED.** 26 passed / 1 failed / 0 untested stands. Scenario
   19 and scenario 28 both await owner verification.
+
+## 2026-11-26 — Incident Management dashboard (staging)
+
+- Published commits: `a2861b8` (maintenance acceptance records) and
+  `b163cc6` (the incident dashboard).
+- `origin/staging`: `131ac9a..b163cc6`, fast-forward, no force. `origin/main` unchanged at
+  `31383a97eb8e000f9189913b255af4da22bf3a26`.
+- **No migration.** Frontend only; `supabase/migrations/` unchanged at 141.
+- Guarded build: 199 files, `ca53ce34b47cd5d2…`. Artifact scanned: no production
+  reference, no secret key.
+- Deployment result: **success.** Manifest `e4c58644…`/199 →
+  `ff41ee11dbe87b6b2b230f0a44a9f09f5ea2cfb3bedaba8923742fc5f70b76a2`/199. Verified by
+  content: 173 asset files crawled, 171 of 171 `.js` served as JavaScript, all eight
+  strings unique to this release found in the deployed `IncidentsPage` chunk, all six
+  probes from the accepted maintenance release still present, 0 production references, 0
+  leaked secret keys.
+- 65 new tests: 38 dashboard units, 17 page tests, 5 query-key contract tests, 5 database
+  tenant-isolation tests proving both new reads refuse another agency's rows in both
+  directions. The 22 accepted maintenance acceptance tests pass unmodified.
+- Known issues: the deployed artifact hash remains unreproducible by the deploying party.
+  `IncidentNewPage.tsx` keeps two pre-existing `react-hooks/set-state-in-effect` errors —
+  that file is incident reporting, which the brief forbids changing. Six of nine Edge
+  Functions remain undeployed.
+- Rollback reference: previous staging tip `131ac9a0fbb8f82787c0a17079d042c7c5bb37d0`,
+  previously deployed artifact
+  `e4c586445ed429e7986c344e5d10d17328938eaaf2e10a8d3836785be2a1f698`. Frontend-only; no
+  schema change to reverse.
+- Implementation report: `Roadmap/Reports/PEVVY_INCIDENT_MANAGEMENT_DASHBOARD_ENHANCEMENT.md`
+- Manual acceptance: **NOT PERFORMED.** Recorded as scenario 29, awaiting the owner.

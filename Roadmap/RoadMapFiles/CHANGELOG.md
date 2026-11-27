@@ -172,3 +172,36 @@ The interim 11 passed / 11 failed / 4 pending result is preserved as history in
 
 Functional acceptance is **not** production deployment authorization. Maintenance remains
 production NO-GO and every remaining gate in the production release checklist stands.
+
+## 2026-11-26 — the Incidents page becomes a dashboard
+
+Built on the accepted Maintenance dashboard rather than beside it: the same page skeleton,
+period stepper, debounced search, filter drawer, clamped pagination and table/card-list
+split. The Incidents route and the Report incident action are unchanged, and no navigation
+module was added.
+
+Six figures of two kinds, and each tile says which it is. Three describe the selected
+period; three describe now, whenever the incident happened. That split is the point rather
+than a detail — an incident opened in March and never closed is the most actionable row in
+the product, and a dashboard that hid it behind a month selector would be worse than no
+dashboard. "All time" exists so the list can reach those rows too.
+
+Every figure comes from one complete list, paged past PostgREST's 1,000-row ceiling and
+de-duplicated by primary key, so the summary cannot contradict the table beneath it and a
+total is never taken from whatever the first page happened to hold. A failed read shows a
+dash, never a confident zero, and the two reads fail independently.
+
+The records list becomes an eight-column table of business identifiers, with the related
+maintenance summarised per incident — counted once per incident however many records it
+raised, and still counted when the incident itself is resolved, because the two lifecycles
+are independent.
+
+Three defects found before publication: the period tiles reset the period; the Open
+incidents tile counted in-progress work and then filtered it out of its own drill-down;
+and the date filter read the UTC day while the table displayed the agency's. An adversarial
+review found seven more, including a confident zero over a failed maintenance read and a
+hover class that referenced a border the button did not have.
+
+Not accepted: recorded as scenario 29, awaiting owner verification. Maintenance remains
+28/28 and frozen; no accepted incident functionality was reopened. Production untouched
+and NO-GO.

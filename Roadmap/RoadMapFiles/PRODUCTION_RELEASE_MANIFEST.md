@@ -141,3 +141,24 @@ owner approval and was not attempted.
   artifact hash, independent concurrency verification, the STG-02 assignment-activation
   decision, the `app.billing_require_write` decision, and the absence of a down migration.
 - Production project `ysnumxtzcgzyabrghxwq`: unchanged, not accessed, not linked.
+
+## Incident Management dashboard — 2026-11-26
+
+- Published commits: `a2861b8`, `b163cc6`.
+- `origin/staging`: `131ac9a..b163cc6`, fast-forward, no force. `origin/main` unchanged at
+  `31383a97eb8e000f9189913b255af4da22bf3a26`.
+- **No migration created.** `supabase/migrations/` unchanged at 141 local / 141 applied.
+- Hostinger staging publication: **verified by content.** Manifest `e4c58644…`/199 →
+  `ff41ee11…`/199, project ref `yeklucfthspvejlkffln`. 173 asset files crawled; 171 of 171
+  `.js` served as JavaScript; 0 production references; 0 secret keys; all eight
+  release-unique strings present; all six accepted-release probes still present.
+- Maintenance Management: **not reopened.** Its 28/28 acceptance and scope freeze stand.
+- Acceptance: **scenario 29, outstanding.** Not marked accepted.
+- Production project `ysnumxtzcgzyabrghxwq`: unchanged, not accessed, not linked.
+- Production release: **NO-GO.**
+
+### Outstanding before promotion
+
+Everything listed under the preventive servicing entry above, unchanged, plus owner
+acceptance of scenario 29. The two pre-existing `IncidentNewPage.tsx` lint errors remain;
+that file is incident reporting and was deliberately not modified.
