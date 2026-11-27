@@ -1,5 +1,17 @@
 # Changelog
 
+## Unreleased — Work Package 4 deployed to staging (2026-11-27)
+
+- Migration `20261127100000` applied to staging by the owner and verified: 143
+  local, 143 remote, zero drift, applied statements identical to the approved
+  file across all 30 statements.
+- Frontend published `aa94dc3..357961e`, fast-forward, and verified by content:
+  23 release-unique strings, 6 responsive classes and 7 accepted-release probes
+  all present; the production project reference and secret values absent.
+- Hire amendments is live and reading the applied staging schema.
+- Work Package 4 is IMPLEMENTED AND DEPLOYED TO STAGING — OWNER ACCEPTANCE
+  PENDING. It is not functionally accepted and not closed.
+
 ## Unreleased — Rental financial and lifecycle integrity closure (2026-11-27)
 
 - The evidence a restated hire has to leave now has to describe that change

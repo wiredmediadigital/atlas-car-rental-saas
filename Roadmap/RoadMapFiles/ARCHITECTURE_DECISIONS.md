@@ -265,3 +265,22 @@ A consequence worth keeping: `amended_at` defaults to `clock_timestamp()`, not `
 `now()` is the transaction timestamp, so two amendments in one transaction would share it
 exactly and could not be ordered — and the order of a financial history is part of what
 it says.
+
+## 2026-11-27 — A deferred constraint tested without a commit looks broken
+
+Verifying the amendment evidence requirement against hosted staging reported it as not
+refusing. The schema was fine. The constraint is DEFERRED, so it fires at commit, and the
+verification deliberately ran inside a transaction that was always rolled back so that no
+QA record could survive. The violation was therefore never reached.
+
+`SET CONSTRAINTS <name> IMMEDIATE` is how a deferred constraint is made to answer inside
+an uncommitted transaction, and it produced the refusal.
+
+This is worth recording because the failure mode is indistinguishable from a real one: a
+deferred constraint that is never committed against looks exactly like a constraint that
+does not work. Any future verification of deferred enforcement must either commit, or
+force the check, and must say which it did.
+
+The same caution applies in reverse to the local suite: those tests pass because each
+statement auto-commits, which is the opposite environment and tests the same property by
+a different route. Both are needed.

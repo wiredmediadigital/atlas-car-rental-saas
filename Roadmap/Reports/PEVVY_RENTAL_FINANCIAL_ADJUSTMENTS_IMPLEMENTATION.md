@@ -1,5 +1,11 @@
 # Pevvy — Rental Financial Adjustments: implementation report
 
+> **Status, 2026-11-27: IMPLEMENTED AND DEPLOYED TO STAGING — OWNER ACCEPTANCE
+> PENDING.** Migration `20261127100000` is applied to staging and the frontend is
+> deployed at `aa94dc3..357961e`. See
+> `PEVVY_RENTAL_FINANCIAL_ADJUSTMENTS_DEPLOYMENT_CLOSURE.md`. Not functionally accepted;
+> scenarios 30-35 are the owner's pass. Production remains NO-GO.
+
 **Work package 4.** Branch `fix/maintenance-manual-acceptance-20261125`, worktree
 `E:\pevvy-maintenance-acceptance-20261125`. Staging project `yeklucfthspvejlkffln`.
 **Production remains NO-GO.** Nothing in this report is manual acceptance; the owner's
@@ -203,9 +209,10 @@ or extension of a non-draft rental issue a superseding contract version — or w
 equivalent snapshot row — before it restates the hire. That is a schema change and is out
 of scope here; it requires its own authorization.
 
-> **Remediated on 2026-11-27.** The owner authorized the correction, and it is
-> implemented by migration `20261127100000_rental_pricing_amendment_history.sql` —
-> **created and locally tested, not yet applied to any hosted database**. Issuing a
+> **Remediated on 2026-11-27, and now applied to staging.** The owner authorized the
+> correction; it is implemented by migration
+> `20261127100000_rental_pricing_amendment_history.sql`, **applied to staging and
+> verified** (143/143, zero drift). Issuing a
 > contract version was investigated and rejected: `rental_issue_contract` irreversibly
 > supersedes live versions, surfaces a document awaiting signature, permanently flips
 > `app.rental_is_finalized`, and there is no reusable snapshot builder. History is now
@@ -309,8 +316,8 @@ correction carried in commit `7664645`.
 was to be built for it).
 
 **Remediated since** — preservation of amendment history for a reservation repriced
-before any contract is issued (section 4), by migration `20261127100000`, which is
-created and locally tested but **not yet applied**. See
+before any contract is issued (section 4), by migration `20261127100000`, **applied to
+staging and verified**. See
 `PEVVY_RENTAL_FINANCIAL_AMENDMENT_HISTORY_REMEDIATION.md`.
 
 ---

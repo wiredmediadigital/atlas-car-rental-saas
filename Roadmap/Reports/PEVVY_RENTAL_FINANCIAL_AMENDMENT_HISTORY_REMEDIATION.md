@@ -7,7 +7,11 @@ financial and lifecycle integrity closure that followed it, both 2026-11-27.*
 `fix/maintenance-manual-acceptance-20261125`, worktree
 `E:\pevvy-maintenance-acceptance-20261125`. Staging project `yeklucfthspvejlkffln`.
 
-**Migration created and tested locally. NOT applied to any hosted database.**
+**APPLIED TO STAGING on 2026-11-27 by the owner, and verified.** Ledger 143 local /
+143 remote, zero drift. The applied statements are identical to the approved file across
+all 30 statements. Full verification evidence is in
+`PEVVY_RENTAL_FINANCIAL_ADJUSTMENTS_DEPLOYMENT_CLOSURE.md`; **production was not
+touched.**
 **Production remains NO-GO.** Nothing here is manual acceptance; the owner's pass is
 scenario 35 in `PEVVY_RENTAL_FINANCIAL_ADJUSTMENTS_ACCEPTANCE.md`.
 
@@ -311,8 +315,8 @@ guard uses, so a closing agency can still take its records apart.
 | **Filename** | `supabase/migrations/20261127100000_rental_pricing_amendment_history.sql` |
 | **SHA-256** | `d0d9ca39487486c1cb7e492364a7a7e28bcf4e4f317c4dcc70234ee74b553890` |
 | **Size** | 798 lines / 35,823 bytes |
-| **Status** | **Created and tested locally. NOT applied to staging or production.** |
-| **Ledger** | **143 local, 142 remote.** Exactly one pending: `20261127100000`. |
+| **Status** | **Applied to staging 2026-11-27. Not applied to production.** |
+| **Ledger** | **143 local, 143 remote, zero drift.** Nothing pending. |
 | **Worktree** | `E:\pevvy-maintenance-acceptance-20261125` |
 
 The earlier dossier gave `27b8f62d…` at 621 lines. That checksum is superseded: the

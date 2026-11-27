@@ -266,3 +266,30 @@ Everything listed under the Incident Management entry above, unchanged, plus:
 - Acceptance: scenario 35 gains sub-check 35h for lifecycle integrity. The register is
   not expanded. Scenarios 30–35 remain not run.
 - Production release: **NO-GO.**
+
+## Work Package 4 — staging deployment — 2026-11-27
+
+- Published commits: `e350322`, `f414616`, `09c9954`, `357961e`.
+- `origin/staging`: `aa94dc3..357961e`, fast-forward, no force. `origin/main` unchanged
+  at `31383a97eb8e000f9189913b255af4da22bf3a26`.
+- **Migration applied to staging:** `20261127100000_rental_pricing_amendment_history.sql`,
+  SHA-256 `d0d9ca39487486c1cb7e492364a7a7e28bcf4e4f317c4dcc70234ee74b553890`, 798 lines /
+  35,823 bytes. Ledger **143 local / 143 applied, zero drift**. Applied by the owner, not
+  from the session; applied statements verified identical to the approved file.
+- Hosted schema verification: **33 catalog checks and 24 behavioural checks, all
+  passing.** Behavioural checks ran in a rolled-back transaction; existing records
+  unchanged at 4 rentals, 4 charge lines, 5 payments, 3 contracts, and no QA residue.
+- Local guarded build: 199 files, SHA-256
+  `0ef652a76d1218b45ae3c152de9fda210493530339f2ade11a0a87663d4f79ed`.
+- Hostinger staging publication: **verified by content.** Manifest `554d9c72…`/199 →
+  `2f6f37db…`/199, project ref `yeklucfthspvejlkffln`. 172 asset files crawled; 170 of
+  170 `.js` served as JavaScript; 0 production references; 0 secret values; 23 of 23
+  release-unique strings; 6 of 6 responsive classes; 7 of 7 accepted-release probes.
+- Regression: 400 of 400 focused tests on the deployment candidate; full suite 4,198 with
+  4,194 passing and the four established baseline failures. Zero new failures.
+- Maintenance Management (28/28), Incident Management (scenario 29) and Driver
+  availability (9/9): **not reopened.**
+- Acceptance: **NOT ACCEPTED.** Scenarios 30–35 prepared and executable; none run. No
+  responsive check verified visually by the implementer.
+- Production project `ysnumxtzcgzyabrghxwq`: unchanged, not accessed, not linked.
+- Production release: **NO-GO.**

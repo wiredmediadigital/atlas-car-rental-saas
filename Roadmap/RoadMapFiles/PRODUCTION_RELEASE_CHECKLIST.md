@@ -210,3 +210,32 @@ has not been accessed.
       migration that drops the constraint trigger before the table.
 
 **Production remains NO-GO.**
+
+---
+
+## Work Package 4 staging deployment (added 2026-11-27)
+
+- [x] **Migration `20261127100000` applied to staging and verified** — 143/143, zero
+      drift, applied statements identical to the approved file.
+- [x] **Frontend deployed and verified by content** — not by hash or HTTP status.
+- [ ] **Scenarios 30–35 not run.** The acceptance gate for Work Package 4 is open.
+- [ ] **No responsive verification has been performed visually.** Classes confirmed in
+      the shipped bundle; that proves they were built, not that the layout is right.
+      Scenarios 34 and 35g are the first visual check and ask whether a physical device
+      or emulation was used.
+- [ ] **One-to-one financial amendment evidence — OPEN.** The evidence check matches a
+      mutation's signature, not a unique claim. A transaction moving the hire
+      100 → 200 → 100 → 200 while recording only the first change would have its third
+      mutation matched by the first amendment. Requires owner-owned SECURITY DEFINER
+      access to reach. **Not resolved.**
+- [ ] **Rental lifecycle mutation boundaries — OPEN.** `status`, `picked_up_at`,
+      `returned_at` and `original_ends_at` are deliberately not frozen, because the RPCs
+      that write them are SECURITY INVOKER. Between confirmation and completion the
+      hand-over timestamps are directly writable. Verify before production that a direct
+      write cannot counterfeit a check-out or a return.
+- [ ] **Privileged mutation boundaries** — `service_role`, owner-owned SECURITY DEFINER
+      functions and direct administrative access remain reviewable surfaces, unchanged.
+- [ ] **Amendment history begins at this migration.** Earlier amendments were never
+      recorded and are not reconstructed.
+
+**Production remains NO-GO.**

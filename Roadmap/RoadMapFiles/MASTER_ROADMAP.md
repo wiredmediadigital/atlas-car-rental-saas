@@ -196,3 +196,24 @@ All three corrections were folded into the existing unpublished migration, which
 798 lines, SHA-256 `d0d9ca39…3890`. **Still created and locally tested only; 143 local,
 142 remote.** Hosted application needs the owner's authorization. Production remains
 NO-GO.
+
+## Work Package 4 — staging deployment — 2026-11-27
+
+The owner applied `20261127100000` and authorized deployment. Both were verified rather
+than assumed: the applied statements were compared against the approved file (30
+statements, identical once the CLI's stripped separators are normalised), and the
+deployed bundle was crawled and checked by content rather than by hash or HTTP status.
+
+33 catalog checks and 24 behavioural checks against the live staging schema, all passing,
+the behavioural ones inside a transaction that was rolled back with no residue. 11 of 11
+deployed-content checks. 400 of 400 focused regression tests on the deployment candidate.
+
+**IMPLEMENTED AND DEPLOYED TO STAGING — OWNER ACCEPTANCE PENDING.** Scenarios 30–35 are
+the owner's pass and have not been run. No responsive check has been verified visually by
+the implementer; that is the owner's, in scenarios 34 and 35g. Production remains NO-GO.
+
+Two production hardening requirements are recorded open and unresolved: one-to-one
+correspondence between finalized financial mutations and their amendment records, and a
+targeted verification that the SECURITY INVOKER lifecycle architecture cannot be bypassed
+by direct client mutation of `status`, `picked_up_at`, `returned_at` and
+`original_ends_at`.
