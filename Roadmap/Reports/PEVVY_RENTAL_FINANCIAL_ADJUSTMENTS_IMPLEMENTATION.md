@@ -356,7 +356,101 @@ before it began. No new lint problem was introduced.
 
 ---
 
-## 8. Remaining material security limitations
+---
+
+## 8. Responsive implementation
+
+Every breakpoint decision in the new components, and what each one does:
+
+| Element | Mobile (<640) | sm (≥640) | lg (≥1024) | xl (≥1280) |
+|---|---|---|---|---|
+| Financial overview strip | 2 columns | 3 columns | 3 columns | 6 columns, one row |
+| Tab strip | scrolls sideways, full-bleed | inside the content gutter | — | — |
+| Overview tab | stacked | stacked | two columns | — |
+| Inspections tab | stacked | stacked | `22rem` panel beside the photographs | — |
+| Documents tab | full width | full width | capped at `max-w-2xl` | — |
+| Reversal dialog buttons | stacked, confirm on top | side by side, right-aligned | — | — |
+| Charge rows | `min-w-0` + `truncate`; amount `shrink-0` | — | — | — |
+
+The tab strip scrolls rather than wrapping because four tabs do not fit at 390 px and a
+second row of tabs reads as a second kind of thing. Its `-mx-4 … sm:mx-0 sm:px-0` exactly
+cancels the shell's `px-4` gutter, so the underline reaches the screen edge without making
+the element wider than its container — no page-level horizontal scroll.
+
+The primary rental actions stay in the page header on every tab, so confirming, checking
+out, recording a return, extending and cancelling are never more than one reach away
+regardless of which tab is open or how narrow the screen is.
+
+### What was verified, and what was not
+
+**Verified statically, against the CSS the staging build actually shipped.** Every class
+in the new components resolves to a real rule in `dist-staging/assets/index-*.css`,
+including the arbitrary `lg:grid-cols-[22rem_1fr]` track and `grid-cols-6` inside the
+`min-width:80rem` query. This check is how the first draft's `border-caution-300` was
+caught: Tailwind v4 generates nothing for a class naming a token that does not exist, so
+that border would simply not have rendered. The token set has `caution-200`, and that is
+what ships.
+
+**Not verified visually.** No screenshots were captured. Pevvy requires a verified second
+factor for every user, and this session has no staging sign-in, so the authenticated
+Rental Details screen cannot be reached in a browser from here. A harness page
+reproducing the markup against the shipped CSS was prepared and then deliberately not
+used, because browser emulation of hand-copied markup is weaker evidence than it looks —
+it proves my transcription renders, not that the application does.
+
+Visual confirmation at the four widths is therefore **scenario 34 of the owner's
+acceptance pass**, which walks desktop, iPad portrait, iPad landscape and mobile
+explicitly. That is physical-device or real-browser verification by the person who can
+sign in, and it is the only kind of responsive evidence this work package claims.
+
+---
+
+## 9. Staging deployment
+
+| | |
+|---|---|
+| Branch | `fix/maintenance-manual-acceptance-20261125` |
+| Worktree | `E:\pevvy-maintenance-acceptance-20261125` |
+| Published | `bc4139a..497e6fb` → `origin/staging`, **fast-forward, no force** |
+| `origin/main` | **unchanged** at `31383a9` |
+| Remote | `github.com/wiredmediadigital/atlas-car-rental-saas` — the user's own repository, not the original |
+| Local guarded build | 199 files, SHA-256 `ea3c41b0e06fc2f1538447e8dfe47cee9329f1a253dfab18ce5aab6e693f4875` |
+| Deployed manifest | `9a8ba920…` → `c9f211de05c8658562039aba7cb7c0696137b2a091ce6576d4a22987dd36144b`, 199 files, `projectRef: yeklucfthspvejlkffln` |
+
+Four commits were published, including `7664645` — the Maintenance downtime caption
+correction that had been held back since 2026-11-26 to travel with the next authorized
+deployment rather than justify one of its own.
+
+The build was blocked twice before it ran, both times correctly. It refused
+`.env.local`, which names the **production** project, and it refused the legacy JWT anon
+key because the guard requires a `sb_publishable_` browser key. The staging publishable
+key was taken from the Supabase CLI and never written to a file or printed.
+
+### Deployed content verification
+
+A hash proves a build changed; it does not prove which commit was built. The deployed site
+was therefore crawled and checked by content: **172 asset files fetched, 170 of 170 `.js`
+served as JavaScript, 10 of 10 checks passing.**
+
+- All **16 release-unique strings** present, including *"Reverse this charge"*, *"Post the
+  reversal"*, *"Customer credit"*, *"Net effect on this contract"*, *"Rental sections"*,
+  the staff sentence *"corrected by posting a reversal, which a manager does"*, and
+  *"Actual downtime is temporarily unavailable"* — so the reversal interface, the overview
+  strip, the tabs and the held caption correction are all genuinely live.
+- All **4 accepted-release probes** still present, so nothing accepted was displaced.
+- The staging project ref is in the bundle; the **production ref is absent**.
+- No secret key value and no `service_role` JWT anywhere.
+
+One correction to the method, recorded because it would otherwise look like a finding that
+was waved away: the first pass reported `sb_secret_` and `service_role` as present. Both
+are literal strings inside supabase-js's key-type check and Pevvy's own environment guard
+— the code that exists to *detect* a secret key and refuse it. A substring test reports
+the guard as the leak it prevents. The check now matches key **values**, and they are
+absent.
+
+---
+
+## 10. Remaining material security limitations
 
 `app.rental_is_finalized` and `app.rental_charges_purge_exempt` are SECURITY DEFINER and
 executable by `authenticated`. This is structural rather than accidental: the guard had to

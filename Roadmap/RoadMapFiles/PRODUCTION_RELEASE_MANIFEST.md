@@ -166,3 +166,62 @@ acceptance gate is now **closed** for Maintenance (28/28) and Incident Managemen
 (scenario 29, 13/13); every other gate stands. The two pre-existing
 `IncidentNewPage.tsx` lint errors remain; that file is incident reporting and was
 deliberately not modified.
+
+## Rental Financial Adjustments — 2026-11-27
+
+- Published commits: `7664645`, `b402ba2`, `967833f`, `497e6fb`.
+- `origin/staging`: `bc4139a..497e6fb`, fast-forward, no force. `origin/main` unchanged at
+  `31383a97eb8e000f9189913b255af4da22bf3a26`.
+- **Migration applied to staging:** `20261126130000_rental_charge_integrity.sql`, SHA-256
+  `ee503f7790b09692c8546a6435c5acd5ff0231400087fb6f801725637a574f5e`, 1,087 lines /
+  47,450 bytes. Ledger **142 local / 142 applied, zero drift**.
+  - The owner's authorization expected 141 applied before application; staging already
+    reported 142. **It was not applied from this session.** The 46 statements recorded in
+    `supabase_migrations.schema_migrations` were compared against the approved file and
+    are character-identical once the CLI's stripped separators are accounted for, so what
+    is applied is the approved migration. Reported in §2.1 of the implementation report.
+- Hosted staging schema verification: **39 catalog checks and 30 behavioural checks, all
+  passing.** The behavioural checks ran inside a transaction that was rolled back; a count
+  taken afterwards confirmed no QA record persisted and that existing record counts were
+  unchanged (4 rentals, 4 charge lines, 5 payments).
+- Hostinger staging publication: **verified by content.** Manifest
+  `9a8ba920…`/199 → `c9f211de…`/199, project ref `yeklucfthspvejlkffln`. 172 asset files
+  crawled; 170 of 170 `.js` served as JavaScript; 0 production references; 0 secret key
+  values; all 16 release-unique strings present; all 4 accepted-release probes still
+  present.
+- Local guarded build: 199 files, SHA-256
+  `ea3c41b0e06fc2f1538447e8dfe47cee9329f1a253dfab18ce5aab6e693f4875`. The guard refused
+  `.env.local` (production project) and the legacy JWT anon key before it would build.
+- Maintenance downtime caption correction `7664645`, held since 2026-11-26, travelled with
+  this deployment as authorized rather than prompting one of its own.
+- Maintenance Management (28/28), Incident Management (scenario 29) and Driver
+  availability (9/9): **not reopened.** Their acceptances and scope freezes stand.
+- Test suite: 4,127 tests, **4,123 pass, 4 pre-existing failures** (three assignment,
+  one billing definer gate). The billing failure names eleven incident and maintenance
+  RPCs and **neither `rental_extend` nor `rental_reprice`**, which is the evidence that
+  making them SECURITY DEFINER opened no ungated write path.
+- Lint: 3 errors, 14 warnings, **all pre-existing** in `RentalNewPage.tsx` and
+  `IncidentNewPage.tsx`, both untouched and blamed to 2026-11-25.
+- Acceptance: **NOT ACCEPTED.** Scenarios 30–34 in
+  `Reports/PEVVY_RENTAL_FINANCIAL_ADJUSTMENTS_ACCEPTANCE.md` are the owner's pass and have
+  not been run. No responsive screenshots were captured; visual verification at the four
+  widths is scenario 34.
+- Production project `ysnumxtzcgzyabrghxwq`: unchanged, not accessed, not linked.
+- Production release: **NO-GO.**
+
+### Outstanding before promotion
+
+Everything listed under the Incident Management entry above, unchanged, plus:
+
+- Amendment history is **not** preserved for a reservation repriced before any contract is
+  issued. Where a contract exists the superseded version preserves the previous hire;
+  where none exists nothing does. Needs a further migration and its own authorization, and
+  the acceptance requirement covering preservation of authorized amendment history must
+  not be marked complete until then.
+- `app.rental_is_finalized` and `app.rental_charges_purge_exempt` are SECURITY DEFINER and
+  executable by `authenticated`, structurally, because the integrity guard runs as the
+  caller. Read-only boolean oracles; accepted residual exposure.
+- Any future owner-owned SECURITY DEFINER function able to write `rental_line_items`
+  inherits the guard's exemption by virtue of its ownership.
+- No down migration exists for `20261126130000`; reverting requires a new forward one that
+  decides what to do with reversal lines already posted.

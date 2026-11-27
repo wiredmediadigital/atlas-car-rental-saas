@@ -14,6 +14,25 @@ migration and an HTTP 200 are none of them manual acceptance.
 
 ---
 
+## Consolidated acceptance register
+
+| Area | Owner result | State |
+|---|---|---|
+| Maintenance Management | **28/28** scenarios (1–28) | ACCEPTED — CLOSED, frozen |
+| Incident Management incl. dashboard | **Scenario 29 PASS**, 13/13 items | ACCEPTED — CLOSED, frozen |
+| Driver availability / conflict prevention | **9/9** scenarios | Accepted and preserved |
+| **Rental Financial Adjustments** | **Scenarios 30–34 — not yet run** | **NOT ACCEPTED** |
+
+**Preserved, not superseded.** This pass adds to the three above and replaces none of
+them. Their scope freezes stand and none was reopened by this work package. Driver
+availability keeps its 9/9, and its independent concurrent-session evidence remains an
+open release gate.
+
+Functional acceptance of this package, when it comes, is **not** production deployment
+authorization. Production remains NO-GO.
+
+---
+
 ## Before you start
 
 Sign in on hosted staging as a user who is an **owner or admin**, and have a second
