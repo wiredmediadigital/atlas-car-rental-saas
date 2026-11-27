@@ -25,7 +25,23 @@ Nothing was suppressed, skipped or marked as expected-to-fail.
 
 ## 2. Full suite
 
-Figures from the final run are in §2.1.
+### A run that was discarded, and why
+
+The first attempt at a definitive run reported **192 files and 3,990 tests, all passing —
+with exit code 1**. That is not a pass. `npm run test` wraps vitest in a check that every
+test file on disk actually ran, precisely because *"vitest exits 0 when a worker fails to
+start and its test file never runs"*.
+
+Eleven workers timed out starting, so **ten test files never executed**. The cause was
+mine: the Docker-based concurrency verification was replaying 148 migrations on the same
+machine at the same time, and the two starved each other. The run is discarded rather
+than reported, and the suite was re-run on its own.
+
+This is worth recording because the failure mode is a green summary. Without that
+every-file-ran check the first run would have read as a clean pass over a suite that had
+silently skipped ten files.
+
+### The run that counts
 
 ### The four historical baseline failures are gone
 
