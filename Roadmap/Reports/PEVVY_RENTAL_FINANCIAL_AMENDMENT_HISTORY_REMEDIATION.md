@@ -614,27 +614,28 @@ all pre-existing** in `RentalNewPage.tsx` and `IncidentNewPage.tsx`, neither tou
 
 ---
 
-## 7. Delivery evidence (§21)
+## 7. Delivery evidence
 
-Every deliverable, in the tracked worktree it is committed to. The eleven documents are
+Thirteen deliverables, committed in the tracked worktree. The twelve documents are
 **mirrored byte-identically** into the primary checkout at the paths the authorization
-names; the migration is deliberately **not** mirrored, because it belongs to the branch
-and the primary checkout must not acquire an unapplied migration.
+names. The migration is deliberately **not** mirrored: it belongs to the branch, and the
+primary checkout must not acquire an unapplied migration.
 
-| File | Bytes | Modified | SHA-256 | Mirrored identical | Status |
+| File | Bytes | Modified | SHA-256 | Mirrored | Status |
 |---|---|---|---|---|---|
-| `PEVVY_RENTAL_FINANCIAL_AMENDMENT_HISTORY_REMEDIATION.md` | 19,339 | 2026-11-27 12:33:46 | `fde66618a021e0e4...` | yes | COMPLETE |
-| `PEVVY_RENTAL_FINANCIAL_ADJUSTMENTS_IMPLEMENTATION.md` | 27,256 | 2026-11-27 12:30:59 | `6414d38836366b8e...` | yes | COMPLETE |
-| `PEVVY_RENTAL_FINANCIAL_ADJUSTMENTS_ACCEPTANCE.md` | 11,650 | 2026-11-27 12:29:34 | `7484f126aea8a4db...` | yes | COMPLETE |
-| `PEVVY_RENTAL_FINANCIAL_AMENDMENT_HISTORY_REMEDIATION_PROMPT.md` | 16,199 | 2026-11-27 11:50:03 | `d03757b50f0c66d6...` | yes | COMPLETE |
-| `PEVVY_RENTAL_FINANCIAL_ADJUSTMENTS_PROMPT.md` | 29,380 | 2026-11-27 11:06:49 | `37aa45741d41c8d2...` | yes | COMPLETE |
-| `ARCHITECTURE_DECISIONS.md` | 12,312 | 2026-11-27 12:30:45 | `e20d7a4160eb19dd...` | yes | COMPLETE |
-| `CHANGELOG.md` | 17,292 | 2026-11-27 12:30:29 | `c5c9f5ca6b497384...` | yes | COMPLETE |
-| `FEATURE_TRACKER.md` | 8,237 | 2026-11-27 12:30:30 | `3e4f24d8508fb9e7...` | yes | COMPLETE |
-| `MASTER_ROADMAP.md` | 10,002 | 2026-11-27 12:30:30 | `98a8e10213652cbb...` | yes | COMPLETE |
-| `PRODUCTION_RELEASE_CHECKLIST.md` | 10,554 | 2026-11-27 12:30:30 | `a49af26637df7d87...` | yes | COMPLETE |
-| `PRODUCTION_RELEASE_MANIFEST.md` | 15,521 | 2026-11-27 12:30:30 | `b8e193d637d90519...` | yes | COMPLETE |
-| `20261127100000_rental_pricing_amendment_history.sql` | 26,305 | 2026-11-27 12:00:46 | `27b8f62d7ee1f7df...` | n/a - branch only | COMPLETE |
+| `PEVVY_RENTAL_FINANCIAL_AMENDMENT_HISTORY_REMEDIATION.md` | 39,617 | 2026-11-27 13:24:24 | `0a3192fff64aa888...` | identical | COMPLETE |
+| `PEVVY_RENTAL_FINANCIAL_ADJUSTMENTS_IMPLEMENTATION.md` | 27,256 | 2026-11-27 12:30:59 | `6414d38836366b8e...` | identical | COMPLETE |
+| `PEVVY_RENTAL_FINANCIAL_ADJUSTMENTS_ACCEPTANCE.md` | 13,146 | 2026-11-27 13:14:03 | `b6d8a16853765dd1...` | identical | COMPLETE |
+| `PEVVY_RENTAL_FINANCIAL_LIFECYCLE_INTEGRITY_CLOSURE_PROMPT.md` | 10,136 | 2026-11-27 13:10:59 | `f6a88ef1d0c872f7...` | identical | COMPLETE |
+| `PEVVY_RENTAL_FINANCIAL_AMENDMENT_HISTORY_REMEDIATION_PROMPT.md` | 16,199 | 2026-11-27 11:50:03 | `d03757b50f0c66d6...` | identical | COMPLETE |
+| `PEVVY_RENTAL_FINANCIAL_ADJUSTMENTS_PROMPT.md` | 29,380 | 2026-11-27 11:06:49 | `37aa45741d41c8d2...` | identical | COMPLETE |
+| `ARCHITECTURE_DECISIONS.md` | 15,678 | 2026-11-27 13:14:24 | `73c846badad324d2...` | identical | COMPLETE |
+| `CHANGELOG.md` | 18,754 | 2026-11-27 13:15:16 | `994317fa2ba17933...` | identical | COMPLETE |
+| `FEATURE_TRACKER.md` | 8,270 | 2026-11-27 13:15:16 | `aae779ebe2c5e2fb...` | identical | COMPLETE |
+| `MASTER_ROADMAP.md` | 11,845 | 2026-11-27 13:15:16 | `a098cd9391bf4d77...` | identical | COMPLETE |
+| `PRODUCTION_RELEASE_CHECKLIST.md` | 12,094 | 2026-11-27 13:15:16 | `5899de36aeb4866c...` | identical | COMPLETE |
+| `PRODUCTION_RELEASE_MANIFEST.md` | 16,915 | 2026-11-27 13:15:16 | `82798fa25183872f...` | identical | COMPLETE |
+| `20261127100000_rental_pricing_amendment_history.sql` | 35,823 | 2026-11-27 13:07:33 | `d0d9ca39487486c1...` | branch only | COMPLETE |
 
 Absolute paths, worktree:
 
@@ -642,6 +643,7 @@ Absolute paths, worktree:
 E:\pevvy-maintenance-acceptance-20261125\Roadmap\Reports\PEVVY_RENTAL_FINANCIAL_AMENDMENT_HISTORY_REMEDIATION.md
 E:\pevvy-maintenance-acceptance-20261125\Roadmap\Reports\PEVVY_RENTAL_FINANCIAL_ADJUSTMENTS_IMPLEMENTATION.md
 E:\pevvy-maintenance-acceptance-20261125\Roadmap\Reports\PEVVY_RENTAL_FINANCIAL_ADJUSTMENTS_ACCEPTANCE.md
+E:\pevvy-maintenance-acceptance-20261125\Roadmap\Prompts\PEVVY_RENTAL_FINANCIAL_LIFECYCLE_INTEGRITY_CLOSURE_PROMPT.md
 E:\pevvy-maintenance-acceptance-20261125\Roadmap\Prompts\PEVVY_RENTAL_FINANCIAL_AMENDMENT_HISTORY_REMEDIATION_PROMPT.md
 E:\pevvy-maintenance-acceptance-20261125\Roadmap\Prompts\PEVVY_RENTAL_FINANCIAL_ADJUSTMENTS_PROMPT.md
 E:\pevvy-maintenance-acceptance-20261125\Roadmap\RoadMapFiles\ARCHITECTURE_DECISIONS.md
@@ -659,6 +661,7 @@ Absolute paths, primary checkout (documents only):
 E:\pevvy-car-rental-saas-main\Roadmap\Reports\PEVVY_RENTAL_FINANCIAL_AMENDMENT_HISTORY_REMEDIATION.md
 E:\pevvy-car-rental-saas-main\Roadmap\Reports\PEVVY_RENTAL_FINANCIAL_ADJUSTMENTS_IMPLEMENTATION.md
 E:\pevvy-car-rental-saas-main\Roadmap\Reports\PEVVY_RENTAL_FINANCIAL_ADJUSTMENTS_ACCEPTANCE.md
+E:\pevvy-car-rental-saas-main\Roadmap\Prompts\PEVVY_RENTAL_FINANCIAL_LIFECYCLE_INTEGRITY_CLOSURE_PROMPT.md
 E:\pevvy-car-rental-saas-main\Roadmap\Prompts\PEVVY_RENTAL_FINANCIAL_AMENDMENT_HISTORY_REMEDIATION_PROMPT.md
 E:\pevvy-car-rental-saas-main\Roadmap\Prompts\PEVVY_RENTAL_FINANCIAL_ADJUSTMENTS_PROMPT.md
 E:\pevvy-car-rental-saas-main\Roadmap\RoadMapFiles\ARCHITECTURE_DECISIONS.md
@@ -669,11 +672,11 @@ E:\pevvy-car-rental-saas-main\Roadmap\RoadMapFiles\PRODUCTION_RELEASE_CHECKLIST.
 E:\pevvy-car-rental-saas-main\Roadmap\RoadMapFiles\PRODUCTION_RELEASE_MANIFEST.md
 ```
 
-**No deliverable is incomplete.** Every file above exists, is non-empty, and carries the
-evidence its section of this report describes.
+**No deliverable is incomplete.** Every file exists, is non-empty, and carries the
+evidence its section describes. The migration's checksum above is the one to apply; the
+earlier `27b8f62d...` is superseded.
 
 ---
-
 ## 8. Remaining material limitations
 
 **This remediation's own limit.** History begins at this migration. No record is
