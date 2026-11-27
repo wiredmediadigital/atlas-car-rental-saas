@@ -184,3 +184,23 @@ no production deployment is claimed.**
   schema change to reverse.
 - Implementation report: `Roadmap/Reports/PEVVY_INCIDENT_MANAGEMENT_DASHBOARD_ENHANCEMENT.md`
 - Manual acceptance: **NOT PERFORMED.** Recorded as scenario 29, awaiting the owner.
+
+## 2026-11-26 — Incident Management functional acceptance (documentation only)
+
+- Published commit: `6f6f2c5`, documentation only. No frontend or schema change, so the
+  deployed artifact is unchanged at
+  `ff41ee11dbe87b6b2b230f0a44a9f09f5ea2cfb3bedaba8923742fc5f70b76a2`, 199 files.
+- `origin/staging`: `a79a8e8..6f6f2c5`, fast-forward, no force. `origin/main` unchanged at
+  `31383a97eb8e000f9189913b255af4da22bf3a26`.
+- Owner acceptance: **scenario 29 PASS, 13/13 verification items, no observations.**
+  Incident Management, including its dashboard, is FUNCTIONALLY ACCEPTED — CLOSED.
+  Maintenance keeps 28/28 and Driver availability keeps 9/9; none supersedes another.
+- **Held back, not deployed:** the owner-approved Maintenance downtime caption correction
+  is committed on the branch and deliberately **not pushed**, subject `fix: the downtime
+  caption no longer blames an applied migration`. The owner asked that it ride with the
+  next authorized staging deployment rather than prompt one for a caption, and a push now
+  would have made it the only deployed change. Verify with
+  `git log --oneline origin/staging..HEAD` — expect exactly one commit until that
+  deployment happens.
+- Manual acceptance: **PERFORMED and PASSED** by the owner for scenario 29. Production
+  remains NO-GO; functional acceptance is not deployment authorization.

@@ -82,6 +82,25 @@ closure does not change the bundle, so the caption would be the only deployed ch
 commit is therefore held on the branch and will travel with the next authorized
 deployment.
 
+How to find it: it is the **single commit on the local branch that is not on
+`origin/staging`**, subject `fix: the downtime caption no longer blames an applied
+migration`. It touches one file, `src/features/maintenance/components/MaintenanceSummary.tsx`,
+changing one caption string and the stale comment above the prop that drives it. Confirm
+with:
+
+```
+git log --oneline origin/staging..HEAD
+```
+
+Expected: exactly one commit. If it ever shows none, the caption has already been
+published and this note is spent; if it shows more, something else is riding along and
+should be looked at before the next deployment.
+
+The change is covered by the existing maintenance suites, which pass (42 tests), and by
+typecheck, lint and the format gate. No test asserted the old caption text, so none
+needed changing — worth recording, because that absence is why the obsolete wording
+survived the migration being applied.
+
 This is the one change made to frozen Maintenance code, and it was made under explicit
 owner approval.
 
