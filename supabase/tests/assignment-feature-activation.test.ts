@@ -32,7 +32,55 @@ describe('STG-02 server-owned assignment activation', () => {
         [owner.organizationId],
       ),
     )
-    expect(row).toEqual({ enabled: false, can_view_history: false, can_swap: false })
+    /*
+     * The STG-02 default, restored by 20261128140000 after 20261124100000 had
+     * quietly inverted it. A missing activation row means the feature is off.
+     *
+     * can_view_history is TRUE even so, and that is the revised contract
+     * rather than a slip: reading what the agency already did is not a feature
+     * that has to be switched on, and the history has to stay legible while
+     * legacy assignments drain. can_swap is false in every state, because the
+     * active vehicle swap is withdrawn and its function is revoked from every
+     * browser role.
+     */
+    expect(row).toEqual({ enabled: false, can_view_history: true, can_swap: false })
+  })
+
+  it('still opens no assignment for an agency nobody switched on', async () => {
+    // The behaviour behind the flag, not just the flag: with activation off, a
+    // confirmed reservation carries no assignment row at all.
+    const [vehicle] = await db.sql<{ id: string }>(
+      `insert into public.vehicles
+         (organization_id, make, model, registration_plate, currency, daily_rate_minor)
+       values ($1, 'Test', 'Default', 'STG02-OFF', 'EUR', 5000) returning id`,
+      [owner.organizationId],
+    )
+    const [customer] = await db.sql<{ id: string }>(
+      `insert into public.customers (organization_id, first_name, last_name)
+       values ($1, 'Default', 'Off') returning id`,
+      [owner.organizationId],
+    )
+    const [rental] = await db.sql<{ id: string }>(
+      `insert into public.rentals
+         (organization_id, vehicle_id, customer_id, starts_at, ends_at, currency,
+          status, daily_rate_minor, billable_days)
+       values ($1, $2, $3, now() + interval '90 days', now() + interval '93 days',
+               'EUR', 'draft', 5000, 3) returning id`,
+      [owner.organizationId, vehicle!.id, customer!.id],
+    )
+    await db.sql(
+      `insert into public.rental_drivers (organization_id, rental_id, customer_id, driver_role)
+       values ($1, $2, $3, 'primary')`,
+      [owner.organizationId, rental!.id, customer!.id],
+    )
+
+    await db.sql(`select public.rental_confirm($1)`, [rental!.id])
+
+    const [count] = await db.sql<{ n: number }>(
+      `select count(*)::int as n from public.rental_vehicle_assignments where rental_id = $1`,
+      [rental!.id],
+    )
+    expect(count!.n).toBe(0)
   })
 
   it('requires AAL2 admin authority and records an audit event for activation', async () => {

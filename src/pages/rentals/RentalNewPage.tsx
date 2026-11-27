@@ -1,5 +1,5 @@
 import { ArrowLeft, ArrowRight, Check, TriangleAlert, X } from 'lucide-react'
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 
 import { paths, rentalDetailPath } from '@/app/routes/paths'
@@ -144,7 +144,17 @@ export function RentalNewPage() {
 
   const [vehicle, setVehicle] = useState<VehicleFleetEntry | null>(null)
   const [renter, setRenter] = useState<CustomerDirectoryEntry | null>(null)
-  const [primaryDriver, setPrimaryDriver] = useState<CustomerDirectoryEntry | null>(null)
+  /*
+   * `undefined` means the desk has not chosen, so the renter is offered as the
+   * primary driver when they are free. `null` means they chose nobody.
+   *
+   * Derived during render rather than synced into state by an effect: the
+   * effect wrote state while rendering, which cascades a second render, and
+   * the renter being free is a fact about the query rather than an event.
+   */
+  const [primaryDriverChoice, setPrimaryDriverChoice] = useState<
+    CustomerDirectoryEntry | null | undefined
+  >(undefined)
   const [additionalDrivers, setAdditionalDrivers] = useState<CustomerDirectoryEntry[]>([])
 
   const [dailyRate, setDailyRate] = useState('')
@@ -234,6 +244,19 @@ export function RentalNewPage() {
   )
   const conflicts = conflictsQuery.data ?? []
 
+  const renterAvailabilityQuery = useDriverAvailability(
+    renter ? [renter.customer_id] : [],
+    startsAt?.toISOString() ?? null,
+    endsAt?.toISOString() ?? null,
+  )
+
+  const primaryDriver =
+    primaryDriverChoice !== undefined
+      ? primaryDriverChoice
+      : renter && renterAvailabilityQuery.data?.[0]?.available === true
+        ? renter
+        : null
+
   const selectedDriverIds = useMemo(
     () =>
       [primaryDriver?.customer_id, ...additionalDrivers.map((driver) => driver.customer_id)].filter(
@@ -254,17 +277,6 @@ export function RentalNewPage() {
   const driverAvailabilityBlocked = selectedDriverIds.some(
     (id) => driverAvailability.get(id)?.available === false,
   )
-  const renterAvailabilityQuery = useDriverAvailability(
-    renter ? [renter.customer_id] : [],
-    startsAt?.toISOString() ?? null,
-    endsAt?.toISOString() ?? null,
-  )
-
-  useEffect(() => {
-    if (renter && !primaryDriver && renterAvailabilityQuery.data?.[0]?.available === true) {
-      setPrimaryDriver(renter)
-    }
-  }, [primaryDriver, renter, renterAvailabilityQuery.data])
 
   const canLeavePeriod = periodIsValid
   const canLeaveVehicle = vehicle !== null
@@ -488,7 +500,7 @@ export function RentalNewPage() {
                   {primaryDriver ? (
                     <SelectedPerson
                       customer={primaryDriver}
-                      onClear={() => setPrimaryDriver(null)}
+                      onClear={() => setPrimaryDriverChoice(null)}
                       compliance={compliance}
                       showLicence
                     />
@@ -501,7 +513,7 @@ export function RentalNewPage() {
                         from: startsAt?.toISOString() ?? null,
                         to: endsAt?.toISOString() ?? null,
                       }}
-                      onSelect={setPrimaryDriver}
+                      onSelect={setPrimaryDriverChoice}
                     />
                   )}
                 </CardBody>

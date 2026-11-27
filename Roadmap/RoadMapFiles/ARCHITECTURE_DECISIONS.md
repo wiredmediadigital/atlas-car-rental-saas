@@ -284,3 +284,78 @@ force the check, and must say which it did.
 The same caution applies in reverse to the local suite: those tests pass because each
 statement auto-commits, which is the opposite environment and tests the same property by
 a different route. Both are needed.
+
+## 2026-11-27 — Billing entitlement: safety acts are exempt, commerce is not
+
+The owner's decision, and the line it draws. Seven incident and maintenance RPCs now
+require the billing write entitlement. Four do not, and the distinction is not "how
+important does this feel" but **what the operation actually does to the fleet**.
+
+An exempt operation may only record something that already happened, or make the fleet
+smaller. `incident_create` records a crash. `incident_update` documents it, and already
+refuses `p_status = 'resolved'`, so it is not a way around the gated `incident_resolve`.
+`maintenance_create` reports a breakdown. `maintenance_start` takes the car off the road.
+None moves money; none returns a vehicle to service; none removes a restriction.
+
+The gated side is the mirror image. `maintenance_complete` puts a car **back on hire**.
+`maintenance_cancel` **removes a safety restriction**. Both would let a restricted agency
+keep earning, which is the thing the restriction exists to stop. This is the same
+argument that exempted `vehicle_take_off_road` and gated `vehicle_return_to_service`.
+
+**An exemption lives in `app.billing_exempt_functions`, with a reason, or it does not
+exist.** The structural billing test reads that table rather than an array in its own
+source. A name in a test file is a claim nobody has to justify; a row with a reason and
+an approval date is a decision somebody made. A function that is not registered goes on
+being reported, which is the behaviour we want from a test whose job is to make ungated
+write paths visible.
+
+Where a function cannot distinguish a safety act from an ordinary one, it is gated. The
+one accepted exception is `incident_update`, which cannot tell "documenting a crash" from
+"tidying an old insurance reference" — accepted because neither moves money, changes
+availability or closes the incident, and recorded with that reason rather than waved
+through.
+
+## 2026-11-27 — Activation opens; drainage finishes
+
+Assignment activation is default-off again, as STG-02 always said, and the decision no
+longer reads a session setting. But switching a feature off cannot be allowed to strand a
+car that is in a customer's hands, and that is a general shape worth naming.
+
+**Activation governs opening. Drainage governs continuing.**
+`app.assignment_lifecycle_active` answers "may this agency open a new assignment?".
+`app.assignment_lifecycle_engaged(rental, organization)` answers "should this rental's
+assignment lifecycle run?", and it is true whenever the rental already carries an open
+row — whatever activation says.
+
+Without that distinction, turning the gate off while a rental was out would leave its
+`in_custody` row open forever, and `rental_vehicle_assignments_no_overlap` would then
+block that vehicle over that window permanently, surfacing much later as a raw constraint
+error on an unrelated booking.
+
+The one-time reconciliation follows the same principle. An assignment is released only
+because **its rental is already over**, never because its organization was never switched
+on. Anything on a draft, reserved or active rental is left exactly as it is: marking an
+in-custody car returned would be a lie that also frees the vehicle for someone else.
+
+Any future feature flag that gates a multi-step lifecycle needs the same two predicates.
+A flag that can orphan work in progress is not a flag, it is a trapdoor.
+
+## 2026-11-27 — Evidence is identified, not recognised
+
+The amendment evidence requirement first matched a mutation's *signature* — same rental,
+same line, same amounts. Two mutations with the same shape then shared one record, and an
+oscillating hire committed with its third change unrecorded, leaving the history saying
+one thing and the live hire another.
+
+A signature recognises; it does not identify. The charge line now carries a revision
+number that the database bumps on each mutation that moves money, the amendment names the
+revision it describes, and a unique index allows one record per revision.
+
+Both questions are still asked. The revision makes the record **unique**; comparing the
+amounts makes it **true**. A revision match alone would accept a record claiming the hire
+went to 12345 when it went to 20000 — unique, and wrong.
+
+Deliberately not a transaction id, a timestamp, `xmin`, or a unique index over the
+amounts. Every one of those is a fingerprint that two genuinely different mutations can
+share, and identical transitions are legitimate: `100 → 200` twice is two amendments, at
+two revisions, and both are kept.

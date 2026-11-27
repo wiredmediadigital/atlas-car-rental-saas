@@ -217,3 +217,25 @@ correspondence between finalized financial mutations and their amendment records
 targeted verification that the SECURITY INVOKER lifecycle architecture cannot be bypassed
 by direct client mutation of `status`, `picked_up_at`, `returned_at` and
 `original_ends_at`.
+
+## Production hardening — 2026-11-27
+
+Ten items reproduced first, then corrected. Four were confirmed defects, one was partly
+real, one gate was closed by verification, three were not defects at all, and one was an
+owner decision.
+
+Two findings corrected the record rather than the code. The four "baseline database
+failures" were not four defects: three were tests still asserting contracts the migration
+history had superseded or deliberately withdrawn, and the fourth was the billing bypass
+counted twice. And the assignment activation default had silently inverted on 2026-11-24
+— an agency nobody switched on had been getting the lifecycle ever since.
+
+Five forward migrations were developed and tested locally: rental lifecycle
+authorization, the billing authorization matrix, one-to-one amendment evidence,
+maintenance expense integrity, and the restored default-off activation with its drainage
+mechanism. **None is applied.** The consolidated authorization package is
+`Reports/PEVVY_PRODUCTION_HARDENING_STAGING_MIGRATION_AUTHORIZATION.md`.
+
+Work Package 4 is **FUNCTIONALLY ACCEPTED — CLOSED** on the owner's scenario results.
+**Roadmap functional completion: 4 of 10 work packages.** Work Package 5 has not begun.
+Production remains NO-GO.

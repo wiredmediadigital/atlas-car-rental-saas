@@ -278,6 +278,18 @@ describe('nothing in the schema can bypass RLS', () => {
        * the staff role the policies required, and app.billing_require_write.
        * Asserted directly in supabase/tests/rental-charge-integrity.test.ts.
        */
+      /*
+       * The rental lifecycle became privileged in 20261128100000. Each of
+       * these runs as the table owner so that the lifecycle columns can be
+       * frozen against direct client writes, and each carries the tenant,
+       * role and billing checks that row level security used to apply on its
+       * behalf. Making them definer is the point, not an oversight.
+       */
+      'rental_cancel',
+      'rental_check_in',
+      'rental_check_out',
+      'rental_complete',
+      'rental_confirm',
       'rental_extend',
       'rental_reprice',
       'rental_reschedule',

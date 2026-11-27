@@ -767,6 +767,30 @@ describe('the gate, structurally', () => {
       // app.billing_require_write, because those put a car back on hire.
       'vehicle_take_off_road',
     ]
+
+    /*
+     * The four safety exemptions the owner approved on 2026-11-27 are NOT
+     * listed above. They are read from app.billing_exempt_functions, which the
+     * migration writes with a reason for each, because a name in an array here
+     * is a claim nobody has to justify. An exemption that is not in the table
+     * is not an exemption, and this test goes on reporting it.
+     *
+     * Their restricted-agency behaviour is exercised separately below; being
+     * registered is not on its own enough to pass.
+     */
+    const registered = await db.sql<{ function_name: string; reason: string }>(
+      `select function_name, reason from app.billing_exempt_functions order by function_name`,
+    )
+    expect(
+      registered.map((row) => row.function_name),
+      'the approved safety exemptions must be registered with a reason',
+    ).toEqual(['incident_create', 'incident_update', 'maintenance_create', 'maintenance_start'])
+    for (const row of registered) {
+      expect(row.reason.trim().length, row.function_name).toBeGreaterThan(20)
+    }
+
+    const allExempt = [...exempt, ...registered.map((row) => row.function_name)]
+
     const rows = await db.sql<{ proname: string }>(
       `
       select p.proname from pg_proc p
@@ -778,8 +802,220 @@ describe('the gate, structurally', () => {
         and pg_get_functiondef(p.oid) not like '%billing_require_write%'
         and not (p.proname = any ($1::text[]))
       `,
-      [exempt],
+      [allExempt],
     )
     expect(rows.map((row) => row.proname)).toEqual([])
+  })
+})
+
+/**
+ * The authorization matrix the owner approved on 2026-11-27, exercised rather
+ * than asserted.
+ *
+ * Being named in app.billing_exempt_functions is not evidence that an
+ * exemption behaves as approved. These drive the real RPCs against a genuinely
+ * restricted agency, through db.asUser, so the role ladder and the billing gate
+ * both apply exactly as they would to a request arriving at PostgREST.
+ */
+describe('the billing authorization matrix', () => {
+  let vehicle: string
+
+  beforeEach(async () => {
+    await restrict()
+    const [row] = await db.sql<{ id: string }>(
+      `insert into public.vehicles
+         (organization_id, make, model, registration_plate, currency, daily_rate_minor)
+       values ($1, 'Test', 'Matrix', $2, 'EUR', 5000) returning id`,
+      [cast.organizationId, `MTX-${(seq += 1).toString().padStart(4, '0')}`],
+    )
+    vehicle = row!.id
+  })
+
+  /** A maintenance record, created by the owner while restricted. */
+  async function createMaintenance(): Promise<string> {
+    const [row] = await db.asUser(cast.owner, (session) =>
+      session.sql<{ id: string }>(
+        `select id from public.maintenance_create($1, $2, 'Brake failure', 'brake_service')`,
+        [cast.organizationId, vehicle],
+      ),
+    )
+    return row!.id
+  }
+
+  describe('still lets a restricted agency record what happened', () => {
+    it('reports a breakdown', async () => {
+      const id = await createMaintenance()
+      expect(id).toBeTruthy()
+    })
+
+    it('takes the vehicle off the road by starting the work', async () => {
+      // Strictly safety-positive: starting maintenance can only make a fleet
+      // smaller, so it cannot be used to keep earning while restricted.
+      const id = await createMaintenance()
+
+      const [row] = await db.asUser(cast.owner, (session) =>
+        session.sql<{ status: string }>(`select status from public.maintenance_start($1)`, [id]),
+      )
+      expect(row!.status).toBe('in_progress')
+    })
+
+    it('records an accident', async () => {
+      const [row] = await db.asUser(cast.owner, (session) =>
+        session.sql<{ id: string }>(
+          `select id from public.incident_create($1, $2, null, 'vehicle_damage', now(),
+                                                 'Car park', 'Rear bumper struck')`,
+          [cast.organizationId, vehicle],
+        ),
+      )
+      expect(row!.id).toBeTruthy()
+    })
+
+    it('documents that accident afterwards', async () => {
+      const [created] = await db.asUser(cast.owner, (session) =>
+        session.sql<{ id: string }>(
+          `select id from public.incident_create($1, $2, null, 'vehicle_damage', now(),
+                                                 'Car park', 'Rear bumper struck')`,
+          [cast.organizationId, vehicle],
+        ),
+      )
+
+      const [updated] = await db.asUser(cast.owner, (session) =>
+        session.sql<{ status: string; insurance_claim_reference: string | null }>(
+          `select status, insurance_claim_reference from public.incident_update(
+             $1, 'vehicle_damage', now(), 'Car park', 'Rear bumper struck, witness found',
+             'third_party', null, null, 'Acme Insurance', 'CLM-123', 'in_progress')`,
+          [created!.id],
+        ),
+      )
+      expect(updated!.status).toBe('in_progress')
+      expect(updated!.insurance_claim_reference).toBe('CLM-123')
+    })
+  })
+
+  describe('and refuses everything that is not a safety act', () => {
+    it('will not complete the maintenance, which puts the car back on hire', async () => {
+      const id = await createMaintenance()
+      await db.asUser(cast.owner, (session) =>
+        session.sql(`select public.maintenance_start($1)`, [id]),
+      )
+
+      await db.expectRejection(
+        () =>
+          db.asUser(cast.owner, (session) =>
+            session.sql(`select public.maintenance_complete($1)`, [id]),
+          ),
+        /no active subscription|read-only/i,
+      )
+    })
+
+    it('will not cancel the maintenance, which removes the restriction', async () => {
+      const id = await createMaintenance()
+
+      await db.expectRejection(
+        () =>
+          db.asUser(cast.owner, (session) =>
+            session.sql(`select public.maintenance_cancel($1, 'changed my mind')`, [id]),
+          ),
+        /no active subscription|read-only/i,
+      )
+    })
+
+    it('will not reschedule the maintenance', async () => {
+      const id = await createMaintenance()
+
+      await db.expectRejection(
+        () =>
+          db.asUser(cast.owner, (session) =>
+            session.sql(
+              `select public.maintenance_reschedule($1, now() + interval '3 days', now() + interval '5 days')`,
+              [id],
+            ),
+          ),
+        /no active subscription|read-only/i,
+      )
+    })
+
+    it('will not set a service plan', async () => {
+      const id = await createMaintenance()
+
+      await db.expectRejection(
+        () =>
+          db.asUser(cast.owner, (session) =>
+            session.sql(`select public.maintenance_set_service_plan($1, 180, null, null, null)`, [
+              id,
+            ]),
+          ),
+        /no active subscription|read-only/i,
+      )
+    })
+
+    it('will not resolve an incident', async () => {
+      const [created] = await db.asUser(cast.owner, (session) =>
+        session.sql<{ id: string }>(
+          `select id from public.incident_create($1, $2, null, 'vehicle_damage', now(), null, 'Scratch')`,
+          [cast.organizationId, vehicle],
+        ),
+      )
+
+      await db.expectRejection(
+        () =>
+          db.asUser(cast.owner, (session) =>
+            session.sql(`select public.incident_resolve($1, 'repaired')`, [created!.id]),
+          ),
+        /no active subscription|read-only/i,
+      )
+    })
+
+    it('will not resolve an incident through the update path either', async () => {
+      // incident_update is exempt, so this is the obvious way to try to walk
+      // around the gated incident_resolve. It was already refused before this
+      // work and must stay refused, or the exemption becomes the bypass.
+      const [created] = await db.asUser(cast.owner, (session) =>
+        session.sql<{ id: string }>(
+          `select id from public.incident_create($1, $2, null, 'vehicle_damage', now(), null, 'Scratch')`,
+          [cast.organizationId, vehicle],
+        ),
+      )
+
+      await db.expectRejection(
+        () =>
+          db.asUser(cast.owner, (session) =>
+            session.sql(
+              `select public.incident_update($1, 'vehicle_damage', now(), null, 'Scratch',
+                                             'undetermined', null, null, null, null, 'resolved')`,
+              [created!.id],
+            ),
+          ),
+        /use incident_resolve/i,
+      )
+    })
+  })
+
+  describe('and the exemptions do not become a role bypass', () => {
+    it('still refuses a staff member the manager-only maintenance create', async () => {
+      await db.expectRejection(
+        () =>
+          db.asUser(cast.staff, (session) =>
+            session.sql(
+              `select public.maintenance_create($1, $2, 'Brake failure', 'brake_service')`,
+              [cast.organizationId, vehicle],
+            ),
+          ),
+        /not permitted|not found|permission/i,
+      )
+    })
+
+    it('still refuses an outsider the exempt incident create', async () => {
+      await db.expectRejection(
+        () =>
+          db.asUser(cast.outsider, (session) =>
+            session.sql(
+              `select public.incident_create($1, $2, null, 'vehicle_damage', now(), null, 'Scratch')`,
+              [cast.organizationId, vehicle],
+            ),
+          ),
+        /not permitted|not found|permission/i,
+      )
+    })
   })
 })

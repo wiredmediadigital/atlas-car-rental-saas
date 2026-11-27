@@ -239,3 +239,45 @@ has not been accessed.
       recorded and are not reconstructed.
 
 **Production remains NO-GO.**
+
+---
+
+## Production hardening (added 2026-11-27)
+
+- [x] **Direct rental lifecycle mutation** — corrected by `20261128100000`, not applied.
+- [x] **Checkout and return timestamp protection** — same migration.
+- [x] **Billing entitlement for privileged RPCs** — corrected by `20261128110000`, with
+      four registered safety exemptions, not applied.
+- [x] **One-to-one financial amendment evidence** — corrected by `20261128120000`, not
+      applied.
+- [x] **Maintenance expense association integrity** — corrected by `20261128130000`, not
+      applied.
+- [x] **Independent PostgreSQL concurrency verification** — ten scenarios against real
+      PostgreSQL. Gate closed.
+- [x] **The four database baseline failures** — all four resolved.
+- [x] **Lint errors** — three resolved, zero remain. Fourteen warnings justified.
+- [x] **STG-02 assignment activation** — default-off restored by `20261128140000`, with
+      drainage so no vehicle is stranded. Not applied.
+- [x] **Edge Function hosted inventory** — reconciled read-only.
+- [ ] **Hosted application of the five migrations is not authorized.** Ledger 148 local /
+      143 remote.
+- [ ] **`20261128140000` writes business rows.** It releases open assignments on rentals
+      that are already completed or cancelled. Capture the preflight query's full row set
+      before applying if the prior per-row state matters: `released` is terminal and the
+      migration does not record what each row was.
+- [ ] **Existing inconsistent maintenance-expense links are reported, not repaired.**
+      `app.maintenance_expense_anomalies` lists them; correcting them needs owner
+      approval.
+- [ ] **Five Edge Functions remain undeployed on staging**: `account-closure`,
+      `account-closure-notice`, `gps-provider`, `mfa-reset`, `public-booking`. The public
+      booking page does not work on staging until the last of those is deployed.
+- [ ] **`RentalNewPage` and `IncidentNewPage` have no automated coverage.** The lint
+      corrections there are verified by typecheck, lint and build only.
+- [ ] **`incident_update` cannot distinguish safety documentation from administrative
+      tidying.** Accepted and registered with that reason.
+- [ ] **iPad landscape** verification and final application-wide responsive
+      certification remain deferred.
+- [ ] **`service_role` bypasses row-level security**, and owner-owned SECURITY DEFINER
+      functions inherit the trigger exemptions. Pre-existing and recorded.
+
+**Production remains NO-GO.**

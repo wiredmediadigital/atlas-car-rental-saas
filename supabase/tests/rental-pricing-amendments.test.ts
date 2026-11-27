@@ -821,3 +821,178 @@ describe('the evidence has to describe the mutation it is offered for', () => {
     expect(Number((await hireOf(rental))[0]!.amount_minor)).toBe(30_000)
   })
 })
+
+describe('one amendment per restatement, and exactly one', () => {
+  /*
+   * The signature match this replaces was not wrong so much as insufficient:
+   * it asked whether a record LOOKED LIKE this change, and two identical
+   * changes both answered yes with one record. The revision number asks which
+   * change, which is a different question.
+   */
+  const restate = (lineId: string, amount: number, record: boolean, reason: string) => `
+    select * into v_b from public.rentals where id = v_rental_id;
+    select * into v_l from public.rental_line_items where id = ${literal(lineId)};
+    update public.rental_line_items set amount_minor = ${Number(amount)}
+     where id = ${literal(lineId)} returning * into v_n;
+    select * into v_a from public.rentals where id = v_rental_id;
+    ${
+      record
+        ? `perform app.record_rental_pricing_amendment(v_b, v_l, v_a, v_n,
+             'reprice'::public.rental_amendment_kind, ${literal(reason)});`
+        : '-- deliberately unrecorded'
+    }`
+
+  const oscillate = (rentalId: string, lineId: string, recordThird: boolean) =>
+    db.sql(`do $t$
+      declare
+        v_rental_id uuid := ${literal(rentalId)};
+        v_b public.rentals; v_a public.rentals;
+        v_l public.rental_line_items; v_n public.rental_line_items;
+      begin
+        ${restate(lineId, 20000, true, 'first')}
+        ${restate(lineId, 10000, true, 'second')}
+        ${restate(lineId, 20000, recordThird, 'third')}
+      end
+      $t$;`)
+
+  it('refuses the oscillation that the signature match used to allow', async () => {
+    // 100 -> 200, 200 -> 100, 100 -> 200 with only the first two recorded. The
+    // third has the same signature as the first, and used to ride on it.
+    const rental = await makeRental({ status: 'reserved' })
+    const hire = await addHire(rental, 10_000)
+
+    await db.expectRejection(
+      () => oscillate(rental, hire, false),
+      /restated without recording what changed/i,
+    )
+
+    expect(Number((await hireOf(rental))[0]!.amount_minor)).toBe(10_000)
+    expect(await amendments(rental)).toHaveLength(0)
+  })
+
+  it('accepts the same oscillation when every step is recorded', async () => {
+    const rental = await makeRental({ status: 'reserved' })
+    const hire = await addHire(rental, 10_000)
+
+    await oscillate(rental, hire, true)
+
+    const history = await amendments(rental)
+    expect(history).toHaveLength(3)
+    expect(history.map((a) => `${a.previous_amount_minor}->${a.revised_amount_minor}`)).toEqual([
+      '10000->20000',
+      '20000->10000',
+      '10000->20000',
+    ])
+  })
+
+  it('keeps two identical pricing transitions apart', async () => {
+    // The first and third transitions above are identical in every field. They
+    // are still two amendments, because they are two revisions.
+    const rental = await makeRental({ status: 'reserved' })
+    const hire = await addHire(rental, 10_000)
+    await oscillate(rental, hire, true)
+
+    const revisions = await db.sql<{ line_revision_no: number }>(
+      `select line_revision_no from public.rental_pricing_amendments
+        where rental_id = $1 order by line_revision_no`,
+      [rental],
+    )
+    expect(revisions.map((r) => Number(r.line_revision_no))).toEqual([1, 2, 3])
+  })
+
+  it('leaves the last recorded amount equal to the live hire', async () => {
+    // The property the defect broke: read back, the history used to say 10000
+    // while the hire stood at 20000.
+    const rental = await makeRental({ status: 'reserved' })
+    const hire = await addHire(rental, 10_000)
+    await oscillate(rental, hire, true)
+
+    const history = await amendments(rental)
+    const live = await hireOf(rental)
+    expect(Number(history[history.length - 1]!.revised_amount_minor)).toBe(
+      Number(live[0]!.amount_minor),
+    )
+  })
+
+  it('will not let two records claim the same revision', async () => {
+    const rental = await makeRental({ status: 'reserved' })
+    await addHire(rental, 10_000)
+    await repriceAs(staffId, rental)
+    const [record] = await amendments(rental)
+
+    await db.expectRejection(
+      () =>
+        db.sql(
+          `insert into public.rental_pricing_amendments
+             (organization_id, rental_id, line_item_id, line_revision_no, kind,
+              previous_amount_minor, revised_amount_minor, currency)
+           select organization_id, rental_id, line_item_id, line_revision_no, kind,
+                  previous_amount_minor, revised_amount_minor, currency
+             from public.rental_pricing_amendments where id = $1`,
+          [record!.id],
+        ),
+      /duplicate key|unique/i,
+    )
+  })
+
+  it('counts a revision only when the money moved', async () => {
+    const rental = await makeRental({ status: 'reserved' })
+    const hire = await addHire(rental, 10_000)
+
+    await db.sql(`update public.rental_line_items set description = 'Renamed' where id = $1`, [
+      hire,
+    ])
+
+    const [row] = await db.sql<{ revision_no: number }>(
+      `select revision_no from public.rental_line_items where id = $1`,
+      [hire],
+    )
+    expect(Number(row!.revision_no)).toBe(0)
+  })
+
+  it('does not file a record of nothing', async () => {
+    /*
+     * Two concurrent repricings produce exactly this: the second recomputes,
+     * finds the first already did the work, and would otherwise file
+     * "15000 -> 15000, difference 0".
+     */
+    const rental = await makeRental({ status: 'reserved' })
+    await addHire(rental, 1)
+
+    await repriceAs(staffId, rental)
+    await repriceAs(staffId, rental)
+
+    const history = await amendments(rental)
+    expect(history).toHaveLength(1)
+    expect(Number(history[0]!.revised_amount_minor)).toBe(15_000)
+  })
+
+  it('still records an amendment that moved only the dates', async () => {
+    // A zero-value adjustment is a real financial event. Suppression is only
+    // for records that say nothing at all.
+    const rental = await makeRental({ status: 'active' })
+    await addHire(rental, 15_000)
+    const later = new Date(new Date(await endsAtOf(rental)).getTime() + 2 * DAY).toISOString()
+
+    await extendAs(staffId, rental, later, 0, 'goodwill extension, no charge')
+
+    const history = await amendments(rental)
+    expect(history).toHaveLength(1)
+    expect(history[0]!.changes).toHaveProperty('ends_at')
+    expect(Number(history[0]!.difference_minor)).toBe(0)
+  })
+
+  it('does not let one rental’s evidence answer for another', async () => {
+    const amended = await makeRental({ status: 'reserved' })
+    const hire = await addHire(amended, 10_000)
+    const other = await makeRental({ status: 'reserved' })
+    await addHire(other, 10_000)
+    await repriceAs(staffId, other)
+
+    await db.expectRejection(
+      () =>
+        db.sql(`update public.rental_line_items set amount_minor = 20000 where id = $1`, [hire]),
+      /restated without recording what changed/i,
+    )
+  })
+})

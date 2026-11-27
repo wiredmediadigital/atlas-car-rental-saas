@@ -34,6 +34,18 @@ const DAY = 24 * 60 * 60 * 1000
 let periodCursor = Date.UTC(2032, 0, 1, 9, 0, 0)
 let plateCursor = 0
 
+/*
+ * Odometer readings have to climb.
+ *
+ * rental_check_in does `update public.vehicles set odometer = greatest(...)`,
+ * and until 20261128100000 that update was silently dropped for a staff caller
+ * because vehicles_update requires manager and a hidden row is not a refusal.
+ * Now that check-in is SECURITY DEFINER the fleet mileage really advances, so a
+ * later check-out at a lower reading is correctly refused.
+ */
+let odometerCursor = 10_000
+const nextOdometer = () => (odometerCursor += 1_000)
+
 function nextPeriod(days = 3): { startsAt: string; endsAt: string } {
   const start = new Date(periodCursor)
   const end = new Date(periodCursor + days * DAY)
@@ -297,17 +309,19 @@ describe('the authorized workflows still work', () => {
   })
 
   it('checks a rental out, back in, and completes it', async () => {
+    const out = nextOdometer()
+    const back = nextOdometer()
     const rental = await makeRental({ status: 'draft' })
     await addPrimaryDriver(rental)
     await db.asUser(staffId, (s) => s.sql(`select public.rental_confirm($1)`, [rental]))
 
     await db.asUser(staffId, (s) =>
-      s.sql(`select public.rental_check_out($1, 10000, 100::smallint, null, now())`, [rental]),
+      s.sql(`select public.rental_check_out($1, $2, 100::smallint, null, now())`, [rental, out]),
     )
     expect(await statusOf(rental)).toBe('active')
 
     await db.asUser(staffId, (s) =>
-      s.sql(`select public.rental_check_in($1, 10750, 80::smallint, null, now())`, [rental]),
+      s.sql(`select public.rental_check_in($1, $2, 80::smallint, null, now())`, [rental, back]),
     )
 
     await db.asUser(staffId, (s) => s.sql(`select public.rental_complete($1)`, [rental]))
@@ -318,7 +332,7 @@ describe('the authorized workflows still work', () => {
       [rental],
     )
     expect(row!.returned_at).not.toBeNull()
-    expect(Number(row!.return_odometer)).toBe(10750)
+    expect(Number(row!.return_odometer)).toBe(back)
   })
 
   it('cancels a reservation', async () => {
@@ -345,7 +359,10 @@ describe('the authorized workflows still work', () => {
       [organizationId, rental],
     )
     await db.asUser(staffId, (s) =>
-      s.sql(`select public.rental_check_out($1, 10000, 100::smallint, null, now())`, [rental]),
+      s.sql(`select public.rental_check_out($1, $2, 100::smallint, null, now())`, [
+        rental,
+        nextOdometer(),
+      ]),
     )
 
     const [before] = await db.sql<{ ends_at: Date }>(
@@ -400,7 +417,10 @@ describe('the authorized workflows still work', () => {
     await addPrimaryDriver(rental)
     await db.asUser(staffId, (s) => s.sql(`select public.rental_confirm($1)`, [rental]))
     await db.asUser(staffId, (s) =>
-      s.sql(`select public.rental_check_out($1, 10000, 100::smallint, null, now())`, [rental]),
+      s.sql(`select public.rental_check_out($1, $2, 100::smallint, null, now())`, [
+        rental,
+        nextOdometer(),
+      ]),
     )
 
     await db.expectRejection(
@@ -424,5 +444,151 @@ describe('the authorized workflows still work', () => {
       () => db.asUser(staffId, (s) => s.sql(`select public.rental_reprice($1)`, [theirs])),
       /not found/i,
     )
+  })
+})
+
+describe('the lifecycle itself cannot be driven by hand', () => {
+  /*
+   * Every one of these was a success before 20261128100000. The status machine
+   * was never the weakness -- it refuses illegal transitions and still does --
+   * so each of these writes was a LEGAL transition made without any of the
+   * validation the lifecycle performs around it.
+   */
+  it('refuses a counterfeit check-out', async () => {
+    const rental = await makeRental({ status: 'reserved' })
+
+    await db.expectRejection(
+      () =>
+        patchAs(
+          staffId,
+          rental,
+          `status = 'active', picked_up_at = now(), pickup_odometer = 12345`,
+        ),
+      /status of a rental is set by the action/i,
+    )
+
+    expect(await statusOf(rental)).toBe('reserved')
+  })
+
+  it('refuses a counterfeit return', async () => {
+    const rental = await makeRental({ status: 'active' })
+
+    await db.expectRejection(
+      () => patchAs(staffId, rental, `returned_at = now(), return_odometer = 99999`),
+      /return time of a rental is set by the action/i,
+    )
+  })
+
+  it('refuses confirming a draft by hand, which skips the primary driver check', async () => {
+    const rental = await makeRental({ status: 'draft' })
+
+    await db.expectRejection(
+      () => patchAs(staffId, rental, `status = 'reserved'`),
+      /status of a rental is set by the action/i,
+    )
+
+    expect(await statusOf(rental)).toBe('draft')
+  })
+
+  it('refuses rewriting the original return date', async () => {
+    const rental = await makeRental({ status: 'active' })
+
+    await db.expectRejection(
+      () => patchAs(staffId, rental, `original_ends_at = '2020-01-01T00:00:00Z'`),
+      /original return date/i,
+    )
+  })
+
+  it('refuses inflating the extension count', async () => {
+    const rental = await makeRental({ status: 'active' })
+
+    await db.expectRejection(
+      () => patchAs(staffId, rental, `extension_count = 99`),
+      /extension count/i,
+    )
+  })
+
+  it.each([
+    ['the collection time', `picked_up_at = now()`],
+    ['the fuel out', `pickup_fuel_percent = 10`],
+    ['the condition out', `pickup_condition_notes = 'rewritten'`],
+    ['the cancellation reason', `cancellation_reason = 'rewritten'`],
+  ])('refuses a direct change to %s', async (_label, assignment) => {
+    const rental = await makeRental({ status: 'reserved' })
+    await db.expectRejection(() => patchAs(staffId, rental, assignment), /is set by the action/i)
+  })
+
+  it('still lets the desk edit what is not the lifecycle', async () => {
+    const rental = await makeRental({ status: 'active' })
+
+    await patchAs(staffId, rental, `notes = 'Customer rang about the deposit'`)
+
+    const [row] = await db.sql<{ notes: string }>(
+      `select notes from public.rentals where id = $1`,
+      [rental],
+    )
+    expect(row!.notes).toBe('Customer rang about the deposit')
+  })
+
+  it('keeps the privileged lifecycle functions out of anonymous reach', async () => {
+    const reachable = await db.sql<{ proname: string }>(
+      `select p.proname from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+        where n.nspname = 'public'
+          and p.proname in ('rental_confirm','rental_check_out','rental_check_in',
+                            'rental_complete','rental_cancel')
+          and has_function_privilege('anon', p.oid, 'EXECUTE')`,
+    )
+    expect(reachable).toEqual([])
+  })
+
+  it('gives every lifecycle function a tenant, role and billing check', async () => {
+    // Asserted on the bodies because making them SECURITY DEFINER removed the
+    // row level security that used to apply all three on their behalf.
+    for (const name of [
+      'rental_confirm',
+      'rental_check_out',
+      'rental_check_in',
+      'rental_complete',
+      'rental_cancel',
+    ]) {
+      const [fn] = await db.sql<{ definition: string; security_definer: boolean }>(
+        `select pg_get_functiondef(p.oid) as definition, p.prosecdef as security_definer
+           from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+          where n.nspname = 'public' and p.proname = $1 order by p.oid desc limit 1`,
+        [name],
+      )
+      expect(fn?.security_definer, name).toBe(true)
+      expect(fn?.definition, name).toMatch(/has_min_role/)
+      expect(fn?.definition, name).toMatch(/billing_require_write/)
+      expect(fn?.definition, name).toMatch(/search_path/)
+      // and the assignment gate must not have been reverted by the rewrite
+      expect(fn?.definition, name).not.toMatch(/app\.assignment_lifecycle_enabled/)
+    }
+  })
+
+  it('records the vehicle mileage on check-in, which a staff caller never could', async () => {
+    /*
+     * A pre-existing bug this correction removes as a side effect. check_in
+     * does `update public.vehicles set odometer = greatest(...)`, but
+     * vehicles_update requires manager. Run as the caller, a staff check-in
+     * matched zero rows and said nothing, so the fleet mileage never advanced.
+     */
+    const rental = await makeRental({ status: 'draft' })
+    await addPrimaryDriver(rental)
+    await db.asUser(staffId, (s) => s.sql(`select public.rental_confirm($1)`, [rental]))
+    const out = nextOdometer()
+    const back = nextOdometer()
+    await db.asUser(staffId, (s) =>
+      s.sql(`select public.rental_check_out($1, $2, 100::smallint, null, now())`, [rental, out]),
+    )
+    await db.asUser(staffId, (s) =>
+      s.sql(`select public.rental_check_in($1, $2, 60::smallint, null, now())`, [rental, back]),
+    )
+
+    const [v] = await db.sql<{ odometer: number }>(
+      `select odometer from public.vehicles where id = $1`,
+      [vehicleId],
+    )
+    expect(Number(v!.odometer)).toBe(back)
   })
 })

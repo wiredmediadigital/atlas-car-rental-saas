@@ -1,5 +1,5 @@
 import { Check, X } from 'lucide-react'
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 
 import { incidentDetailPath, paths } from '@/app/routes/paths'
@@ -45,9 +45,16 @@ export function IncidentNewPage() {
   const vehicles = useVehicleOptions()
   const initialVehicle = params.get('vehicle') ?? ''
   const initialRental = params.get('rental') ?? ''
-  const [vehicleId, setVehicleId] = useState(initialVehicle)
-  const [rentalId, setRentalId] = useState(initialRental)
-  const [rentalTouched, setRentalTouched] = useState(Boolean(initialRental))
+  /*
+   * Both of these default from data that arrives asynchronously, so they are
+   * derived during render rather than written into state by an effect. An
+   * `undefined` choice means the desk has not picked yet and the default
+   * applies; anything else is their choice, including the empty string.
+   */
+  const [vehicleChoice, setVehicleChoice] = useState<string | undefined>(
+    initialVehicle || undefined,
+  )
+  const [rentalChoice, setRentalChoice] = useState<string | undefined>(initialRental || undefined)
   const [type, setType] = useState<IncidentType>('other')
   const [occurredAt, setOccurredAt] = useState(new Date().toISOString().slice(0, 16))
   const [location, setLocation] = useState('')
@@ -58,18 +65,20 @@ export function IncidentNewPage() {
   const [insuranceProvider, setInsuranceProvider] = useState('')
   const [insuranceClaimReference, setInsuranceClaimReference] = useState('')
   const [error, setError] = useState('')
-  const rentals = useIncidentRentalOptions(vehicleId || undefined)
   const initialRentalContext = useIncidentRentalOption(initialRental || undefined)
+  const vehicleId = vehicleChoice ?? (initialVehicle || initialRentalContext.data?.vehicle_id || '')
+  const rentals = useIncidentRentalOptions(vehicleId || undefined)
 
-  useEffect(() => {
-    if (!initialRentalContext.data || initialVehicle) return
-    setVehicleId(initialRentalContext.data.vehicle_id)
-  }, [initialRentalContext.data, initialVehicle])
-  useEffect(() => {
-    if (!vehicleId || rentalTouched || rentals.isPending || rentals.isError) return
-    const active = currentCheckedOutRental(rentals.data ?? [])
-    setRentalId(active?.id ?? '')
-  }, [vehicleId, rentalTouched, rentals.data, rentals.isError, rentals.isPending])
+  /*
+   * The hire the vehicle is currently out on, offered until the desk says
+   * otherwise. Left empty while the list is loading or failed, so a blank box
+   * never claims there is no such hire.
+   */
+  const rentalId =
+    rentalChoice ??
+    (vehicleId && !rentals.isPending && !rentals.isError
+      ? (currentCheckedOutRental(rentals.data ?? [])?.id ?? '')
+      : '')
 
   const selectedRental = useMemo(
     () =>
@@ -83,9 +92,9 @@ export function IncidentNewPage() {
     ...(rentals.data ?? []).map((rental) => ({ value: rental.id, label: rentalLabel(rental) })),
   ]
   function selectVehicle(nextVehicleId: string) {
-    setVehicleId(nextVehicleId)
-    setRentalId('')
-    setRentalTouched(false)
+    setVehicleChoice(nextVehicleId)
+    // Re-offer the default hire for the newly chosen vehicle.
+    setRentalChoice(undefined)
   }
 
   async function submit() {
@@ -157,8 +166,7 @@ export function IncidentNewPage() {
               id="rental"
               value={rentalId}
               onChange={(event) => {
-                setRentalTouched(true)
-                setRentalId(event.target.value)
+                setRentalChoice(event.target.value)
               }}
               disabled={!vehicleId}
               options={rentalOptions}

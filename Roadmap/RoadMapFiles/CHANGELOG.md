@@ -1,5 +1,40 @@
 # Changelog
 
+## Unreleased — Production hardening (2026-11-27)
+
+- The rental lifecycle became a privileged operation. Confirming, checking out,
+  recording a return, completing and cancelling now run as privileged functions
+  carrying their own tenant, role and billing checks, and the lifecycle and
+  hand-over columns are refused to direct writes. A staff member could
+  previously counterfeit a check-out by writing status and picked_up_at
+  directly, performing a legal transition while skipping availability,
+  maintenance, driver-conflict and inspection validation.
+- A staff check-in now advances the vehicle's odometer. It never did: the
+  update required manager and was silently dropped for everyone else.
+- Billing entitlement is enforced on seven incident and maintenance RPCs that a
+  restricted agency could previously use to write tenant data. Four remain
+  exempt, narrowly and with recorded reasons, so a restricted agency can still
+  record an accident, document it, report a breakdown and take a car off the
+  road — but not complete maintenance, cancel it, reschedule it, set a service
+  plan, resolve an incident, or move money.
+- Every restatement of a finalized hire now needs its own amendment record,
+  identified by a charge-line revision number rather than by a signature. An
+  oscillating hire whose third change matched the first could previously ride
+  on the first record, leaving the history disagreeing with the live hire.
+- A cost linked to maintenance has to stay a cost for that vehicle. Editing a
+  linked expense to overhead, to another vehicle or to a rental is refused with
+  the unlink step named, rather than quietly leaving the link in place.
+- Assignment activation is default-off again, as the STG-02 contract says, and
+  the decision no longer reads a session setting. Assignments already open
+  continue their lifecycle so that a car out with a customer can still be
+  returned; only assignments on already-finished rentals are released.
+- can_swap now reports false in every state. The active vehicle swap is
+  withdrawn and its function is revoked from every role.
+- The four long-standing database baseline failures are resolved. Three were
+  tests asserting superseded or withdrawn contracts; one was the billing
+  bypass above.
+- Three react-hooks lint errors resolved; the lint error count is zero.
+
 ## Unreleased — Work Package 4 deployed to staging (2026-11-27)
 
 - Migration `20261127100000` applied to staging by the owner and verified: 143

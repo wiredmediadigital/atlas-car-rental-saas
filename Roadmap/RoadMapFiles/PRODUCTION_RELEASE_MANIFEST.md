@@ -293,3 +293,29 @@ Everything listed under the Incident Management entry above, unchanged, plus:
   responsive check verified visually by the implementer.
 - Production project `ysnumxtzcgzyabrghxwq`: unchanged, not accessed, not linked.
 - Production release: **NO-GO.**
+
+## Production hardening — 2026-11-27
+
+- **Five migrations developed, NOT applied.** Ledger 148 local / 143 remote.
+
+  | File | SHA-256 | Bytes |
+  |---|---|---|
+  | `20261128100000_rental_lifecycle_authorization.sql` | `36bcd48a259b6f59c3e048f31c77319ccda93bd1155d57b76412e929e3fc9fbf` | 12,171 |
+  | `20261128110000_billing_authorization_matrix.sql` | `60830dfab601498230f1769438ffac0b050bfdb1299aeb832d5212051db9e57f` | 11,275 |
+  | `20261128120000_amendment_evidence_one_to_one.sql` | `8ead334c1f96d9a8001ba2a9552875bc46680308da3ca1f11a451e1d074d7ab4` | 13,198 |
+  | `20261128130000_maintenance_expense_integrity.sql` | `71782326dafee8bd971bf0b0a9c242e7ed2f81b406a3da84fda0b3268a7288f5` | 9,068 |
+  | `20261128140000_assignment_activation_default_off.sql` | `59135446944eed8bfd955011621cc2af076a0413f3a5f5e9f880aed9bbee2134` | 11,130 |
+
+- Hosted application requires separate owner authorization and has not been performed. No
+  remote command beyond read-only ledger and Edge Function inventory reads was run.
+- Guarded staging build: 199 files, SHA-256
+  `be240a5b44a0af9c8c9e4e6c1fe8d018a46f7db59979f3e08e560d736c24e228`.
+- Nothing deployed. `origin/staging` unchanged at `5634555`; `origin/main` unchanged at
+  `31383a9`.
+- Hosted Edge Function inventory reconciled read-only: **four of nine ACTIVE** on staging
+  (`billing`, `billing-webhook`, `pricing`, `team-invitations`), not three. The gate
+  record saying six are undeployed is stale; it is five. No secret read, no redeploy, no
+  destructive closure action.
+- Work Package 4: **FUNCTIONALLY ACCEPTED — CLOSED**. Roadmap completion 4 of 10.
+- Production project `ysnumxtzcgzyabrghxwq`: unchanged, not accessed, not linked.
+- Production release: **NO-GO.**

@@ -28,12 +28,23 @@ async function createRental(status = 'draft') {
   return row!.id
 }
 
+/**
+ * Runs `fn` with the assignment lifecycle genuinely enabled.
+ *
+ * The session GUC it used to set was removed from the authorization decision
+ * by 20261128140000 -- a caller-settable flag has no business inside one -- so
+ * the feature is switched on the way the product switches it on: a row in
+ * app.assignment_feature_activation.
+ */
 async function enabled<T>(fn: (session: { sql: TestDatabase['sql'] }) => Promise<T>) {
+  await db.sql(
+    `insert into app.assignment_feature_activation (organization_id, enabled)
+     values ($1, true)
+     on conflict (organization_id) do update set enabled = true`,
+    [owner.organizationId],
+  )
   return db.asUser(owner.userId, async (session) => {
-    await session.sql(
-      `select pg_catalog.set_config('app.assignment_test_harness', 'on', false),
-              pg_catalog.set_config('app.assignment_lifecycle_enabled', 'on', false)`,
-    )
+    await session.sql(`select pg_catalog.set_config('app.assignment_test_harness', 'on', false)`)
     return fn(session)
   })
 }
@@ -145,10 +156,15 @@ describe('Slice 2 assignment-aware lifecycle integration', () => {
 
   it('keeps legacy behavior when the assignment flag is not enabled', async () => {
     const rentalId = await createRental()
+    // Explicitly disabled, which since 20261128140000 is also the default for
+    // an agency nobody has switched on.
+    await db.sql(
+      `insert into app.assignment_feature_activation (organization_id, enabled)
+       values ($1, false)
+       on conflict (organization_id) do update set enabled = false`,
+      [owner.organizationId],
+    )
     await db.asUser(owner.userId, async (session) => {
-      await session.sql(
-        `select pg_catalog.set_config('app.assignment_lifecycle_enabled', 'off', false)`,
-      )
       await session.sql(`select public.rental_confirm($1)`, [rentalId])
     })
     const assignments = await db.sql(

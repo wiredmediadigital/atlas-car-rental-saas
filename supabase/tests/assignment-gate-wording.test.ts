@@ -41,7 +41,8 @@ describe('the assignment lifecycle gate', () => {
          join pg_namespace n on n.oid = p.pronamespace
         where n.nspname in ('public', 'app')
           and p.prokind = 'f'
-          and pg_get_functiondef(p.oid) like '%app.assignment_lifecycle_enabled%'
+          -- A real call, not a mention of the name in a comment.
+          and pg_get_functiondef(p.oid) like '%current_setting(''app.assignment_lifecycle_enabled%'
           -- These two ARE the gate: they are allowed to read the setting.
           and p.proname not in ('assignment_lifecycle_active', 'assignment_feature_eligible')
         order by 1, 2`,
@@ -53,7 +54,7 @@ describe('the assignment lifecycle gate', () => {
     ).toEqual([])
   })
 
-  it('is read per organization by the two functions that lost it before', async () => {
+  it('is read per rental by the two functions that lost the gate before', async () => {
     const rows = await db.sql<{ proname: string; definition: string }>(
       `select p.proname, pg_get_functiondef(p.oid) as definition
          from pg_proc p join pg_namespace n on n.oid = p.pronamespace
@@ -64,8 +65,16 @@ describe('the assignment lifecycle gate', () => {
 
     expect(rows).toHaveLength(2)
     for (const row of rows) {
-      expect(row.definition, row.proname).toMatch(/assignment_lifecycle_active\(/)
-      expect(row.definition, row.proname).not.toMatch(/app\.assignment_lifecycle_enabled/)
+      /*
+       * `engaged`, not `active`, since 20261128140000. Activation governs
+       * opening a new assignment; drainage governs continuing one that already
+       * exists, so that switching the feature off cannot strand a car that is
+       * in a customer's hands.
+       */
+      expect(row.definition, row.proname).toMatch(/assignment_lifecycle_engaged\(/)
+      expect(row.definition, row.proname).not.toContain(
+        "current_setting('app.assignment_lifecycle_enabled",
+      )
     }
   })
 
@@ -78,7 +87,7 @@ describe('the assignment lifecycle gate', () => {
         where n.nspname = 'public' and p.proname = 'rental_extend'`,
     )
 
-    expect(extend!.definition).toMatch(/assignment_lifecycle_active\(v_rental\.organization_id\)/)
-    expect(extend!.definition).not.toMatch(/app\.assignment_lifecycle_enabled/)
+    expect(extend!.definition).toMatch(/assignment_lifecycle_engaged\(p_rental_id/)
+    expect(extend!.definition).not.toContain("current_setting('app.assignment_lifecycle_enabled")
   })
 })

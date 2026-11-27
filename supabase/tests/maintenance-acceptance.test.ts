@@ -313,6 +313,19 @@ describe('standard rental integrity', () => {
        values ($1, $2, $3, 'primary')`,
       [organizationId, rental!.id, customerId],
     )
+    /*
+     * Activation is explicit here since 20261128140000 restored the STG-02
+     * default: an agency nobody switched on opens no assignment rows. This
+     * test is about extending a reserved booking THROUGH the assignment
+     * sync, so it needs the feature on; the default itself is covered in
+     * assignment-feature-activation.test.ts.
+     */
+    await db.sql(
+      `insert into app.assignment_feature_activation (organization_id, enabled)
+       values ($1, true)
+       on conflict (organization_id) do update set enabled = true`,
+      [organizationId],
+    )
     await db.sql(`select public.rental_confirm($1)`, [rental!.id])
 
     await db.asUser(ownerId, (session) =>

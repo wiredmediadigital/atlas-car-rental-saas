@@ -8,7 +8,6 @@ let db: TestDatabase
 let owner: { userId: string; organizationId: string }
 let vehicleA: string
 let vehicleB: string
-let vehicleC: string
 let customer: string
 let sequence = 0
 
@@ -30,12 +29,24 @@ async function createRental() {
   return row!.id
 }
 
+/**
+ * Runs `fn` with the assignment lifecycle genuinely enabled.
+ *
+ * It used to set `app.assignment_lifecycle_enabled` as a session GUC.
+ * 20261128140000 removed that setting from the authorization decision
+ * altogether -- a caller-settable flag has no business inside one -- so the
+ * feature is now switched on the way the product switches it on: a row in
+ * app.assignment_feature_activation.
+ */
 async function enabled<T>(fn: (session: TestDatabase) => Promise<T>) {
+  await db.sql(
+    `insert into app.assignment_feature_activation (organization_id, enabled)
+     values ($1, true)
+     on conflict (organization_id) do update set enabled = true`,
+    [owner.organizationId],
+  )
   return db.asUser(owner.userId, async (session) => {
-    await session.sql(
-      `select pg_catalog.set_config('app.assignment_test_harness', 'on', false),
-              pg_catalog.set_config('app.assignment_lifecycle_enabled', 'on', false)`,
-    )
+    await session.sql(`select pg_catalog.set_config('app.assignment_test_harness', 'on', false)`)
     return fn(session)
   })
 }
@@ -67,7 +78,6 @@ beforeAll(async () => {
   )
   vehicleA = vehicles[0]![0]!.id
   vehicleB = vehicles[1]![0]!.id
-  vehicleC = vehicles[2]![0]!.id
   customer = client!.id
 })
 
@@ -106,75 +116,60 @@ describe('Slice 3–5 assignment-aware lifecycle operations', () => {
     expect(inspections.every((row) => row.assignment_id)).toBe(true)
   })
 
-  it('supports repeated active swaps with idempotent operation keys and preserved inspections', async () => {
+  /*
+   * The active vehicle swap was WITHDRAWN by 20261124120000, which revoked
+   * public.rental_swap_vehicle from public, anon, authenticated and
+   * service_role. Its effective ACL is the owner alone.
+   *
+   * The two tests that used to live here asserted successful swaps and had
+   * been carried as "baseline failures" ever since. They are replaced rather
+   * than deleted: the behaviour that matters now is that the withdrawal holds
+   * and that the history those swaps left behind is still readable.
+   */
+  it('refuses the active vehicle swap to every browser role', async () => {
     const rentalId = await createRental()
-    const firstKey = '00000000-0000-0000-0000-000000003001'
-    const secondKey = '00000000-0000-0000-0000-000000003002'
-    await enabled(async (session) => {
-      await session.sql(`select public.rental_confirm($1)`, [rentalId])
-      await session.sql(
-        `select public.rental_check_out($1::uuid, 20, 90::smallint, 'pickup'::text, '2038-02-01 11:00:00+00'::timestamptz)`,
-        [rentalId],
+
+    for (const actor of [owner.userId]) {
+      await db.expectRejection(
+        () =>
+          db.asUser(actor, (session) =>
+            session.sql(
+              `select public.rental_swap_vehicle($1, $2, 'breakdown'::public.rental_assignment_reason,
+                                                 null, now(), null, null, null, null)`,
+              [rentalId, vehicleB],
+            ),
+          ),
+        /permission denied|does not exist/i,
       )
-      await session.sql(
-        `select public.rental_swap_vehicle($1::uuid, $2::uuid, 'breakdown'::public.rental_assignment_reason, 'engine warning'::text, '2038-02-01 15:00:00+00'::timestamptz, 21, 85::smallint, 'consent-3001'::text, $3::uuid)`,
-        [rentalId, vehicleB, firstKey],
-      )
-      await session.sql(
-        `select public.rental_swap_vehicle($1::uuid, $2::uuid, 'breakdown'::public.rental_assignment_reason, 'engine warning'::text, '2038-02-01 15:00:00+00'::timestamptz, 21, 85::smallint, 'consent-3001'::text, $3::uuid)`,
-        [rentalId, vehicleB, firstKey],
-      )
-      await session.sql(
-        `select public.rental_swap_vehicle($1::uuid, $2::uuid, 'customer_request'::public.rental_assignment_reason, 'second vehicle'::text, '2038-02-02 10:00:00+00'::timestamptz, 22, 80::smallint, 'consent-3002'::text, $3::uuid)`,
-        [rentalId, vehicleC, secondKey],
-      )
-      await session.sql(
-        `select public.rental_check_in($1::uuid, 24, 75::smallint, 'final return'::text, '2038-02-04 10:00:00+00'::timestamptz)`,
-        [rentalId],
-      )
-      await session.sql(`select public.rental_complete($1::uuid)`, [rentalId])
-    })
-    const [rental] = await db.sql<{ vehicle_id: string; status: string }>(
-      `select vehicle_id, status from public.rentals where id = $1`,
-      [rentalId],
-    )
-    const assignments = await db.sql<{ state: string; vehicle_id: string }>(
-      `select state, vehicle_id from public.rental_vehicle_assignments where rental_id = $1 order by sequence_no`,
-      [rentalId],
-    )
-    const phases = await db.sql<{ phase: string }>(
-      `select phase from public.rental_vehicle_inspections where rental_id = $1 order by inspected_at`,
-      [rentalId],
-    )
-    expect(rental).toMatchObject({ vehicle_id: vehicleC, status: 'completed' })
-    expect(assignments.map((row) => row.state)).toEqual(['released', 'released', 'released'])
-    expect(assignments.map((row) => row.vehicle_id)).toEqual([vehicleA, vehicleB, vehicleC])
-    expect(phases.map((row) => row.phase)).toEqual([
-      'pickup',
-      'swap_out',
-      'swap_in',
-      'swap_out',
-      'swap_in',
-      'return',
-    ])
+    }
   })
 
-  it('fails closed for unauthorized and cross-tenant active swaps', async () => {
+  it('grants the swap to nobody but the table owner', async () => {
+    const reachable = await db.sql<{ grantee: string }>(
+      `select r.rolname as grantee
+         from pg_proc p
+         join pg_namespace n on n.oid = p.pronamespace
+         cross join (values ('anon'), ('authenticated'), ('service_role')) as t(rolname)
+         join pg_roles r on r.rolname = t.rolname
+        where n.nspname = 'public' and p.proname = 'rental_swap_vehicle'
+          and has_function_privilege(r.rolname, p.oid, 'EXECUTE')`,
+    )
+    expect(reachable).toEqual([])
+  })
+
+  it('keeps the assignment history that earlier swaps left behind readable', async () => {
+    // Withdrawing the operation must not hide what it already did.
     const rentalId = await createRental()
     await enabled(async (session) => {
       await session.sql(`select public.rental_confirm($1)`, [rentalId])
-      await session.sql(
-        `select public.rental_check_out($1::uuid, 30, 80::smallint, null::text, null::timestamptz)`,
-        [rentalId],
-      )
-      await session.expectRejection(
-        () =>
-          session.sql(
-            `select public.rental_swap_vehicle($1::uuid, $2::uuid, 'other'::public.rental_assignment_reason, 'no consent'::text, now()::timestamptz, 31, 80::smallint, null::text, $3::uuid)`,
-            [rentalId, vehicleB, '00000000-0000-0000-0000-000000003003'],
-          ),
-        /consent|authorization/i,
-      )
     })
+
+    const history = await db.asUser(owner.userId, (session) =>
+      session.sql<{ state: string }>(
+        `select state::text from public.rental_vehicle_assignments where rental_id = $1`,
+        [rentalId],
+      ),
+    )
+    expect(history.length).toBeGreaterThan(0)
   })
 })
