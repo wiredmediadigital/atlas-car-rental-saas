@@ -79,3 +79,21 @@ incident functionality was reopened, and Maintenance Management stays closed at 
 acceptance of the Incident dashboard is requested before it begins. Maintenance and
 Incidents both remain production NO-GO; every gate in the production release checklist
 stands.
+
+## Incident Management — FUNCTIONALLY ACCEPTED, CLOSED (2026-11-26)
+
+The owner confirmed **scenario 29 — Incident Management dashboard: PASS**, with **13/13**
+verification items and no observations. Incident Management, **including its dashboard
+enhancement**, is **FUNCTIONALLY ACCEPTED — CLOSED** and its scope is frozen.
+
+Three areas are now closed and none supersedes another: Maintenance Management 28/28,
+Incident Management scenario 29 at 13/13, and Driver availability / conflict prevention
+9/9, whose independent concurrent-session evidence remains a release gate.
+
+**Functional acceptance is not production deployment authorization.** Production remains
+**NO-GO** and every remaining gate in `PRODUCTION_RELEASE_CHECKLIST.md` stands.
+
+Next is **Rental Financial Adjustments**, which has not been started and for which no work
+package has yet been supplied. The owner's approved Maintenance downtime caption
+correction is committed and deliberately held unpushed, to travel with that package's
+deployment rather than prompt one of its own.

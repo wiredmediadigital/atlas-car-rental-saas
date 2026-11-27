@@ -114,3 +114,22 @@ acceptance and is preserved as history in `Handoff/KNOWN_ISSUES_AND_ACCEPTANCE.m
 | Maintenance integration | Counts per incident, outstanding flagged, lifecycles independent | `fetchIncidentMaintenanceLinks` |
 | Tenant isolation | Proved in both directions for both new reads | `supabase/tests/incident-dashboard.test.ts` |
 | Rental Financial Adjustments | **Not started** — after owner acceptance of scenario 29 | — |
+
+## Incident Management — FUNCTIONALLY ACCEPTED, CLOSED (2026-11-26)
+
+| Field | Value |
+|---|---|
+| Status | **FUNCTIONALLY ACCEPTED — CLOSED** |
+| Owner result | **Scenario 29 PASS**, 13/13 verification items, no observations |
+| Accepted staging commit | `b163cc63d3375d4e606e152d5a1e48cabb21fb7a` |
+| Deployed artifact | `ff41ee11…`, 199 files, verified by content |
+| Migration | **none** — frontend only |
+| Scope | **Frozen** — not reopened without an identified regression |
+| Production | **NO-GO** — functional acceptance is not deployment authorization |
+
+| Area | State |
+|---|---|
+| Maintenance Management | ACCEPTED — CLOSED, 28/28, frozen |
+| Incident Management incl. dashboard | ACCEPTED — CLOSED, scenario 29 at 13/13, frozen |
+| Driver availability / conflict prevention | Accepted 9/9; independent concurrency still a gate |
+| Rental Financial Adjustments | **Not started; no work package supplied yet** |

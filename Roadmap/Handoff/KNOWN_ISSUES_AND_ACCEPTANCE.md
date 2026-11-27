@@ -49,16 +49,32 @@ Final acceptance evidence: `Roadmap/Reports/PEVVY_MAINTENANCE_MANAGEMENT_FINAL_A
 with the two closing deployments in `PEVVY_PREVENTIVE_SERVICING_FINAL_CORRECTION.md` and
 `PEVVY_PREVENTIVE_SERVICING_DEPLOYMENT_CLOSURE.md`.
 
-## Incident Management dashboard — scenario 29 (2026-11-26)
+## Incident Management — FUNCTIONALLY ACCEPTED, CLOSED (2026-11-26)
 
-Incident Management functionality was accepted previously and is **not reopened**. The
-dashboard enhancement is deployed to staging at `b163cc6` and is recorded as a separate
-scenario:
+**Scenario 29 — Incident Management dashboard: PASS.** Owner verification items **13/13
+passed**, no observations. Incident Management, **including its dashboard enhancement**,
+is **FUNCTIONALLY ACCEPTED — CLOSED**.
 
-- **Scenario 29 — Incident Management dashboard: OUTSTANDING.** Not marked accepted.
+The manual acceptance script that was run is
+`Roadmap/Reports/PEVVY_INCIDENT_MANAGEMENT_DASHBOARD_ENHANCEMENT.md` §10, thirteen steps.
+Evidence: `Roadmap/Reports/PEVVY_INCIDENT_MANAGEMENT_FINAL_ACCEPTANCE.md`.
 
-The manual acceptance script is in
-`Roadmap/Reports/PEVVY_INCIDENT_MANAGEMENT_DASHBOARD_ENHANCEMENT.md` §10. A failure should
-be reported against its step number.
+Accepted staging commit `b163cc6`, deployed artifact `ff41ee11…`, 199 files, verified by
+content. Frontend only; **no migration**.
 
-Frontend only; no migration. Production remains NO-GO.
+**Scope is frozen.** Incident Management is not reopened for enhancements, architectural
+changes or further testing unless an actual regression is identified — observed behaviour
+contradicting an accepted scenario, reported against the scenario number it breaks.
+
+**Functional acceptance is not production deployment authorization.** Production remains
+**NO-GO** and every gate in `RoadMapFiles/PRODUCTION_RELEASE_CHECKLIST.md` stands.
+
+### The three closed acceptances, side by side
+
+| Area | Owner result | State |
+|---|---|---|
+| Maintenance Management | **28/28** scenarios | FUNCTIONALLY ACCEPTED — CLOSED, frozen |
+| Incident Management | **Scenario 29 PASS**, 13/13 items | FUNCTIONALLY ACCEPTED — CLOSED, frozen |
+| Driver availability / conflict prevention | **9/9** scenarios | Accepted and preserved; independent concurrent-session evidence remains a release gate |
+
+None of the three is superseded by the others, and none is a production authorization.

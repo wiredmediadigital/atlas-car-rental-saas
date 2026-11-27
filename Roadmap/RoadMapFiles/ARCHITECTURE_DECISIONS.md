@@ -77,3 +77,33 @@ change maintenance status, cancel a rental or create an expense. Availability is
 maintenance records and explicit off-road restrictions, and by nothing else.
 
 This architecture is owner-accepted as of the 28/28 final acceptance and is frozen.
+
+## 2026-11-26 — A dashboard counts from one complete list, accepted
+
+Both accepted dashboards derive their figures from rows the page already holds, read
+through one query that pages to the end, rather than from a second server-side aggregate.
+
+The reason is not performance. Counting with one query and listing with another lets
+"Open incidents: 4" sit above a list of five whenever the two run a moment apart, and a
+summary that contradicts the thing it summarises discredits every other figure on the
+page. One source cannot disagree with itself.
+
+Two rules follow, and both are enforced in code rather than left to care:
+
+A figure is never taken from a truncated read. PostgREST stops at `max_rows` and says
+nothing about it, so a total counted from the first page is wrong while looking exact —
+the worst way for a number to be wrong, because nobody re-checks a plausible figure. The
+reads page to the end and de-duplicate by primary key, since offset paging over live data
+returns a row twice when something is inserted between two pages.
+
+A failed read shows a dash, never a zero. Zero is a claim; "—" is the truth. Where two
+reads back one screen they are tracked separately, so a failure in one cannot make the
+other's tile confidently wrong.
+
+Dashboard figures are also split into period figures and current-state figures, and each
+tile says which it is. State that is still open — an unresolved incident, a service past
+due — is deliberately unbounded by the selected period, because the row somebody most
+needs to find is the old one nobody closed.
+
+This architecture is owner-accepted across Maintenance Management (28/28) and Incident
+Management (scenario 29, 13/13), and is frozen.

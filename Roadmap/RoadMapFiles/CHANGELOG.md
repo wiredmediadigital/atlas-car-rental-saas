@@ -205,3 +205,20 @@ hover class that referenced a border the button did not have.
 Not accepted: recorded as scenario 29, awaiting owner verification. Maintenance remains
 28/28 and frozen; no accepted incident functionality was reopened. Production untouched
 and NO-GO.
+
+## 2026-11-26 — Incident Management functionally accepted
+
+The owner confirmed scenario 29, the Incident Management dashboard, as PASS: **13/13
+verification items, no observations.** Incident Management, including the dashboard
+enhancement, is **FUNCTIONALLY ACCEPTED — CLOSED** and frozen.
+
+Maintenance Management keeps its 28/28 acceptance and Driver availability its 9/9. All
+three are closed functionally; none is a production authorization, and production remains
+NO-GO with every other release gate standing.
+
+One approved presentation correction was made to the Maintenance dashboard: the downtime
+tile's error caption no longer claims the service plan migration is unapplied, which
+stopped being true when the owner applied it. It now reads "Actual downtime is temporarily
+unavailable. Refresh the page or try again later." The change is committed but **not
+published on its own** — the owner asked that it travel with the next authorized
+deployment rather than prompt one for a caption.

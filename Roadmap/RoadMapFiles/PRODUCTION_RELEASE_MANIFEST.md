@@ -153,12 +153,16 @@ owner approval and was not attempted.
   `.js` served as JavaScript; 0 production references; 0 secret keys; all eight
   release-unique strings present; all six accepted-release probes still present.
 - Maintenance Management: **not reopened.** Its 28/28 acceptance and scope freeze stand.
-- Acceptance: **scenario 29, outstanding.** Not marked accepted.
+- Acceptance: **scenario 29 PASS (2026-11-26), 13/13 verification items, no observations.**
+  Incident Management, including its dashboard, is **FUNCTIONALLY ACCEPTED — CLOSED** and
+  frozen. Evidence: `Reports/PEVVY_INCIDENT_MANAGEMENT_FINAL_ACCEPTANCE.md`.
 - Production project `ysnumxtzcgzyabrghxwq`: unchanged, not accessed, not linked.
 - Production release: **NO-GO.**
 
 ### Outstanding before promotion
 
-Everything listed under the preventive servicing entry above, unchanged, plus owner
-acceptance of scenario 29. The two pre-existing `IncidentNewPage.tsx` lint errors remain;
-that file is incident reporting and was deliberately not modified.
+Everything listed under the preventive servicing entry above, unchanged. The owner
+acceptance gate is now **closed** for Maintenance (28/28) and Incident Management
+(scenario 29, 13/13); every other gate stands. The two pre-existing
+`IncidentNewPage.tsx` lint errors remain; that file is incident reporting and was
+deliberately not modified.

@@ -105,3 +105,27 @@ Staging is deployed and verified. These remain before production can be consider
 - [ ] Production migration plan and rollback. `20261125130000` is additive — it drops and
       renames nothing — but there is **no down migration**; reverting needs a new forward one.
 - [ ] Hostinger deployment-to-commit attribution for the production target.
+
+## Functional acceptance — closed (2026-11-26)
+
+- [x] **Maintenance Management: 28/28 scenarios.** FUNCTIONALLY ACCEPTED — CLOSED.
+- [x] **Incident Management, including its dashboard: scenario 29 PASS, 13/13
+      verification items, no observations.** FUNCTIONALLY ACCEPTED — CLOSED.
+- [x] **Driver availability / conflict prevention: 9/9 scenarios.** Accepted and
+      preserved. Independent concurrent-session evidence is still a release gate and is
+      listed below, unchanged.
+
+**These three boxes close the ACCEPTANCE gate and nothing else.** Functional acceptance is
+not production deployment authorization. Every unchecked item elsewhere in this file still
+stands, including:
+
+- [ ] Six of nine Edge Functions are not deployed to staging.
+- [ ] The deployment artifact hash is not reproducible by the deploying party.
+- [ ] Independent concurrency verification against hosted Postgres.
+- [ ] The STG-02 assignment-activation default decision.
+- [ ] Whether eleven incident and maintenance `SECURITY DEFINER` write RPCs should call
+      `app.billing_require_write`.
+- [ ] No down migration exists; reverting requires a new forward one.
+- [ ] Hostinger deployment-to-commit attribution for the production target.
+
+**Production remains NO-GO.**
