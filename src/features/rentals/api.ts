@@ -15,6 +15,7 @@ import type {
   RentalContract,
   RentalDriver,
   RentalLineItem,
+  RentalPricingAmendment,
   RentalStatus,
   RentalUsageRow,
 } from '@/types/database'
@@ -351,6 +352,25 @@ export async function fetchRentalLineItems(rentalId: string): Promise<RentalLine
     .eq('rental_id', rentalId)
     .order('sort_order', { ascending: true })
     .order('created_at', { ascending: true })
+
+  if (error) throw toAppError(error)
+  return data ?? []
+}
+
+/**
+ * What authorized pricing operations have done to this rental's hire.
+ *
+ * Read-only by construction: nothing in the browser holds insert, update or
+ * delete on this table, so there is no writing counterpart to this function.
+ */
+export async function fetchRentalPricingAmendments(
+  rentalId: string,
+): Promise<RentalPricingAmendment[]> {
+  const { data, error } = await getSupabaseClient()
+    .from('rental_pricing_amendments')
+    .select('*')
+    .eq('rental_id', rentalId)
+    .order('amended_at', { ascending: false })
 
   if (error) throw toAppError(error)
   return data ?? []

@@ -158,3 +158,30 @@ Migration `20261126130000_rental_charge_integrity.sql` is applied to **staging o
 has not been accessed.
 
 **Production remains NO-GO.**
+
+---
+
+## Financial amendment history remediation (added 2026-11-27)
+
+- [ ] **Hosted application of `20261127100000_rental_pricing_amendment_history.sql` is
+      not authorized.** Ledger 143 local / 142 remote. The Hire amendments panel will
+      report that it could not read the history until the migration is applied.
+- [ ] **Scenario 35 cannot be run** until that migration is applied.
+- [ ] **Concurrent amendments are not proven against hosted Postgres.** The database
+      tests run on PGlite, which is a single connection. What is proven is that each
+      amendment shares a transaction with its pricing change and that both pricing
+      functions lock the rental row first. This sits alongside the existing
+      driver-availability concurrency gate.
+- [ ] **`rental_substitute_vehicle` and `rental_reschedule` carry the reverted
+      pre-`20261120100000` session-GUC wording.** Pre-existing; the in-place rewrite has
+      already been undone for those two.
+- [ ] **Pricing inputs on `rentals` have no state protection.** `rentals_update` has no
+      state test and the freeze trigger does not cover `starts_at`, `ends_at`,
+      `billable_days` or `daily_rate_minor`, so a direct PATCH can change them on a
+      completed rental. The charge lines are protected; the booking they describe is not.
+- [ ] **No down migration** for `20261127100000`. Reverting needs a new forward one that
+      decides what to do with amendment rows already recorded.
+- [ ] Amendment history **begins at this migration**. Earlier amendments were never
+      recorded and are not reconstructed.
+
+**Production remains NO-GO.**

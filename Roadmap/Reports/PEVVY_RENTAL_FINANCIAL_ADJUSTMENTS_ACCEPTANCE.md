@@ -7,7 +7,8 @@ factor.
 
 Consolidated numbering continues from the three closed acceptances. Scenarios 1–28 are
 Maintenance Management, scenario 29 is Incident Management, and the nine Driver
-availability scenarios are preserved separately. **This work package is scenarios 30–34.**
+availability scenarios are preserved separately. **This work package is scenarios 30–35.** Scenario 35 was added by the financial
+amendment history remediation and requires its migration to be applied first.
 
 Nothing here is acceptance until the owner records a result. Local tests, a staging
 migration and an HTTP 200 are none of them manual acceptance.
@@ -21,7 +22,7 @@ migration and an HTTP 200 are none of them manual acceptance.
 | Maintenance Management | **28/28** scenarios (1–28) | ACCEPTED — CLOSED, frozen |
 | Incident Management incl. dashboard | **Scenario 29 PASS**, 13/13 items | ACCEPTED — CLOSED, frozen |
 | Driver availability / conflict prevention | **9/9** scenarios | Accepted and preserved |
-| **Rental Financial Adjustments** | **Scenarios 30–34 — not yet run** | **NOT ACCEPTED** |
+| **Rental Financial Adjustments** | **Scenarios 30–35 — not yet run** | **NOT ACCEPTED** |
 
 **Preserved, not superseded.** This pass adds to the three above and replaces none of
 them. Their scope freezes stand and none was reopened by this work package. Driver
@@ -134,6 +135,91 @@ cut off and nothing requiring a sideways scroll of the page.
 
 ---
 
+---
+
+## Scenario 35 — Financial amendment history
+
+**Requires migration `20261127100000_rental_pricing_amendment_history.sql` to be applied
+to staging first.** Until the owner authorizes and applies it, the Hire amendments panel
+will report that the history could not be read, and this scenario cannot be run.
+
+This closes the limitation declared under scenarios 30–34: a confirmed reservation
+repriced before any contract was issued used to lose its previous hire amount entirely.
+
+### 35a — Repricing a reservation before any contract exists
+
+1. Create a rental, add a base hire charge of a deliberately wrong amount (1 unit of
+   currency will do), and **confirm the reservation**. Do **not** issue a contract.
+2. Open the rental, Financials tab. Note the hire amount and the rental total.
+3. Reprice the rental (the "The charge does not match this booking" banner offers the
+   button, or use the reprice action).
+4. In **Hire amendments**, confirm one record showing **Repriced**, the previous amount,
+   the revised amount and the signed difference.
+5. Confirm it does **not** say a contract version was in force.
+6. Go to the **Documents** tab and confirm **no contract was issued** by the reprice.
+
+**Expected:** the amount the hire used to be is still on the screen, and no document was
+manufactured to keep it there.
+
+### 35b — Issuing a contract after an amendment
+
+1. On the same rental, issue a contract from the Documents tab.
+2. Confirm the contract shows the **revised** hire, not the old one.
+3. Return to Financials and confirm the amendment record from 35a is **unchanged**.
+
+### 35c — Extending after a contract exists
+
+1. Check the rental out so it is active.
+2. Extend it, entering a reason in the description field (for example
+   "Flight delayed by two days") and a charge for the extra days.
+3. In **Hire amendments**, confirm a second record showing **Extended**, the previous and
+   revised hire, the difference, **your reason**, and that **contract version 1 was in
+   force**.
+4. Confirm both records are listed, newest first — the reprice from 35a has not been
+   displaced.
+
+### 35d — The original contract is untouched
+
+1. In Documents, open **contract version 1**.
+2. Confirm it still states the hire as it was when issued, and that the extension did not
+   alter it.
+3. Issue a new contract version and confirm version 1 is marked superseded and **still
+   readable**, with both versions listed.
+
+### 35e — The figures still agree
+
+1. Confirm the financial overview strip (rental total, payments received, outstanding,
+   customer credit, deposit held) agrees with the Charges and Money sections.
+2. Record a payment and confirm the balance moves as expected and the amendment history
+   is unaffected — a payment is not an amendment.
+3. Reverse a non-hire charge as a manager and confirm it appears in **Charges** as a
+   reversal and **not** in Hire amendments. The two are different things: one corrects a
+   charge, the other restates the hire.
+
+### 35f — A rental nobody has amended
+
+1. Open a rental that has never been repriced or extended.
+2. Confirm Hire amendments says the hire has not been repriced or extended, rather than
+   showing an empty table.
+
+### 35g — Desktop, iPad and mobile
+
+Repeat at **desktop**, **iPad portrait**, **iPad landscape** and **mobile**:
+
+1. Confirm each amendment record is readable, with "Was", "Now" and "Difference" all
+   visible without a sideways scroll of the page.
+2. Confirm the amounts stay legible and are not truncated.
+3. Confirm the panel sits inside the Financials tab and does not displace Charges, Money
+   or Agency costs.
+
+### Known limitation to confirm, not to fail on
+
+Amendments made **before** this migration was applied were never recorded and cannot be
+reconstructed. A rental repriced last week will show no history. That is accurate rather
+than missing, and is not a defect to raise against this scenario.
+
+---
+
 ## Result
 
 | Scenario | Result | Observations |
@@ -143,6 +229,7 @@ cut off and nothing requiring a sideways scroll of the page.
 | 32 — Staff cannot correct a charge | | |
 | 33 — The financial overview tells the truth | | |
 | 34 — Four tabs on four screens | | |
+| 35 — Financial amendment history | | |
 
 **Not accepted until the table above is completed by the owner.**
 
@@ -150,9 +237,12 @@ cut off and nothing requiring a sideways scroll of the page.
 
 ## Known limitation, declared before acceptance
 
-A confirmed reservation that is repriced **before any contract has been issued** leaves no
-record of the previous hire amount. Where a contract exists the superseded version
-preserves it; where none exists there is nothing to preserve it in. This is set out in
-§4 of `PEVVY_RENTAL_FINANCIAL_ADJUSTMENTS_IMPLEMENTATION.md`, needs a further migration,
-and is **not** covered by these scenarios. The acceptance requirement for preservation of
-authorized amendment history should not be marked complete on the strength of this pass.
+**Remediated, pending migration application.** A confirmed reservation repriced before
+any contract had been issued used to lose its previous hire amount. Migration
+`20261127100000_rental_pricing_amendment_history.sql` closes this, and scenario 35 above
+verifies it — but that migration is **not yet applied to staging** and needs the owner's
+authorization. Until it is applied, scenario 35 cannot be run and the acceptance
+requirement for preservation of authorized amendment history stays open.
+
+Amendments made before the migration is applied were never recorded and are not
+reconstructed; see §7 of `PEVVY_RENTAL_FINANCIAL_AMENDMENT_HISTORY_REMEDIATION.md`.

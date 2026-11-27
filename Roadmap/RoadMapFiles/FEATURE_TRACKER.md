@@ -6,7 +6,7 @@
 | Driver availability | Manual acceptance 9/9 PASS; independent concurrency outstanding | Prior staging evidence |
 | Incident Management | Preserved | Staging baseline |
 | Billing | Preserved | Base `112cc994` |
-| Rental Financial Adjustments | Implemented, on staging, awaiting owner acceptance (scenarios 30-34) | `Reports/PEVVY_RENTAL_FINANCIAL_ADJUSTMENTS_IMPLEMENTATION.md` |
+| Rental Financial Adjustments | Implemented, on staging, awaiting owner acceptance (scenarios 30-35) | `Reports/PEVVY_RENTAL_FINANCIAL_ADJUSTMENTS_IMPLEMENTATION.md` |
 
 Roadmap identifiers P3-05 (maintenance work orders), P3-06 (repair expenses),
 and P3-07 (vehicle downtime) are implemented locally and database-validated;
@@ -29,7 +29,7 @@ maintenance workflow; incident association remains optional.
 | Driver availability | Manual acceptance 9/9 preserved; independent concurrency outstanding | Unchanged by this package |
 | Incident Management | Reverse relationship, resolution warning and lifecycle independence completed | `RelatedMaintenance.tsx` |
 | Billing | Preserved; eleven ungated write RPCs reported, not changed | Owner decision outstanding |
-| Rental Financial Adjustments | Implemented; awaiting owner acceptance | Scenarios 30-34 |
+| Rental Financial Adjustments | Implemented; awaiting owner acceptance | Scenarios 30-35 |
 
 The owner's acceptance baseline of 11 passed, 11 failed and 4 pending is the
 historical record and is not superseded by any automated result here.
@@ -58,7 +58,7 @@ expense links, and the CSV import restriction safeguard.
 | Maintenance dashboard | Deployed; downtime tile operational; **scenario 28 awaiting owner acceptance** | `maintenance_fleet_downtime` live, `42501` probe |
 | Fleet CSV export | `Next service` column now reads the authoritative plan; contract unchanged, 33 columns | `src/features/vehicles/export.ts`, 7 new tests |
 | Migration ledger | 141 local / 141 applied / zero drift | `supabase migration list --linked` |
-| Rental Financial Adjustments | Implemented; awaiting owner acceptance | Scenarios 30-34 |
+| Rental Financial Adjustments | Implemented; awaiting owner acceptance | Scenarios 30-35 |
 
 | Field | Value |
 |---|---|
@@ -90,7 +90,7 @@ historical record and is not superseded by any automated result here.
 | Maintenance expense integration | Accepted | preserved through the servicing work |
 | Fleet availability integration | Accepted | `app.maintenance_restriction_range` |
 | Incident Management dashboard | **Next package** | design reference: the accepted Maintenance dashboard |
-| Rental Financial Adjustments | Implemented; awaiting owner acceptance | Scenarios 30-34 |
+| Rental Financial Adjustments | Implemented; awaiting owner acceptance | Scenarios 30-35 |
 
 The owner's interim 11 passed / 11 failed / 4 pending baseline is superseded by this final
 acceptance and is preserved as history in `Handoff/KNOWN_ISSUES_AND_ACCEPTANCE.md`.
@@ -113,7 +113,7 @@ acceptance and is preserved as history in `Handoff/KNOWN_ISSUES_AND_ACCEPTANCE.m
 | Search and filtering | Reference, vehicle, rental, customer, free text; seven filters; All time | `IncidentToolbar.tsx` |
 | Maintenance integration | Counts per incident, outstanding flagged, lifecycles independent | `fetchIncidentMaintenanceLinks` |
 | Tenant isolation | Proved in both directions for both new reads | `supabase/tests/incident-dashboard.test.ts` |
-| Rental Financial Adjustments | **Implemented; awaiting owner acceptance** | Scenarios 30-34 |
+| Rental Financial Adjustments | **Implemented; awaiting owner acceptance** | Scenarios 30-35 |
 
 ## Incident Management — FUNCTIONALLY ACCEPTED, CLOSED (2026-11-26)
 
@@ -132,4 +132,4 @@ acceptance and is preserved as history in `Handoff/KNOWN_ISSUES_AND_ACCEPTANCE.m
 | Maintenance Management | ACCEPTED — CLOSED, 28/28, frozen |
 | Incident Management incl. dashboard | ACCEPTED — CLOSED, scenario 29 at 13/13, frozen |
 | Driver availability / conflict prevention | Accepted 9/9; independent concurrency still a gate |
-| Rental Financial Adjustments | **Implemented; awaiting owner acceptance (scenarios 30-34)** |
+| Rental Financial Adjustments | **Implemented; awaiting owner acceptance (scenarios 30-35)** |

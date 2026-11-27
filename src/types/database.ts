@@ -1008,6 +1008,29 @@ type RentalLineItemRow = {
   updated_at: string
 }
 
+export type RentalAmendmentKind = 'reprice' | 'extension'
+
+type RentalPricingAmendmentRow = {
+  id: string
+  organization_id: string
+  rental_id: string
+  /** The hire line restated, or null where the charge line has since gone. */
+  line_item_id: string | null
+  kind: RentalAmendmentKind
+  previous_amount_minor: number
+  revised_amount_minor: number
+  /** Generated: revised less previous. Signed. */
+  difference_minor: number
+  currency: string
+  /** Only the fields that moved, each as `{ from, to }`. */
+  changes: Json
+  /** The issued contract version in force at the time, or null if none was. */
+  contract_version: number | null
+  reason: string | null
+  amended_by: string | null
+  amended_at: string
+}
+
 type RentalContractRow = {
   id: string
   organization_id: string
@@ -2598,6 +2621,14 @@ export interface Database {
         >
         Relationships: []
       }
+      rental_pricing_amendments: {
+        Row: RentalPricingAmendmentRow
+        // Written only by app.record_rental_pricing_amendment. No browser role
+        // holds insert, update or delete on this table.
+        Insert: never
+        Update: never
+        Relationships: []
+      }
       rental_contracts: {
         Row: RentalContractRow
         Insert: Insertable<
@@ -3738,6 +3769,7 @@ export type VehicleFleetEntry = Database['public']['Views']['vehicle_fleet']['Ro
 export type CustomerDocument = Tables<'customer_documents'>
 export type CustomerDirectoryEntry = Database['public']['Views']['customer_directory']['Row']
 export type RentalLineItem = Tables<'rental_line_items'>
+export type RentalPricingAmendment = Tables<'rental_pricing_amendments'>
 export type RentalContract = Tables<'rental_contracts'>
 export type RentalConditionPhoto = Tables<'rental_condition_photos'>
 export type RentalDriver = Tables<'rental_drivers'>

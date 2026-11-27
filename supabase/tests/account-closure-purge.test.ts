@@ -166,10 +166,24 @@ async function seed(agency: Agency): Promise<Seeded> {
              jsonb_build_object('source', 'purge-fixture'))`,
     [org, rental.id],
   )
-  await db.sql(
+  const line = await one<{ id: string }>(
     `insert into public.rental_line_items (organization_id, rental_id, description, amount_minor, currency)
-     values ($1, $2, 'Extra driver', 1500, 'EUR')`,
+     values ($1, $2, 'Extra driver', 1500, 'EUR') returning id`,
     [org, rental.id],
+  )
+  /*
+   * A pricing amendment, which carries an organization_id and therefore has to
+   * be purged. Written here directly because the table has no insert grant for
+   * anybody: only app.record_rental_pricing_amendment writes it, and this
+   * fixture runs as the owner.
+   */
+  await db.sql(
+    `insert into public.rental_pricing_amendments
+       (organization_id, rental_id, line_item_id, kind,
+        previous_amount_minor, revised_amount_minor, currency, changes, amended_by)
+     values ($1, $2, $3, 'reprice', 1500, 2500, 'EUR',
+             jsonb_build_object('total_minor', jsonb_build_object('from', 1500, 'to', 2500)), $4)`,
+    [org, rental.id, line.id, agency.owner],
   )
   /*
    * An incident and the repair it led to, each with a private document.

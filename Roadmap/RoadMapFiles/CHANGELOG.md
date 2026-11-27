@@ -1,5 +1,27 @@
 # Changelog
 
+## Unreleased — Financial amendment history remediation (2026-11-27)
+
+- An authorized restatement of a finalized base hire now records what it changed,
+  from what, to what, by whom and when — independently of whether a contract had
+  ever been issued. A confirmed reservation repriced before issuance used to lose
+  its previous hire amount outright.
+- `public.rental_reprice` and `public.rental_extend` record the amendment inside
+  the same transaction as the pricing change. A deferred constraint refuses to
+  commit a restated finalized hire that recorded nothing, so a future pricing path
+  cannot forget.
+- `rental_extend` kept the reason the desk types. Its description parameter was
+  accepted and discarded by every previous version.
+- The history is readable by members of the agency and writable by nobody: there
+  is no insert, update or delete grant on the table for any browser role.
+- No contract is issued, superseded or manufactured to preserve history, and no
+  PDF is generated. Issued contracts remain untouched.
+- Rental Details gains a read-only Hire amendments section in the Financials tab.
+- Account closure empties the new table; it is listed in the purge before the
+  charge lines it references.
+- History begins at this migration. Amendments made earlier were never recorded
+  and are not reconstructed.
+
 ## Unreleased — Work Package 4: Rental Financial Adjustments (2026-11-27)
 
 - A posted rental charge can no longer be destroyed. Deleting a charge is permitted

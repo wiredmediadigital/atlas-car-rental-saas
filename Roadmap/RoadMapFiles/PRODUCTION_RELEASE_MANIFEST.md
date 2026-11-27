@@ -225,3 +225,23 @@ Everything listed under the Incident Management entry above, unchanged, plus:
   inherits the guard's exemption by virtue of its ownership.
 - No down migration exists for `20261126130000`; reverting requires a new forward one that
   decides what to do with reversal lines already posted.
+
+## Rental financial amendment history remediation — 2026-11-27
+
+- **Migration created, NOT applied.**
+  `20261127100000_rental_pricing_amendment_history.sql`, SHA-256
+  `27b8f62d7ee1f7dfcb9ec6b3aaaedd8bf1e0de1f59414787261c3142d5ee7308`, 621 lines /
+  26,305 bytes. Ledger **143 local / 142 remote — exactly one pending**.
+- Hosted application requires separate owner authorization and has not been performed.
+  No remote command beyond read-only ledger verification was run.
+- Creates `public.rental_pricing_amendments` (no insert, update or delete grant for any
+  browser role), `app.record_rental_pricing_amendment`,
+  `app.require_rental_pricing_amendment_evidence` and the deferred constraint trigger
+  `rental_line_items_amendment_evidence`. Redefines `public.rental_extend`,
+  `public.rental_reprice` and `app.organization_purge_tables`. Public RPC signatures
+  unchanged. `app.guard_rental_line_item_integrity` and the cancellation settlement
+  boundaries from `20261126130000` are untouched.
+- No frontend depending on this migration has been deployed.
+- Acceptance: **scenario 35 added, not run.** Scenarios 30–34 remain not run.
+- Production project `ysnumxtzcgzyabrghxwq`: unchanged, not accessed, not linked.
+- Production release: **NO-GO.**

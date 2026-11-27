@@ -203,6 +203,17 @@ or extension of a non-draft rental issue a superseding contract version — or w
 equivalent snapshot row — before it restates the hire. That is a schema change and is out
 of scope here; it requires its own authorization.
 
+> **Remediated on 2026-11-27.** The owner authorized the correction, and it is
+> implemented by migration `20261127100000_rental_pricing_amendment_history.sql` —
+> **created and locally tested, not yet applied to any hosted database**. Issuing a
+> contract version was investigated and rejected: `rental_issue_contract` irreversibly
+> supersedes live versions, surfaces a document awaiting signature, permanently flips
+> `app.rental_is_finalized`, and there is no reusable snapshot builder. History is now
+> produced by the pricing operation itself, inside the same transaction, and a deferred
+> constraint refuses to commit a restated finalized hire that recorded nothing. See
+> `PEVVY_RENTAL_FINANCIAL_AMENDMENT_HISTORY_REMEDIATION.md`. The acceptance requirement
+> stays open until that migration is applied and scenario 35 is run.
+
 ---
 
 ## 5. Frontend
@@ -295,8 +306,12 @@ have generated no CSS.
 correction carried in commit `7664645`.
 
 **Deferred** — the Activity tab (no rental-specific activity functionality exists, and none
-was to be built for it); preservation of amendment history for a reservation repriced
-before any contract is issued (section 4), which needs its own migration and authorization.
+was to be built for it).
+
+**Remediated since** — preservation of amendment history for a reservation repriced
+before any contract is issued (section 4), by migration `20261127100000`, which is
+created and locally tested but **not yet applied**. See
+`PEVVY_RENTAL_FINANCIAL_AMENDMENT_HISTORY_REMEDIATION.md`.
 
 ---
 

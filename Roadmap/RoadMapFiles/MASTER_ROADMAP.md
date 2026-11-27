@@ -137,3 +137,32 @@ previous hire amount, which needs a further migration and its own authorization.
 
 Maintenance Management (28/28), Incident Management (scenario 29) and Driver availability
 (9/9) are preserved and not reopened.
+
+## Work Package 4 — financial amendment history remediation — 2026-11-27
+
+The outstanding requirement from the Rental Financial Adjustments implementation. A
+confirmed reservation repriced before any contract had been issued lost its previous
+hire amount; where a contract existed, the superseded version preserved it.
+
+Issuing a contract to preserve history was investigated and rejected on evidence.
+`rental_issue_contract` irreversibly supersedes every live version, surfaces a document
+awaiting signature and PDF, permanently flips `app.rental_is_finalized`, and makes
+rescheduling refuse. There is also no reusable snapshot builder — the pricing jsonb is
+built inline and reachable only by inserting a contract row. More fundamentally,
+issuance is a manual act, so any design routing history through it leaves history
+depending on whether somebody pressed a button.
+
+Migration `20261127100000_rental_pricing_amendment_history.sql` adds
+`public.rental_pricing_amendments`, shaped after the existing `expense_change_events`:
+one row per act, two headline amounts as columns, everything else as `{from, to}` in
+`changes`. Nobody holds insert, update or delete on it; a privileged recorder writes it
+and a deferred constraint trigger refuses to commit a restated finalized hire that left
+no record. Both pricing functions were restated from their effective definitions with
+the per-organization assignment gate preserved word for word.
+
+**Created and locally tested only. Not applied to any hosted database.** Ledger 143
+local, 142 remote. Hosted application needs the owner's authorization. Production
+remains NO-GO.
+
+Scenario 35 is added to the consolidated acceptance register and cannot be run until the
+migration is applied. Scenarios 30–34 keep their status, which is not yet run.

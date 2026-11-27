@@ -48,6 +48,7 @@ import {
   fetchRentalAssignmentHistory,
   setCancellationFee,
   fetchRentalLineItems,
+  fetchRentalPricingAmendments,
   fetchRentalPayments,
   fetchRentalUsage,
   fetchRentalSummary,
@@ -82,6 +83,8 @@ export const rentalKeys = {
     ['organization', organizationId, 'rentals', 'board', rentalId] as const,
   lines: (organizationId: string, rentalId: string) =>
     ['organization', organizationId, 'rentals', 'lines', rentalId] as const,
+  amendments: (organizationId: string, rentalId: string) =>
+    ['organization', organizationId, 'rentals', 'amendments', rentalId] as const,
   drivers: (organizationId: string, rentalId: string) =>
     ['organization', organizationId, 'rentals', 'drivers', rentalId] as const,
   payments: (organizationId: string, rentalId: string) =>
@@ -222,6 +225,16 @@ export function useRentalLineItems(rentalId: string | undefined) {
   return useQuery({
     queryKey: rentalKeys.lines(organization.id, rentalId ?? 'none'),
     queryFn: () => fetchRentalLineItems(rentalId!),
+    enabled: Boolean(rentalId),
+  })
+}
+
+export function useRentalPricingAmendments(rentalId: string | undefined) {
+  const organization = useOrganization()
+
+  return useQuery({
+    queryKey: rentalKeys.amendments(organization.id, rentalId ?? 'none'),
+    queryFn: () => fetchRentalPricingAmendments(rentalId!),
     enabled: Boolean(rentalId),
   })
 }

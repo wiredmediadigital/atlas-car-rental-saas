@@ -12,6 +12,17 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 
 import { TestDatabase, signUp } from './support/harness'
 
+/**
+ * A uuid as a SQL literal.
+ *
+ * The fixture that restates a hire has to run inside a DO block -- it needs
+ * local variables to hold the rental and the charge line before and after --
+ * and a DO block takes no parameters.
+ */
+function quote(value: string): string {
+  return `'${value.replace(/'/g, "''")}'`
+}
+
 let db: TestDatabase
 let organizationId: string
 let ownerId: string
@@ -529,11 +540,39 @@ describe('a booking that is still standing can be overpaid', () => {
   }
 
   /** Charges a booking by rewriting its hire line, the way repricing does. */
+  /**
+   * Restates the hire, the way an authorized pricing operation does.
+   *
+   * It used to be a bare UPDATE. Since 20261127100000 a finalized hire cannot
+   * be restated without recording what changed -- a deferred constraint refuses
+   * the commit -- so staging the state by poking the table no longer resembles
+   * production closely enough to be allowed. This does what rental_reprice
+   * does: move the line, then record the amendment in the same transaction.
+   */
   const chargeIt = (rentalId: string, amountMinor: number) =>
     db.sql(
-      `update public.rental_line_items set amount_minor = $2, unit_amount_minor = $2
-             where rental_id = $1 and kind = 'base_rental'`,
-      [rentalId, amountMinor],
+      `do $fixture$
+       declare
+         v_before public.rentals;
+         v_after  public.rentals;
+         v_line   public.rental_line_items;
+         v_new    public.rental_line_items;
+       begin
+         select * into v_before from public.rentals where id = ${quote(rentalId)};
+         select * into v_line from public.rental_line_items
+          where rental_id = ${quote(rentalId)} and kind = 'base_rental'
+          order by sort_order, created_at limit 1;
+         update public.rental_line_items
+            set amount_minor = ${Number(amountMinor)},
+                unit_amount_minor = ${Number(amountMinor)}
+          where id = v_line.id
+         returning * into v_new;
+         select * into v_after from public.rentals where id = ${quote(rentalId)};
+         perform app.record_rental_pricing_amendment(
+           v_before, v_line, v_after, v_new,
+           'reprice'::public.rental_amendment_kind, 'repriced by the fixture');
+       end
+       $fixture$;`,
     )
 
   beforeAll(async () => {

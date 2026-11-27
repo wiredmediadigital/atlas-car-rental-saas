@@ -166,3 +166,44 @@ accepted residual exposure, recorded here so it is not rediscovered as a surpris
 Every subsequent Pevvy work package is responsive work. Desktop, iPad portrait, iPad
 landscape and mobile usability are acceptance requirements, not a later pass, and a
 feature is not complete at desktop width alone.
+
+## 2026-11-27 — Financial history is produced by the operation, not by a document
+
+An authorized restatement of a finalized base hire records what it changed inside the
+same transaction that changes it. History does not wait for a contract.
+
+The alternative was to issue a contract version, since `rental_contracts.snapshot`
+already freezes every charge line. It was rejected on what the function actually does:
+`rental_issue_contract` irreversibly supersedes every live version, surfaces a document
+awaiting signature and a PDF that nobody asked for, permanently flips
+`app.rental_is_finalized`, and makes later rescheduling refuse. There is also no reusable
+snapshot builder — the pricing jsonb is constructed inline and reachable only by
+inserting a contract row.
+
+The deciding argument is simpler than any of those. Contract issuance is a **manual
+act**. Any design that routes financial history through it leaves history depending on
+whether somebody pressed a button, and that is not a property a financial record can
+have.
+
+Two rules follow, both enforced in the database rather than by convention.
+
+**Nobody writes the history from outside.** `rental_pricing_amendments` has no insert,
+update or delete grant for any browser role, exactly as `expense_change_events` does it.
+Unauthorized creation, modification and deletion are refused because the privilege does
+not exist. A policy can be loosened later without anyone noticing; a missing grant cannot
+be used at all.
+
+**An operation that restates a finalized hire cannot commit without recording it.** A
+deferred constraint trigger checks, at commit, that an amendment row was written in the
+same transaction. Deferral is essential rather than incidental: the pricing function
+updates the line and records immediately afterwards, so an immediate check would fire
+between the two and refuse every legitimate amendment. Checking at commit asks the only
+question that matters — by the time this transaction finished, was there a record? — and
+a future pricing path that forgets is refused.
+
+This narrows, for the hire specifically, the per-role exemption recorded above: an
+owner-owned SECURITY DEFINER function still bypasses the integrity guard, but it can no
+longer restate a finalized hire silently.
+
+History begins at this migration. Nothing is reconstructed for amendments made before
+it, and no previous pricing is inferred from balances or payments.

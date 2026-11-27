@@ -32,6 +32,7 @@ import {
 } from '@/components/ui'
 import { RentalCostPanel } from '@/features/expenses/components/RentalCostPanel'
 import { AddChargeForm } from '@/features/rentals/components/AddChargeForm'
+import { AmendmentHistory } from '@/features/rentals/components/AmendmentHistory'
 import { ChargesPanel } from '@/features/rentals/components/ChargesPanel'
 import { ConditionPhotos } from '@/features/rentals/components/ConditionPhotos'
 import { ContractPanel } from '@/features/rentals/components/ContractPanel'
@@ -672,6 +673,15 @@ export function RentalDetailPage() {
             depositHeldMinor={rental.deposit_held_minor}
             depositAgreedMinor={rental.deposit_minor}
             balanceDueMinor={rental.balance_due_minor}
+          />
+
+          {/* After the money, because it explains how the figures above came
+              to be what they are rather than adding to them. */}
+          <AmendmentHistory
+            rentalId={rentalId}
+            currency={currency}
+            locale={locale}
+            timeZone={timeZone}
           />
 
           {/* Below payments, because what the customer owes is settled before
