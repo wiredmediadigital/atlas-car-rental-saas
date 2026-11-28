@@ -341,3 +341,34 @@ Exceptions**: Manager-authorized, auditable correction of incorrectly entered re
 information. A candidate, not a commitment.
 
 **Production remains NO-GO.**
+
+---
+
+## Staging release complete (added 2026-11-28)
+
+- [x] **Pre-application safety checks** — project identity, five checksums, ledger 148/143,
+      artifact digest **recomputed from disk**, no production configuration.
+- [x] **Recovery evidence captured** before application. `supabase db dump` needs Docker and
+      Docker was down, so the baseline was captured over the same read-only connection:
+      14 tables, 21 pre-application function definitions, 134 triggers, 129 policies.
+      **Supplementary to Supabase's platform backups, not a replacement.**
+- [x] **Five migrations applied**, exit 0, no seeds, no role changes.
+- [x] **Ledger 148 / 148, zero drift**, `db push --dry-run` reports `upToDate`.
+- [x] **73 hosted verification checks passed** — 44 structural, 29 behavioural as real
+      signed-in members, all inside a transaction that was rolled back.
+- [x] **No acceptance record altered.** Counts re-verified after rollback, all identical.
+- [x] **Published to `origin/staging`** as `5198e0e`, fast-forward, no force.
+- [x] **`origin/main` preserved** at `31383a9`.
+- [x] **Deployed site verified as this release** by following its own asset graph — five
+      release-only strings present, 174 files served, zero fallbacks.
+- [x] **Deployed bundle scanned** — no production reference, no credentials.
+- [ ] **Owner manual acceptance outstanding.** Six short checks in the closure report §6.
+      Items 1, 3 and 4 (linked-expense notice, and the two pages' default selection) have
+      **no automated UI coverage at all** and carry the most weight.
+- [ ] **The staging configuration checklist names the wrong hostname.**
+      `basic-brown-ostrich-10.hostingersite.com` is a parking page. Correct it to
+      `quantum-lavenderblush-buffalo-97.hostingersite.com`.
+- [ ] **Five Edge Functions still undeployed.** Not deployed under this instruction.
+- [ ] **No return-correction workflow.** WP9 candidate requirement.
+
+**Production remains NO-GO.**

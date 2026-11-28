@@ -114,3 +114,23 @@ that must not move — drainage **0** and anomalies **0**.
 
 Unchanged: `origin/main` 31383a9, `origin/staging` 5634555, nothing pushed, nothing
 deployed, production not accessed, WP5 not begun.
+
+## 2026-11-28 — hardening released to staging
+
+**Applied and deployed.** Hosted ledger 148/148, zero drift. 73 hosted verification checks
+passed. `origin/staging` is `5198e0e`; `origin/main` untouched at `31383a9`. The deployed
+site is `quantum-lavenderblush-buffalo-97.hostingersite.com` — **not** the
+`basic-brown-ostrich-10` hostname the configuration checklist names, which is a parking
+page.
+
+Two traps worth knowing for next time:
+
+1. **The hosted connection is `postgres`, the table owner**, and the lifecycle column guard
+   deliberately exempts the owner. Behavioural security checks must set
+   `request.jwt.claims` and `set local role authenticated`, or they test nothing.
+2. **The staging host serves `index.html` with HTTP 200 for any missing path.** Any
+   deployment check that accepts a 200 will pass against an empty server. Follow the
+   deployed site's own asset graph and require a non-HTML content type.
+
+**Next authorized package: WP5 — Security Deposit Management. Not begun.**
+Production not accessed. **NO-GO.**

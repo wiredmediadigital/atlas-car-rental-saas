@@ -311,3 +311,16 @@ It should be designed against the amendment architecture that already exists for
 rather than beside it: a recorded, attributed restatement, not an overwrite.
 
 **Candidate, not a commitment. WP9 has not begun.**
+
+## Production hardening released to staging — 2026-11-28
+
+The five hardening migrations are applied to hosted staging and the application is
+deployed. 73 hosted verification checks passed; no owner acceptance record was altered.
+
+**Roadmap functional completion remains 4 of 10 work packages** — hardening is not a work
+package, it is the correction of defects found across the first four.
+
+Outstanding before WP5 can be called clear: the six owner manual checks in
+`Reports/PEVVY_PRODUCTION_HARDENING_FINAL_DEPLOYMENT_CLOSURE.md` §6.
+
+**Next authorized package: WP5 — Security Deposit Management. Not begun.**

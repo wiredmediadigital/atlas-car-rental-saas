@@ -340,10 +340,212 @@ assignments **2**. Every figure identical to the pre-application baseline.
 
 ---
 
-## 5. What is not authorized and has not been done
+## 5. Staging deployment
 
-- Pushing anything to `origin/staging` or `origin/main`.
-- Deploying any frontend change.
+### Published
+
+| | |
+|---|---|
+| Repository | `github.com/wiredmediadigital/atlas-car-rental-saas` (the owner's own) |
+| Branch | `staging` |
+| Was | `5634555` |
+| Now | **`5198e0e`** |
+| Commits published | 6 |
+| Method | fast-forward; **no force, no history rewrite** |
+| `origin/main` | **`31383a9` — unchanged**, verified after the push |
+
+The push was confirmed a fast-forward *before* it was made, and the remote was confirmed to
+be the owner's repository and not the original upstream.
+
+### The deployed site
+
+`https://quantum-lavenderblush-buffalo-97.hostingersite.com`
+
+### Two false readings on the way, both corrected
+
+**First: the wrong host.** `PEVVY_HOSTINGER_STAGING_CONFIGURATION_CHECKLIST.md` names
+`basic-brown-ostrich-10.hostingersite.com`. That host returns HTTP 200 and serves a
+Hostinger **"Coming soon" parking page** — no Pevvy, no assets, no Supabase reference. On
+that evidence alone the conclusion would have been "staging is not deployed". The hostname
+actually referenced throughout the rest of the roadmap, fifteen times against that one, is
+`quantum-lavenderblush-buffalo-97`, and that is the real site.
+
+**Second: a check that could not fail.** The host serves `index.html` with **HTTP 200 and
+`text/html` for any path that does not exist** — an SPA fallback. A verification that
+fetched each asset and accepted a 200 therefore proved nothing; it would have passed against
+an empty server. Demonstrated directly: `/assets/DOES-NOT-EXIST-xyz123.js` returns 200.
+
+Comparing the deployed site against the **local** artifact's filenames then reported 91
+files "missing" and 24 "different" — which looked like a half-finished deployment and was
+not one. Hostinger **rebuilds the application from the branch**, so its chunk hashes are its
+own; the local build's filenames simply do not exist there, and the help images are
+recompressed by the host.
+
+The sound test is to follow the **deployed site's own asset graph** and require a non-HTML
+content type. That is what the figures below come from.
+
+### What the site actually serves
+
+| | |
+|---|---|
+| Files genuinely served | **174** |
+| Fallback responses while walking the graph | **0** |
+| Total bytes | 4,778,311 |
+| Deployed artifact SHA-256 | **`29973cd46c7a38630bd78672433fca1788b898eb1b2b613fbd6008690d763a19`** |
+
+**This is the deployed build's own manifest.** It is deliberately *not* equal to the local
+artifact's `e0261061…`, and it should not be: the host rebuilt from source. Recording the
+local hash as if it described the deployment would have been a false attestation.
+
+### It is this release, not merely a 200
+
+Five strings exist only in this release. All five are present in what the server serves:
+
+| Marker | Present |
+|---|---|
+| maintenance-link refusal mapping | yes |
+| allocation refusal mapping | yes |
+| vehicle refusal mapping | yes |
+| duplicate-return refusal mapping | yes |
+| expense detail "belongs to a maintenance record" notice | yes |
+
+**On commit attribution, precisely:** the deployed bundle demonstrably contains code that
+exists only at `a1728a9` and later, and the published branch head is `5198e0e`. The commits
+between them are documentation only and produce byte-identical bundles, so the deployed
+bundle cannot distinguish between them — and nothing is claimed beyond that.
+
+### Project identity and credentials, in the deployed bytes
+
+| | |
+|---|---|
+| Staging reference `yeklucfthspvejlkffln` | **present** |
+| Production reference `ysnumxtzcgzyabrghxwq` | **absent** |
+| Publishable browser key | present — expected; it is the browser key |
+| `sb_secret_` key material | **none** |
+| `service_role` JWT | **none** |
+| Database password | **none** |
+| Supabase access token | **none** |
+| PEM private key | **none** |
+
+### SPA routing and transport
+
+A direct navigation to `/rentals` returns the application over HTTPS. Given the fallback
+behaviour above, that is a weak signal on its own and is recorded as such — it confirms
+routing is not broken, not that the route renders correctly.
+
+---
+
+## 6. Targeted staging acceptance
+
+**Everything below is automated verification against the hosted database and the deployed
+bundle. None of it is owner manual acceptance**, and none of it should be recorded as such.
+
+| # | Area | Verified automatically | Still needs the owner |
+|---|---|---|---|
+| 1 | Rental creation, confirmation, checkout | confirm, check-out and the status transitions, as a real signed-in staff member | the screens and the wording |
+| 2 | Vehicle return and duplicate protection | return recorded; a second different return **refused**; identical retry mutates nothing; odometer advances | how the refusal reads at the desk |
+| 3 | Rental completion | completes after a refused second return | — |
+| 4 | Repricing and extension | evidence enforced; revision behaviour covered by 52 local tests | hosted repricing through the UI |
+| 5 | Financial amendment history | 3 records preserved and readable; `NULL` revisions cannot satisfy future evidence | the history tab renders the three records |
+| 6 | Maintenance expense link and unlink | link, `expense_ledger` exposure, authorized unlink | the maintenance screen's link/unlink controls |
+| 7 | Linked expense editing restrictions | allocation and vehicle changes **refused** by name | **the new notice and link on the expense detail page** |
+| 8 | Staff and Manager authorization | staff can run the lifecycle; manager-only `maintenance_create` works for the owner | a staff account seeing manager-only controls hidden |
+| 9 | Billing restrictions and exemptions | the seven gated functions carry the check; four exemptions registered with reasons | a genuinely restricted agency in the UI |
+| 10 | Vehicle availability after legacy release | an authorized return releases the real `in_custody` assignment, **0 open after** | availability shown in the UI afterwards |
+| 11 | RentalNewPage / IncidentNewPage defaults | the shared rule has 17 unit tests, including the cleared-field case | **the two pages themselves — no render-level coverage** |
+
+### Not re-run
+
+The complete WP1–WP4 manual acceptance exercise was **not** repeated, as instructed.
+
+### Owner acceptance checklist — the short list
+
+Each of these needs a signed-in browser and takes a minute:
+
+1. **Expense detail, linked cost.** Open a cost attached to maintenance. Confirm the
+   *"Attached to maintenance"* badge, the notice explaining what can and cannot be edited,
+   and that the link opens the maintenance record. Then try changing its allocation and
+   confirm the refusal names the unlink step rather than saying *"some of the values entered
+   are not valid"*.
+2. **Duplicate return.** Return a vehicle, then try to record a different return on the same
+   rental. Confirm it is refused and the first reading stands.
+3. **New rental, primary driver.** On RentalNewPage, clear the suggested primary driver and
+   confirm it **stays cleared** rather than refilling itself.
+4. **New incident, vehicle and hire.** On IncidentNewPage, pick a vehicle that is out with a
+   customer and confirm the current hire is offered; clear it and confirm it stays cleared.
+5. **Amendment history.** Open `RNT-2026-00004` and confirm its three amendment records are
+   listed and the figures match the live hire.
+6. **Assignment lifecycle.** Confirm no new assignment rows appear for ordinary work — the
+   feature is default-OFF for every agency — and that the one car still out with a customer
+   can be returned normally.
+
+Items 1, 3 and 4 are the ones with no automated UI coverage at all, so they carry the most
+weight.
+
+---
+
+## 7. Known limitations
+
+- **A mis-keyed return reading has no route to correction.** Closing the duplicate check-in
+  closed the only informal one. Registered as a **WP9 candidate requirement**:
+  Manager-authorized, auditable correction of incorrectly entered return information.
+- **`RentalNewPage` and `IncidentNewPage` have no render-level coverage.** The defaulting
+  rule they share has 17 unit tests; the pages do not.
+- **Assignment activation is now OFF for every agency on staging**, because none holds an
+  explicit activation row. Intended, and the STG-02 contract — but it is a change every
+  tenant experiences, not a no-op.
+- **Five Edge Functions remain undeployed**: `mfa-reset`, `public-booking`, `gps-provider`,
+  `account-closure`, `account-closure-notice`. Not deployed under this instruction. The
+  public booking page does not work on staging until the last of those is deployed.
+- **`service_role` bypasses row level security**, and owner-owned SECURITY DEFINER functions
+  inherit the trigger exemptions. Pre-existing, unchanged, recorded.
+- **The staging configuration checklist names the wrong hostname.**
+  `basic-brown-ostrich-10.hostingersite.com` is a parking page; the live staging site is
+  `quantum-lavenderblush-buffalo-97.hostingersite.com`. The checklist should be corrected.
+- **Hostinger rebuilds from the branch**, so the deployed artifact hash will never equal the
+  local one. Any future verification that compares them will report a false mismatch.
+- **Recovery evidence is supplementary.** Supabase's own platform backups remain the real
+  recovery mechanism; `baseline.json` is a convenience, not a substitute.
+
+---
+
+## 8. Readiness for Work Package 5 — Security Deposit Management
+
+**Ready to begin, on the owner's instruction. Not begun.**
+
+What now holds that did not before:
+
+- the rental lifecycle is a privileged operation with tenant, role and billing checks, and
+  the lifecycle columns are frozen against direct writes — **verified on hosted staging**;
+- a vehicle return is recorded **once**, so deposit logic can rely on a single return event
+  rather than defending against a silently overwritten one;
+- every restatement of a finalized hire needs its own evidence, one-to-one — the foundation
+  any deposit deduction must sit on;
+- billing entitlement is enforced across the maintenance and incident RPCs;
+- the schema on staging is **148 / 148 with zero drift**, so WP5 builds on a hosted
+  database rather than a local replay.
+
+What WP5 should settle early:
+
+- **where a deposit lives.** `public.rentals` already carries `deposit_minor`. Deposit
+  *records*, held balances, deductions and releases are a different shape, and whether they
+  extend the rental or become their own tables is an architecture decision, not an
+  implementation detail.
+- **the separation the owner has insisted on**: what an agency's customer pays for a hire is
+  not what the agency pays Pevvy. Deposits belong firmly on the first side.
+- **immutable history.** The amendment architecture built here is the right precedent — a
+  recorded, attributed restatement rather than an overwrite — and the deferred
+  return-correction workflow should probably be designed alongside it.
+
+**No dependency of WP5 on the five undeployed Edge Functions has been identified.** That is
+a statement about what was looked for, not a guarantee; it should be asked again against
+WP5's actual design.
+
+---
+
+## 9. What is still not authorized and has not been done
+
+- Pushing anything to `origin/main`, which remains at `31383a9`.
 - Deploying the five undeployed Edge Functions — `mfa-reset`, `public-booking`,
   `gps-provider`, `account-closure`, `account-closure-notice`.
 - Activating any account-closure schedule.

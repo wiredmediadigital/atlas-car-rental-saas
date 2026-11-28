@@ -149,3 +149,15 @@ acceptance and is preserved as history in `Handoff/KNOWN_ISSUES_AND_ACCEPTANCE.m
 | Fresh guarded staging build | **Blocked** on the staging publishable key |
 | WP5–WP10 definitions | **Preserved in full** |
 | Work Package 5 | **Not begun** |
+
+## Staging release — 2026-11-28
+
+| Item | State |
+|---|---|
+| Five hardening migrations | **APPLIED to hosted staging**, 148/148, zero drift |
+| Hosted verification | **73 checks passed** |
+| Published commit | `5198e0e` on `origin/staging` |
+| Deployed site | verified as this release, 174 files, no credentials |
+| Owner manual acceptance | **outstanding — six checks** |
+| Work Package 5 | **not begun** |
+| Production | **NO-GO** |

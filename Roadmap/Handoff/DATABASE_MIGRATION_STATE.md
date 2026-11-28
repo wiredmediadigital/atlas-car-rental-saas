@@ -52,3 +52,16 @@ Superseded and **not to be used**: `36bcd48a…` (100000) and `71782326…` (130
 
 Hosted ledger verified read-only at **143 applied**, latest `20261127100000`, PostgreSQL
 17.12. Local **148**. Dry run lists exactly the five and nothing else.
+
+## 2026-11-28 — applied to hosted staging
+
+All five applied under owner authorization. **Hosted ledger 148, local 148, zero drift.**
+`npx supabase db push --linked --dry-run` now reports
+`{"upToDate":true,"migrations":[],"seeds":[],"roles":[]}`.
+
+Pre-application baseline and recovery evidence:
+`E:\pevvy-staging-preapply-20261128\baseline.json` — 14 business tables, **21 function
+definitions as they stood before application**, 134 triggers, 129 policies, 244 indexes and
+the 143-entry ledger. Supplementary to Supabase's platform backups.
+
+No row was released, rewritten or repaired. Drainage released **0**; anomalies **0**.

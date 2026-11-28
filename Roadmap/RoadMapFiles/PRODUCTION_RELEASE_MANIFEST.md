@@ -371,3 +371,40 @@ is **not recorded anywhere in this repository**.
 
 **Five migrations still unapplied. Awaiting explicit owner authorization. Nothing deployed.
 Production NO-GO.**
+
+## Staging release — 2026-11-28
+
+**The five hardening migrations are APPLIED to hosted staging.**
+
+| Applied version | SHA-256 |
+|---|---|
+| `20261128100000_rental_lifecycle_authorization.sql` | `43c9b2e7dbeacb218da8a15b639e649f8fdbe2b110bbb2e7f7d4de7d9c744094` |
+| `20261128110000_billing_authorization_matrix.sql` | `60830dfab601498230f1769438ffac0b050bfdb1299aeb832d5212051db9e57f` |
+| `20261128120000_amendment_evidence_one_to_one.sql` | `8ead334c1f96d9a8001ba2a9552875bc46680308da3ca1f11a451e1d074d7ab4` |
+| `20261128130000_maintenance_expense_integrity.sql` | `1defc28e664f859540316015f2769496b1e4e1d1cd9c4208dd415f0ffb881b47` |
+| `20261128140000_assignment_activation_default_off.sql` | `59135446944eed8bfd955011621cc2af076a0413f3a5f5e9f880aed9bbee2134` |
+
+| | |
+|---|---|
+| Hosted ledger | **148 / 148**, zero drift, `upToDate: true` |
+| Hosted verification | **73 checks, all passed** (44 structural, 29 behavioural) |
+| Published commit | **`5198e0e`** on `origin/staging` (was `5634555`) |
+| `origin/main` | **`31383a9` — unchanged** |
+| Deployed site | `quantum-lavenderblush-buffalo-97.hostingersite.com` |
+| Deployed artifact | **174 files**, 4,778,311 bytes, SHA-256 `29973cd46c7a38630bd78672433fca1788b898eb1b2b613fbd6008690d763a19` |
+| Local artifact | 200 files, SHA-256 `e0261061734798d077423da9c2b4a200ec7eb672767e00294d20ae8998b7d352` |
+
+**The two artifact hashes differ by design.** Hostinger rebuilds from the branch, so the
+deployed build has its own chunk hashes. Recording the local hash as the deployed one would
+be a false attestation; any future check that compares them will report a false mismatch.
+
+Pre- and post-application data: rentals 5 → 5, line items 11 → 11, amendments 3 → 3,
+payments 9 → 9, contracts 5 → 5, expenses 3 → 3, maintenance 8 → 8, assignments 14 → 14,
+open assignments 2 → 2, activation rows 0 → 0, anomalies 0 → 0. **Nothing was released,
+rewritten or repaired.**
+
+Deployed-bundle scan: staging reference present; **no** production reference, secret key
+material, `service_role` JWT, database password, access token or private key.
+
+Production project `ysnumxtzcgzyabrghxwq`: **not accessed, not connected to, not referenced
+in any deployed byte.** Production release: **NO-GO.**
