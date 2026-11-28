@@ -1,7 +1,7 @@
 # Pevvy — production hardening: final deployment closure
 
 **Date:** 2026-11-28
-**Status:** **AWAITING OWNER AUTHORIZATION TO APPLY.** Nothing applied. Nothing deployed.
+**Status:** **APPLIED TO HOSTED STAGING** under owner authorization, 2026-11-28.
 **Production project `ysnumxtzcgzyabrghxwq`:** not accessed, not connected to, not named in
 any query or any built file. **NO-GO.**
 
@@ -184,19 +184,164 @@ not record each row's prior state.
 
 ---
 
-## 4. The approval gate
+## 4. Application to hosted staging
 
-**Everything up to this point is complete. Nothing has been applied.**
+Authorized by the owner and applied on 2026-11-28 from the authorized worktree.
 
-The command, the exact path and the verification are in §5 of this document's companion
-summary. **Applying the five migrations requires separate, explicit owner authorization**,
-and it has not been given.
+### Pre-application safety checks — all passed
+
+| Check | Result |
+|---|---|
+| Linked project is the authorized staging project | `yeklucfthspvejlkffln` |
+| Linked project is not production | confirmed |
+| All five approved checksums | **match**, byte for byte |
+| Local ledger | **148** |
+| Exactly five pending | **5**, and they are the approved five |
+| Artifact manifest matches the authorized value | `e0261061…` |
+| Artifact digest **recomputed from disk** | `e0261061…` — identical |
+| Artifact file count | **200** |
+| No production reference in any built file | **0** |
+
+The artifact digest was recomputed from the 200 files on disk rather than read back out of
+the manifest it was supposed to be verifying.
+
+### Recovery evidence captured first
+
+`supabase db dump` runs `pg_dump` inside a container and **Docker Desktop was not running**,
+so the dump failed and produced an empty file. Rather than block on it, equivalent evidence
+was captured over the same authorized read-only connection and written to
+`E:\pevvy-staging-preapply-20261128\baseline.json` (357,725 bytes):
+
+- the complete row set of 14 business tables;
+- **21 function definitions as they stood before application** — the evidence that actually
+  matters for reversing these migrations;
+- 134 triggers, 129 policies, 244 indexes, and the 143-entry migration ledger.
+
+**Stated plainly: this is supplementary evidence, not a platform backup.** Supabase's own
+automatic backups remain the real recovery mechanism and nothing here replaces them.
+
+### The application
+
+```
+$ npx supabase db push --linked
+Applying migration 20261128100000_rental_lifecycle_authorization.sql...
+Applying migration 20261128110000_billing_authorization_matrix.sql...
+Applying migration 20261128120000_amendment_evidence_one_to_one.sql...
+Applying migration 20261128130000_maintenance_expense_integrity.sql...
+Applying migration 20261128140000_assignment_activation_default_off.sql...
+{"upToDate":false,"dryRun":false,"migrations":[...5...],"seeds":[],"roles":[],
+ "message":"Finished supabase db push."}
+```
+
+**Exit code 0. All five applied. No seeds, no role changes.**
+
+One warning appeared: *"failed to cache migrations catalog … docker API"*. That is the CLI
+writing a **local** catalog cache through a container, with Docker not running. It says
+nothing about the database — and the ledger verification below is what settles that
+question, not the absence of a warning.
+
+### Ledger after application
+
+| | |
+|---|---|
+| Local / hosted | **148 / 148** |
+| Drift | **zero** — every entry has `local == remote` |
+| `db push --dry-run` | `{"upToDate":true,"migrations":[],"seeds":[],"roles":[]}` |
+
+---
+
+## 4.1 Hosted verification — 73 checks, all passed
+
+**44 structural**, read-only, and **29 behavioural**, inside a transaction always rolled
+back.
+
+### Why the behavioural checks had to be re-run as a signed-in member
+
+The first behavioural attempt reported the lifecycle column guard as **NOT REFUSED**, and
+the reason matters more than the result: the hosted connection is `postgres`, which **is the
+table owner**, and `app.guard_rental_lifecycle_columns` deliberately exempts the owner so
+the authorized SECURITY DEFINER functions can do their work.
+
+A guard that exempts the session you are testing from cannot be tested from that session.
+The checks were re-run with `request.jwt.claims` set and `set local role authenticated` —
+exactly as a request arriving at PostgREST — driven as the real staff member and the real
+owner of the acceptance agency.
+
+This is recorded rather than quietly fixed, because *"the owner session could not refuse
+itself"* would otherwise have read as *"the guard does not work"*, or worse, been reported
+as a pass.
+
+### Structural (44)
+
+- the five lifecycle functions are **SECURITY DEFINER** and carry both the role check and
+  `app.billing_require_write`;
+- `rental_check_in` carries the return-once guard **and** the idempotent retry path;
+- the seven gated functions all call `app.billing_require_write`;
+- the four exemptions are registered **with reasons**: `incident_create`, `incident_update`,
+  `maintenance_create`, `maintenance_start`;
+- `app.assignment_lifecycle_active` reads **no session setting**;
+  `app.assignment_lifecycle_engaged` exists;
+- `rentals_guard_lifecycle_columns`, `expenses_guard_maintenance_link` and
+  `rental_line_items_zz_revision` are present **and enabled**;
+- `rental_pricing_amendments_one_per_revision` present;
+- `expense_ledger` carries `maintenance_id`; `rental_line_items` carries `revision_no`;
+- `rental_swap_vehicle` is executable by **no** browser role;
+- `expenses_maintenance_fkey` is `ON DELETE SET NULL (maintenance_id)` — that column only;
+- `public.rentals` still carries its 4 policies.
+
+### Data preserved
+
+| | |
+|---|---|
+| Amendment records | **3**, all readable |
+| …carrying `NULL line_revision_no` | **3** |
+| Payments | **9** |
+| Rentals | **5** |
+| Contracts | **5** |
+| Assignment records | **14** |
+| Open assignments | **2** — `planned`/draft and `in_custody`/active |
+| Open assignments on a completed or cancelled rental | **0** |
+| Explicit activation rows | **0** (default-OFF) |
+| Maintenance expense anomalies | **0** |
+
+### Behavioural (29), as real signed-in members
+
+| Check | Result |
+|---|---|
+| The session is a signed-in member, not the table owner | `authenticated` / staff uid |
+| A staff member can confirm a reservation | reserved |
+| **Counterfeit check-out by direct write refused** | *"The status of a rental is set by the action that changes it…"* |
+| Direct write to a hand-over column refused | *"The odometer in of a rental is set by…"* |
+| Direct write to the original return date refused | *"The original return date of a rental…"* |
+| Notes remain editable | yes |
+| Staff can check out, record the return, and complete | all three |
+| **A staff check-in advances the vehicle odometer** | 21000 |
+| **A staff member cannot overwrite a recorded return** | *"This rental has already been returned…"* |
+| `maintenance_create` works for a manager | created |
+| `expense_ledger` shows the maintenance attachment | linked |
+| A linked cost cannot change allocation | *"…has to stay a vehicle cost."* |
+| A linked cost cannot move to another vehicle | *"…the vehicle that was worked on."* |
+| The authorized unlink detaches it | detached |
+| Assignment activation default-OFF | `enabled=false` |
+| `can_swap` reports false | `can_swap=false` |
+| `rental_swap_vehicle` unavailable to a member | the function does not exist for that role |
+| Restating a committed hire without evidence refused | *"…restated without recording what changed."* |
+| **An authorized return releases the legacy custody assignment** | **0 open after** |
+
+The last one exercises the **real** `in_custody` assignment on `RNT-2026-00004` — the car
+currently in a customer's hands. It ran inside the rollback and **the record was not
+altered**; it is the only honest way to prove drainage works against the actual data.
+
+### The verification left no trace
+
+Re-counted after the rollback: rentals **5**, vehicles **40**, customers **2**, amendments
+**3**, payments **9**, expenses **3**, maintenance **8**, assignments **14**, open
+assignments **2**. Every figure identical to the pre-application baseline.
 
 ---
 
 ## 5. What is not authorized and has not been done
 
-- Applying the five migrations to hosted staging.
 - Pushing anything to `origin/staging` or `origin/main`.
 - Deploying any frontend change.
 - Deploying the five undeployed Edge Functions — `mfa-reset`, `public-booking`,
