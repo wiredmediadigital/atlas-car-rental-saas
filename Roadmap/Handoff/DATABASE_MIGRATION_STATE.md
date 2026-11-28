@@ -33,3 +33,22 @@ filename order; `20261128140000` is the only one that writes business rows.
   recreates the function exactly as it was — a failed rewrite looks identical to a
   successful one. Every rewriting migration in this set **verifies itself against the
   catalog afterwards and raises**. That guard caught a real mismatch during development.
+
+## 2026-11-27 — checksums superseded
+
+`20261128100000` and `20261128130000` were **amended in place** under the owner's
+instruction to amend the unpublished set rather than chain corrective migrations. Both had
+never been applied anywhere.
+
+| File | SHA-256 | Bytes |
+|---|---|---|
+| `20261128100000_rental_lifecycle_authorization.sql` | `43c9b2e7dbeacb218da8a15b639e649f8fdbe2b110bbb2e7f7d4de7d9c744094` | 17,063 |
+| `20261128110000_billing_authorization_matrix.sql` | `60830dfab601498230f1769438ffac0b050bfdb1299aeb832d5212051db9e57f` | 11,275 |
+| `20261128120000_amendment_evidence_one_to_one.sql` | `8ead334c1f96d9a8001ba2a9552875bc46680308da3ca1f11a451e1d074d7ab4` | 13,198 |
+| `20261128130000_maintenance_expense_integrity.sql` | `1defc28e664f859540316015f2769496b1e4e1d1cd9c4208dd415f0ffb881b47` | 12,461 |
+| `20261128140000_assignment_activation_default_off.sql` | `59135446944eed8bfd955011621cc2af076a0413f3a5f5e9f880aed9bbee2134` | 11,130 |
+
+Superseded and **not to be used**: `36bcd48a…` (100000) and `71782326…` (130000).
+
+Hosted ledger verified read-only at **143 applied**, latest `20261127100000`, PostgreSQL
+17.12. Local **148**. Dry run lists exactly the five and nothing else.

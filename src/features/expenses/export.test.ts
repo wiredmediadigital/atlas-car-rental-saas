@@ -45,6 +45,7 @@ function entry(over: Partial<ExpenseLedgerEntry> = {}): ExpenseLedgerEntry {
     created_at: '2026-10-12T16:40:00.000Z',
     updated_by: 'user-1',
     updated_at: '2026-10-12T16:40:00.000Z',
+    maintenance_id: null,
     ...over,
   }
 }

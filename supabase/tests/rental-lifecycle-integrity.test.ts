@@ -592,3 +592,190 @@ describe('the lifecycle itself cannot be driven by hand', () => {
     expect(Number(v!.odometer)).toBe(back)
   })
 })
+
+/*
+ * A return is recorded once.
+ *
+ * This is the defect the independent PostgreSQL concurrency verification
+ * found and the suite did not: rental_check_in guards on `status <> 'active'`,
+ * and recording a return does not change the status -- rental_complete does.
+ * So a rental that had already been returned was still 'active', still passed
+ * the guard, and was returned again, overwriting the first readings.
+ *
+ * PGlite is one connection and cannot run the two calls concurrently. It does
+ * not need to: the row lock already serialises them, so the second call always
+ * runs on the committed result of the first, and that is exactly the sequential
+ * case below. The genuinely concurrent version stays in the independent
+ * PostgreSQL verification, scenario 4.
+ */
+describe('a rental is returned once', () => {
+  async function returnedRental() {
+    const out = nextOdometer()
+    const back = nextOdometer()
+    const rental = await makeRental({ status: 'draft' })
+    await addPrimaryDriver(rental)
+    await db.asUser(staffId, (s) => s.sql(`select public.rental_confirm($1)`, [rental]))
+    await db.asUser(staffId, (s) =>
+      s.sql(`select public.rental_check_out($1, $2, 100::smallint, null, now())`, [rental, out]),
+    )
+    await db.asUser(staffId, (s) =>
+      s.sql(`select public.rental_check_in($1, $2, 80::smallint, 'Clean, no damage', now())`, [
+        rental,
+        back,
+      ]),
+    )
+    return { rental, out, back }
+  }
+
+  async function returnRecord(rentalId: string) {
+    const [row] = await db.sql<{
+      returned_at: Date | null
+      return_odometer: number | null
+      return_fuel_percent: number | null
+      return_condition_notes: string | null
+    }>(
+      `select returned_at, return_odometer, return_fuel_percent, return_condition_notes
+         from public.rentals where id = $1`,
+      [rentalId],
+    )
+    return row!
+  }
+
+  it('records the first return', async () => {
+    const { rental, back } = await returnedRental()
+    const row = await returnRecord(rental)
+    expect(row.returned_at).not.toBeNull()
+    expect(Number(row.return_odometer)).toBe(back)
+    expect(Number(row.return_fuel_percent)).toBe(80)
+    expect(row.return_condition_notes).toBe('Clean, no damage')
+  })
+
+  it('refuses a second return with a different reading, and keeps the first', async () => {
+    const { rental, back } = await returnedRental()
+    const before = await returnRecord(rental)
+
+    await db.expectRejection(
+      () =>
+        db.asUser(staffId, (s) =>
+          s.sql(`select public.rental_check_in($1, $2, 20::smallint, 'Scratched', now())`, [
+            rental,
+            back + 5_000,
+          ]),
+        ),
+      /already been returned/i,
+    )
+
+    const after = await returnRecord(rental)
+    expect(Number(after.return_odometer)).toBe(Number(before.return_odometer))
+    expect(Number(after.return_fuel_percent)).toBe(Number(before.return_fuel_percent))
+    expect(after.return_condition_notes).toBe(before.return_condition_notes)
+    expect(after.returned_at).toEqual(before.returned_at)
+  })
+
+  it('names the recorded return rather than blaming the input', async () => {
+    const { rental, back } = await returnedRental()
+    const message = await db.expectRejection(() =>
+      db.asUser(staffId, (s) =>
+        s.sql(`select public.rental_check_in($1, $2, 10::smallint, null, now())`, [
+          rental,
+          back + 1,
+        ]),
+      ),
+    )
+    expect(message).toMatch(/already been returned/i)
+    expect(message).toMatch(/stands/i)
+  })
+
+  it('answers an identical retry without mutating anything', async () => {
+    const { rental, back } = await returnedRental()
+    const before = await returnRecord(rental)
+    const [vehicleBefore] = await db.sql<{ odometer: number; odometer_updated_at: Date }>(
+      `select v.odometer, v.odometer_updated_at
+         from public.vehicles v join public.rentals r on r.vehicle_id = v.id
+        where r.id = $1`,
+      [rental],
+    )
+
+    // The same readings again, exactly as a retried request would send them.
+    await db.asUser(staffId, (s) =>
+      s.sql(`select public.rental_check_in($1, $2, 80::smallint, 'Clean, no damage', null)`, [
+        rental,
+        back,
+      ]),
+    )
+
+    const after = await returnRecord(rental)
+    expect(after.returned_at).toEqual(before.returned_at)
+    expect(Number(after.return_odometer)).toBe(Number(before.return_odometer))
+
+    const [vehicleAfter] = await db.sql<{ odometer: number; odometer_updated_at: Date }>(
+      `select v.odometer, v.odometer_updated_at
+         from public.vehicles v join public.rentals r on r.vehicle_id = v.id
+        where r.id = $1`,
+      [rental],
+    )
+    // No second odometer write -- the retry touched nothing at all.
+    expect(Number(vehicleAfter!.odometer)).toBe(Number(vehicleBefore!.odometer))
+    expect(vehicleAfter!.odometer_updated_at).toEqual(vehicleBefore!.odometer_updated_at)
+  })
+
+  it('leaves the vehicle odometer at the first return reading', async () => {
+    const { rental, back } = await returnedRental()
+    await db
+      .expectRejection(() =>
+        db.asUser(staffId, (s) =>
+          s.sql(`select public.rental_check_in($1, $2, 50::smallint, null, now())`, [
+            rental,
+            back + 9_000,
+          ]),
+        ),
+      )
+      .catch(() => undefined)
+
+    const [vehicle] = await db.sql<{ odometer: number }>(
+      `select v.odometer from public.vehicles v
+         join public.rentals r on r.vehicle_id = v.id where r.id = $1`,
+      [rental],
+    )
+    expect(Number(vehicle!.odometer)).toBe(back)
+  })
+
+  it('still completes after the refused second return', async () => {
+    const { rental, back } = await returnedRental()
+    await db.expectRejection(() =>
+      db.asUser(staffId, (s) =>
+        s.sql(`select public.rental_check_in($1, $2, 50::smallint, null, now())`, [
+          rental,
+          back + 2_000,
+        ]),
+      ),
+    )
+    await db.asUser(staffId, (s) => s.sql(`select public.rental_complete($1)`, [rental]))
+    expect(await statusOf(rental)).toBe('completed')
+  })
+
+  it('refuses a check-in on a completed rental with the status message, not the return one', async () => {
+    const { rental, back } = await returnedRental()
+    await db.asUser(staffId, (s) => s.sql(`select public.rental_complete($1)`, [rental]))
+
+    const message = await db.expectRejection(() =>
+      db.asUser(staffId, (s) =>
+        s.sql(`select public.rental_check_in($1, $2, 80::smallint, 'Clean, no damage', now())`, [
+          rental,
+          back,
+        ]),
+      ),
+    )
+    // The idempotent path must not answer for a finished rental, even when the
+    // readings match: a completed rental does not accept a check-in at all.
+    expect(message).toMatch(/out with a customer/i)
+  })
+
+  it('still freezes the recorded return against a direct write', async () => {
+    const { rental } = await returnedRental()
+    await db.expectRejection(
+      () => patchAs(staffId, rental, 'return_odometer = 999999'),
+      /set by the action that changes it/i,
+    )
+  })
+})

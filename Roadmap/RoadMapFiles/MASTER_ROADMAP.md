@@ -239,3 +239,61 @@ mechanism. **None is applied.** The consolidated authorization package is
 Work Package 4 is **FUNCTIONALLY ACCEPTED — CLOSED** on the owner's scenario results.
 **Roadmap functional completion: 4 of 10 work packages.** Work Package 5 has not begun.
 Production remains NO-GO.
+
+---
+
+## The remaining work packages — 2026-11-27
+
+Recorded here **in full** at the owner's instruction, because the earlier message carrying
+them was truncated and the definitions existed nowhere in the repository. These are
+roadmap-level scope definitions, **not authorization to implement them**. Each work package
+will receive its own detailed implementation instruction.
+
+The owner has approved completing all ten work packages in staging before any staged
+production release.
+
+### WP5 — Security Deposit Management
+
+Deposit collection records, held balances, partial and full deductions, releases, refunds,
+immutable history, authorization and financial reconciliation.
+
+### WP6 — Rental Invoicing
+
+Invoice generation, numbering, tax breakdown, immutable issued documents, credit notes, PDF
+output and invoice status.
+
+### WP7 — Payment Reconciliation
+
+Payment allocation, partial payments, refunds, outstanding balances, reconciliation and
+transaction history.
+
+### WP8 — Fleet Profitability and Reporting
+
+Vehicle revenue, maintenance and operating costs, profitability, utilization, financial
+summaries and accounting-compatible exports.
+
+### WP9 — Rental Exceptions
+
+No-shows, exceptional rental handling, breakdowns, theft, recalls, tolls, traffic violations
+and other approved exception workflows. **Reuse Incident Management and existing rental
+workflows** rather than building a parallel subsystem.
+
+### WP10 — Customer Communications
+
+Booking confirmations, rental reminders, return reminders, payment notifications, approved
+email templates and delivery history.
+
+### Constraints that apply across all six
+
+- **Do not invent external payment processing requirements.**
+- **Preserve the separation between rental payments and Pevvy subscription billing.** They
+  are different money: what an agency's customer pays for a hire, and what the agency pays
+  Pevvy. Nothing in WP5–WP10 should blur them.
+
+### Status
+
+**Roadmap functional completion: 4 of 10 work packages.** Work Package 5 has **not** begun.
+
+Work Package 5 cannot sensibly begin until the five hardening migrations are applied to
+staging and verified: it builds on rental financial structures that currently exist only in
+a local replay.

@@ -67,3 +67,32 @@ the preflight row set first if the prior per-row state matters — `released` is
 `account-closure-notice`, `gps-provider`, `mfa-reset`, `public-booking`. The public
 booking page does not work on staging until the last of those is deployed. Four are
 ACTIVE — the release gate saying "six of nine" is stale.
+
+## 2026-11-27 — final hardening corrections and hosted preflight
+
+The five migrations are still **unapplied**; two of them changed, so **use the checksums in
+`Reports/PEVVY_PRODUCTION_HARDENING_STAGING_MIGRATION_AUTHORIZATION.md` and not any earlier
+list**.
+
+What changed in the code:
+
+- `rental_check_in` refuses a second, different return and answers an identical retry without
+  mutating anything (amended into `20261128100000`).
+- `public.expense_ledger` carries `maintenance_id`, and the expense detail screen shows the
+  attachment and links to the unlink (amended into `20261128130000`).
+- Five database refusals now survive the frontend error mapping instead of being replaced by
+  a generic sentence.
+- The defaulting rule behind the three react-hooks corrections is extracted to
+  `src/pages/selection-defaults.ts` and covered by tests; the two pages themselves still have
+  no render-level coverage.
+
+Two open decisions for the owner:
+
+1. **A mis-keyed return reading has no route to correction.** Closing the duplicate check-in
+   closed the only informal one. No correction workflow was invented.
+2. **Applying `20261128140000` stops every agency on staging from opening new assignment
+   rows**, because no organization holds an explicit activation. Intended, but it is a change
+   every tenant experiences.
+
+Still true: production not accessed, `origin/main` 31383a9, `origin/staging` 5634555,
+nothing pushed, nothing deployed, Work Package 5 not begun.

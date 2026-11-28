@@ -207,3 +207,77 @@ begin
   end if;
 end;
 $report$;
+
+-- -----------------------------------------------------------------------------
+-- 4. The read model has to show the attachment it is now enforcing
+--
+-- THE GAP, found while checking that the refusals above reach a human. The
+-- expense screens carry no maintenance field at all -- not a label, not a
+-- badge, not a link -- and the reason is upstream of the UI: public.
+-- expense_ledger, which every expense list and the detail page read, does not
+-- select maintenance_id. The attachment was invisible by construction.
+--
+-- So the first a user heard of it was a refusal when they pressed save, on a
+-- screen that gave them no way to know the cost was attached to anything and
+-- no route to the unlink. Enforcing an invariant the interface cannot show is
+-- how a correct database earns a reputation for being broken.
+--
+-- The column is appended, which is all `create or replace view` permits and
+-- all that is wanted: every existing consumer keeps the shape it reads today.
+-- security_invoker is restated rather than assumed, because losing it would
+-- silently turn a tenant-scoped read model into a leak.
+-- -----------------------------------------------------------------------------
+
+create or replace view public.expense_ledger
+with (security_invoker = true) as
+SELECT e.id,
+    e.organization_id,
+    e.incurred_on,
+    e.description,
+    e.amount_minor,
+    e.tax_amount_minor,
+    e.amount_minor - e.tax_amount_minor AS net_amount_minor,
+    e.tax_rate_bps,
+    e.tax_label,
+    e.currency,
+    e.status,
+    e.source,
+    e.allocation,
+    e.payment_method,
+    e.reference,
+    e.notes,
+    e.odometer,
+    e.category_id,
+    c.name AS category_name,
+    c.system_key AS category_system_key,
+    c.archived_at IS NOT NULL AS category_archived,
+    e.vendor_id,
+    v.name AS vendor_name,
+    v.archived_at IS NOT NULL AS vendor_archived,
+    COALESCE(e.vehicle_id, r.vehicle_id) AS effective_vehicle_id,
+    COALESCE(direct_vehicle.registration_plate, rental_vehicle.registration_plate) AS vehicle_plate,
+    COALESCE(direct_vehicle.make, rental_vehicle.make) AS vehicle_make,
+    COALESCE(direct_vehicle.model, rental_vehicle.model) AS vehicle_model,
+    COALESCE(direct_vehicle.archived_at, rental_vehicle.archived_at) IS NOT NULL AS vehicle_archived,
+    e.rental_id,
+    r.reference AS rental_reference,
+    attachments.total AS attachment_count,
+    e.voided_at,
+    e.void_reason,
+    e.created_by,
+    e.created_at,
+    e.updated_by,
+    e.updated_at,
+    e.maintenance_id
+   FROM public.expenses e
+     JOIN public.expense_categories c ON c.id = e.category_id
+     LEFT JOIN public.expense_vendors v ON v.id = e.vendor_id
+     LEFT JOIN public.rentals r ON r.id = e.rental_id
+     LEFT JOIN public.vehicles direct_vehicle ON direct_vehicle.id = e.vehicle_id
+     LEFT JOIN public.vehicles rental_vehicle ON rental_vehicle.id = r.vehicle_id
+     LEFT JOIN LATERAL ( SELECT count(*) AS total
+           FROM public.expense_attachments a
+          WHERE a.expense_id = e.id) attachments ON true;
+
+comment on view public.expense_ledger is
+  'One row per cost with its category, vendor, vehicle, contract and maintenance attachment already resolved. A rental cost reads its vehicle through the contract, so the two can never disagree. security_invoker, so RLS applies to every source table.';

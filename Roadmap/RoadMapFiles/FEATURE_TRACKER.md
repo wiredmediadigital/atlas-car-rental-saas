@@ -133,3 +133,19 @@ acceptance and is preserved as history in `Handoff/KNOWN_ISSUES_AND_ACCEPTANCE.m
 | Incident Management incl. dashboard | ACCEPTED — CLOSED, scenario 29 at 13/13, frozen |
 | Driver availability / conflict prevention | Accepted 9/9; independent concurrency still a gate |
 | Rental Financial Adjustments | ****ACCEPTED — CLOSED** (scenarios 30-35)** |
+
+## Final hardening corrections — 2026-11-27
+
+| Item | State |
+|---|---|
+| Rental return recorded once | **Corrected**, not applied |
+| Return correction workflow | **Does not exist.** Owner decision required |
+| Amendment revision scheme | **Verified, no defect** |
+| Deterministic evidence enforcement | **Covered** |
+| `incident_update` six conditions | **Verified behaviourally** |
+| Maintenance link visible on expense screens | **Corrected**, not applied |
+| Maintenance expense integrity coverage | **Added** — there was none |
+| Hosted read-only preflight | **Performed**, nothing written |
+| Fresh guarded staging build | **Blocked** on the staging publishable key |
+| WP5–WP10 definitions | **Preserved in full** |
+| Work Package 5 | **Not begun** |

@@ -244,3 +244,58 @@ describe('toAppError — a plate collision', () => {
     expect(error.message).toBe('A vehicle with this registration plate is already in your fleet.')
   })
 })
+
+/*
+ * These five refusals are raised by the database as 23514, and 23514 has a
+ * generic fallback: "Some of the values entered are not valid. Check the
+ * highlighted fields." Each sentence below is already written for the desk and
+ * names the step that unblocks it, so being swallowed by that fallback would
+ * be a real loss. These tests are what keep the mapping honest.
+ */
+describe('toAppError — a cost attached to maintenance', () => {
+  const asPostgres = (message: string) => toAppError({ code: '23514', message })
+
+  it('keeps the refusal about another maintenance record', () => {
+    const error = asPostgres('This cost is already attached to another maintenance record.')
+    expect(error.kind).toBe('conflict')
+    expect(error.message).toMatch(/already attached to another maintenance record/i)
+    expect(error.message).toMatch(/unlink/i)
+  })
+
+  it('keeps the refusal about the allocation', () => {
+    const error = asPostgres('A cost attached to maintenance has to stay a vehicle cost.')
+    expect(error.message).toMatch(/has to stay a vehicle cost/i)
+    expect(error.message).toMatch(/unlink/i)
+  })
+
+  it('keeps the refusal about the vehicle', () => {
+    const error = asPostgres(
+      'A cost attached to maintenance has to stay on the vehicle that was worked on.',
+    )
+    expect(error.message).toMatch(/vehicle that was worked on/i)
+    expect(error.message).toMatch(/unlink/i)
+  })
+
+  it('keeps the refusal about cancelled maintenance', () => {
+    const error = asPostgres('That maintenance was cancelled, so no new costs can be attached.')
+    expect(error.message).toMatch(/cancelled/i)
+  })
+
+  it('still falls back for an unrelated check violation', () => {
+    expect(asPostgres('some other check failed').message).toBe(
+      'Some of the values entered are not valid. Check the highlighted fields.',
+    )
+  })
+})
+
+describe('toAppError — a rental is returned once', () => {
+  it('keeps the refusal naming the recorded return', () => {
+    const error = toAppError({
+      code: '23514',
+      message:
+        'This rental has already been returned. The return recorded at 2026-11-27 10:04 stands.',
+    })
+    expect(error.kind).toBe('conflict')
+    expect(error.message).toMatch(/already been returned/i)
+  })
+})

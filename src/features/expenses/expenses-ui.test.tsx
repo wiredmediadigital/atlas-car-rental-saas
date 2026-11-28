@@ -80,6 +80,7 @@ function ledgerEntry(overrides: Partial<ExpenseLedgerEntry> = {}): ExpenseLedger
     created_at: '2026-07-14T09:00:00.000Z',
     updated_by: null,
     updated_at: '2026-07-14T09:00:00.000Z',
+    maintenance_id: null,
     ...overrides,
   }
 }

@@ -3,6 +3,7 @@ import { useMemo, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 
 import { incidentDetailPath, paths } from '@/app/routes/paths'
+import { chosenOr, settledDefault } from '@/pages/selection-defaults'
 import {
   Button,
   ButtonLink,
@@ -66,7 +67,10 @@ export function IncidentNewPage() {
   const [insuranceClaimReference, setInsuranceClaimReference] = useState('')
   const [error, setError] = useState('')
   const initialRentalContext = useIncidentRentalOption(initialRental || undefined)
-  const vehicleId = vehicleChoice ?? (initialVehicle || initialRentalContext.data?.vehicle_id || '')
+  const vehicleId = chosenOr(
+    vehicleChoice,
+    () => initialVehicle || initialRentalContext.data?.vehicle_id || '',
+  )
   const rentals = useIncidentRentalOptions(vehicleId || undefined)
 
   /*
@@ -74,11 +78,11 @@ export function IncidentNewPage() {
    * otherwise. Left empty while the list is loading or failed, so a blank box
    * never claims there is no such hire.
    */
-  const rentalId =
-    rentalChoice ??
-    (vehicleId && !rentals.isPending && !rentals.isError
-      ? (currentCheckedOutRental(rentals.data ?? [])?.id ?? '')
-      : '')
+  const rentalId = chosenOr(rentalChoice, () =>
+    vehicleId
+      ? settledDefault(rentals, '', () => currentCheckedOutRental(rentals.data ?? [])?.id ?? '')
+      : '',
+  )
 
   const selectedRental = useMemo(
     () =>

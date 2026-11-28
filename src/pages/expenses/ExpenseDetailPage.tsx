@@ -2,7 +2,7 @@ import { ArrowLeft, Ban, Check, Pencil, X } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 
-import { paths } from '@/app/routes/paths'
+import { maintenanceDetailPath, paths } from '@/app/routes/paths'
 import { ErrorState } from '@/components/feedback/ErrorState'
 import {
   Alert,
@@ -228,7 +228,31 @@ export function ExpenseDetailPage() {
         ) : null}
         {expense.source === 'import' ? <Badge tone="neutral">Imported</Badge> : null}
         {expense.category_archived ? <Badge tone="neutral">Category retired</Badge> : null}
+        {expense.maintenance_id ? <Badge tone="info">Attached to maintenance</Badge> : null}
       </div>
+
+      {/*
+        A cost attached to a maintenance record is constrained in the database:
+        it has to stay a vehicle cost, and it has to stay on the vehicle that
+        was worked on. Without this the attachment is invisible here -- the
+        expense screens carry no maintenance field at all -- and the first the
+        user hears of it is a refusal when they save. Saying it up front, and
+        naming where the unlink lives, is the whole correction. The unlink
+        itself stays where it already is, on the maintenance record.
+      */}
+      {expense.maintenance_id && expense.status !== 'voided' ? (
+        <Alert tone="info" title="This cost belongs to a maintenance record">
+          Its amount, date, description, category and receipt can still be edited here. What it is
+          allocated to cannot: it has to stay a vehicle cost, on the vehicle that was worked on.{' '}
+          <Link
+            to={maintenanceDetailPath(expense.maintenance_id)}
+            className="underline underline-offset-2"
+          >
+            Open the maintenance record
+          </Link>{' '}
+          to detach it first if you need to move it.
+        </Alert>
+      ) : null}
 
       {expense.status === 'voided' ? (
         <Alert tone="critical" title="This cost has been voided">

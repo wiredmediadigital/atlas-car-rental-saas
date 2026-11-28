@@ -36,14 +36,70 @@ npx supabase db push --linked --dry-run
 
 ---
 
+## Preflight already performed, read-only — 2026-11-27
+
+All four checks above were run against `yeklucfthspvejlkffln`, plus a full read-only data
+inspection. **Nothing was written.** The full evidence is in
+`PEVVY_PRODUCTION_HARDENING_HOSTED_PREFLIGHT.md`; the results that bear on authorization:
+
+| Check | Result |
+|---|---|
+| Project identity | `yeklucfthspvejlkffln`, PostgreSQL **17.12**, `app` schema present |
+| Hosted ledger | **143 applied**, latest `20261127100000` |
+| Local ledger | **148** |
+| Pending | exactly the five below, nothing else |
+| Objects the migrations expect to find | **all present** |
+| Objects the migrations create | **all correctly absent** — nothing half-applied |
+| Amendment rows | **2**, both on `RNT-2026-00004`; history and live hire agree |
+| Assignments released by migration 5 | **zero** |
+| Maintenance expense anomalies | **zero** |
+| Explicit activation rows to preserve | **zero** |
+
+### Dry run
+
+```
+$ npx supabase db push --linked --dry-run
+DRY RUN: migrations will *not* be pushed to the database.
+Connecting to remote database...
+Would push these migrations:
+ • 20261128100000_rental_lifecycle_authorization.sql
+ • 20261128110000_billing_authorization_matrix.sql
+ • 20261128120000_amendment_evidence_one_to_one.sql
+ • 20261128130000_maintenance_expense_integrity.sql
+ • 20261128140000_assignment_activation_default_off.sql
+{"upToDate":false,"dryRun":true,"migrations":[...5...],"seeds":[],"roles":[],
+ "message":"Finished supabase db push."}
+```
+
+Exit code **0**. Exactly five migrations, **no seeds, no role changes**.
+
+### Checksums as they stand now
+
+Two migrations were amended on 2026-11-27 under the owner's instruction to amend the
+unpublished set rather than chain corrective migrations. **Their earlier checksums are
+superseded and must not be used.**
+
+| File | SHA-256 | Bytes | Lines |
+|---|---|---|---|
+| `20261128100000_rental_lifecycle_authorization.sql` | `43c9b2e7dbeacb218da8a15b639e649f8fdbe2b110bbb2e7f7d4de7d9c744094` | 17,063 | 382 |
+| `20261128110000_billing_authorization_matrix.sql` | `60830dfab601498230f1769438ffac0b050bfdb1299aeb832d5212051db9e57f` | 11,275 | 239 |
+| `20261128120000_amendment_evidence_one_to_one.sql` | `8ead334c1f96d9a8001ba2a9552875bc46680308da3ca1f11a451e1d074d7ab4` | 13,198 | 282 |
+| `20261128130000_maintenance_expense_integrity.sql` | `1defc28e664f859540316015f2769496b1e4e1d1cd9c4208dd415f0ffb881b47` | 12,461 | 283 |
+| `20261128140000_assignment_activation_default_off.sql` | `59135446944eed8bfd955011621cc2af076a0413f3a5f5e9f880aed9bbee2134` | 11,130 | 262 |
+
+**None of the 143 applied migrations was modified.**
+
+---
+
 ## The five migrations
 
 ### 1. `20261128100000_rental_lifecycle_authorization.sql`
 
 | | |
 |---|---|
-| SHA-256 | `36bcd48a259b6f59c3e048f31c77319ccda93bd1155d57b76412e929e3fc9fbf` |
-| Size | 12,171 bytes / 277 lines |
+| SHA-256 | `43c9b2e7dbeacb218da8a15b639e649f8fdbe2b110bbb2e7f7d4de7d9c744094` |
+| Size | 17,063 bytes / 382 lines |
+| Changed | **yes, 2026-11-27** — section 3 added; the earlier checksum `36bcd48a…` is superseded |
 
 **Objects.** Redefines `public.rental_confirm`, `rental_check_out`, `rental_check_in`,
 `rental_complete`, `rental_cancel` as SECURITY DEFINER with tenant, role, billing and
@@ -58,10 +114,22 @@ exact — a restricted agency could not write `public.rentals` before and cannot
 
 **Data impact.** None. No row is read or written.
 
+**Also closes the duplicate return** (section 3, added 2026-11-27). `rental_check_in`
+guarded on `status <> 'active'`, and recording a return does not change the status --
+`rental_complete` does -- so an already-returned rental was still 'active' and could be
+returned again, overwriting the first readings. A rental carrying a `returned_at` is now
+refused a different return, and an identical retry is answered from the existing row
+without mutating anything.
+
 **Expected after.** Direct writes to any lifecycle or hand-over column are refused with
 *"The … of a rental is set by the action that changes it, not by editing the record."*
 `notes` stays editable. **Staff check-ins now advance the vehicle odometer**, which they
-silently failed to do before.
+silently failed to do before. A second check-in with different readings is refused with
+*"This rental has already been returned…"*; an identical retry succeeds and changes nothing.
+
+**Consequence to decide on.** There is no authorized return-correction workflow in Pevvy,
+and this does not add one. A mis-keyed return reading on a committed rental now has **no
+route to correction**. Reported, not filled.
 
 **Recovery.** Additive apart from five function bodies, each of which is recoverable by a
 forward migration restoring the prior definition. Drop
@@ -116,9 +184,23 @@ inconsistent with the live hire.
 
 **Data impact.** Two columns added with safe defaults. **Existing amendment rows get
 `line_revision_no = NULL`**, which the unique index excludes and the evidence check does
-not match. Staging holds **zero** amendment rows, so there is nothing to backfill; if any
-existed, they would simply not satisfy a future restatement, and a fresh amendment would
-be required — a refusal, never a silent acceptance.
+not match.
+
+> **Correction, 2026-11-27.** An earlier version of this package stated that staging holds
+> **zero** amendment rows. **That was wrong.** The read-only preflight found **two**, both
+> on `RNT-2026-00004` — the rental the owner exercised in Scenario 35 — written after the
+> original figure was taken and never re-read. The figure is corrected here rather than
+> quietly dropped: a data-impact statement that is wrong in the safe direction is still
+> wrong.
+
+Both rows will hold `NULL` in the new column. They **stay readable**, they cannot collide
+with each other, and they **cannot satisfy evidence for a future restatement** — the check
+asks for a row whose `line_revision_no` equals the line's revision, and `NULL` equals
+nothing, including itself. A later restatement of that hire is refused until a fresh record
+is written: a refusal, never a silent acceptance. All three properties are proven by test,
+not asserted. See `PEVVY_PRODUCTION_HARDENING_HOSTED_PREFLIGHT.md` §3.
+
+The history and the live hire currently **agree**: last recorded 19,600; live hire 19,600.
 
 **Expected after.** Each restatement needs its own record naming its revision, and the
 amounts must match what actually happened. Two concurrent repricings file one record, not
@@ -133,13 +215,24 @@ bodies by forward migration.
 
 | | |
 |---|---|
-| SHA-256 | `71782326dafee8bd971bf0b0a9c242e7ed2f81b406a3da84fda0b3268a7288f5` |
-| Size | 9,068 bytes / 209 lines |
+| SHA-256 | `1defc28e664f859540316015f2769496b1e4e1d1cd9c4208dd415f0ffb881b47` |
+| Size | 12,461 bytes / 283 lines |
+| Changed | **yes, 2026-11-27** — section 4 added; the earlier checksum `71782326…` is superseded |
 
 **Objects.** Creates `app.guard_maintenance_expense_link` and trigger
 `expenses_guard_maintenance_link`; recreates `expenses_maintenance_fkey` with
 `on delete set null (maintenance_id)`; creates view
-`app.maintenance_expense_anomalies`.
+`app.maintenance_expense_anomalies`; and — added 2026-11-27 — **appends
+`maintenance_id` to `public.expense_ledger`**.
+
+**Why the view changed.** The expense screens read `expense_ledger`, which did not select
+`maintenance_id`, so the attachment was invisible to the interface by construction: a user
+would have been refused by an invariant their screen could not show, with no route to the
+unlink. The column is appended, which is all `create or replace view` permits and all that
+is wanted — every existing consumer keeps the shape it reads today. `security_invoker` is
+restated rather than assumed, because losing it would turn a tenant-scoped read model into
+a leak. PostgreSQL **17.12** on staging satisfies the `server_version_num >= 150000` guard
+on the foreign key form.
 
 **Security impact.** None directly — cross-tenant protection was already sound and is
 untouched. This is financial integrity: a linked cost can no longer drift off its vehicle
@@ -150,12 +243,11 @@ revalidates existing rows; any row that fails would stop the migration, and none
 testing. Existing inconsistent links are **reported** through the view and a migration
 **warning** with a count.
 
-**Preflight worth running on staging first**, read-only, after the migration is applied —
-or equivalently expect the warning:
-
-```sql
-select count(*) from app.maintenance_expense_anomalies;
-```
+**Preflight already run, read-only: there are no anomalies.** Staging holds **2** costs
+linked to maintenance, across 2 maintenance records, with **zero** invariant violations —
+no missing maintenance record, no cross-tenant link, no non-vehicle allocation, no vehicle
+mismatch. The migration's warning should therefore report **0**, and the foreign key
+revalidation has nothing to trip over. See the hosted preflight report §5.
 
 **Expected after.** Editing a linked expense to overhead, to another vehicle, or to a
 rental is refused with a sentence naming the unlink step. New links to cancelled
@@ -204,6 +296,25 @@ select organization_id, enabled from app.assignment_feature_activation order by 
 
 The first query's `completed` and `cancelled` rows are exactly what will be released.
 Anything under `active` or `reserved` is **left alone** and must remain so.
+
+> **Preflight result, 2026-11-27: this migration will release nothing on staging.**
+>
+> Staging holds 14 assignments. Exactly **two** are open: one `planned` on a **draft**
+> rental and one `in_custody` on an **active** rental. Neither is on a completed or
+> cancelled rental, so **zero rows are released**. The four `released` rows on completed
+> rentals are already terminal.
+>
+> The `in_custody` row is a car **currently in a customer's hands** on `RNT-2026-00004`. It
+> must stay open, and it does.
+>
+> **Expect the notice to say `released 0 open assignment(s)`. If it says anything else,
+> stop.**
+>
+> `app.assignment_feature_activation` holds **zero rows**, so there are no explicit
+> activation settings to preserve — and equally, **every** agency on staging will stop
+> opening new assignment rows once this is applied. That is the STG-02 contract the owner
+> chose, and it is the intended outcome, but it is a change every tenant experiences rather
+> than a no-op. The complete row set is in the hosted preflight report §4.
 
 **Behavioural change for every agency without an activation row: the assignment lifecycle
 stops opening new rows.** Existing open assignments continue to completion through

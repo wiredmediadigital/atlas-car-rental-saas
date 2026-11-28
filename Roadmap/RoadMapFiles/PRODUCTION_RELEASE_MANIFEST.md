@@ -319,3 +319,34 @@ Everything listed under the Incident Management entry above, unchanged, plus:
 - Work Package 4: **FUNCTIONALLY ACCEPTED — CLOSED**. Roadmap completion 4 of 10.
 - Production project `ysnumxtzcgzyabrghxwq`: unchanged, not accessed, not linked.
 - Production release: **NO-GO.**
+
+## Final hardening corrections — 2026-11-27
+
+- **Two of the five unpublished migrations were amended.** Earlier checksums are superseded.
+
+  | File | SHA-256 | Bytes |
+  |---|---|---|
+  | `20261128100000_rental_lifecycle_authorization.sql` | `43c9b2e7dbeacb218da8a15b639e649f8fdbe2b110bbb2e7f7d4de7d9c744094` | 17,063 |
+  | `20261128110000_billing_authorization_matrix.sql` | `60830dfab601498230f1769438ffac0b050bfdb1299aeb832d5212051db9e57f` | 11,275 |
+  | `20261128120000_amendment_evidence_one_to_one.sql` | `8ead334c1f96d9a8001ba2a9552875bc46680308da3ca1f11a451e1d074d7ab4` | 13,198 |
+  | `20261128130000_maintenance_expense_integrity.sql` | `1defc28e664f859540316015f2769496b1e4e1d1cd9c4208dd415f0ffb881b47` | 12,461 |
+  | `20261128140000_assignment_activation_default_off.sql` | `59135446944eed8bfd955011621cc2af076a0413f3a5f5e9f880aed9bbee2134` | 11,130 |
+
+- **None of the 143 applied migrations was modified.** Ledger 148 local / 143 remote.
+- **Dry run clean**: exactly five migrations, no seeds, no role changes, exit 0.
+- **Read-only hosted preflight performed** against `yeklucfthspvejlkffln`. Nothing written.
+  - Amendment rows: **2**, not zero as previously published. Correction recorded.
+  - Assignments the drainage would release: **zero**.
+  - Maintenance expense anomalies: **zero**.
+  - Explicit activation rows: **zero** — so every agency stops opening new assignments.
+- **A return is now recorded once.** The duplicate check-in found by the concurrency run is
+  corrected. **No return-correction workflow exists**; that gap is reported, not filled.
+- **`public.expense_ledger` gains `maintenance_id`**, so the expense screens can show the
+  attachment the database refuses to let them break.
+- **The guarded staging build was NOT re-run.** It needs the staging browser publishable
+  key, which is not on this machine; a credential fetch was denied and not worked around.
+  The standing artifact `be240a5b…` is **stale** and is not offered as a substitute.
+- Edge Functions: **four deployed, five undeployed**. None deployed under this instruction.
+- Production project `ysnumxtzcgzyabrghxwq`: **not accessed, not connected to, not named in
+  any query**. The only local browser credentials point at production and were not used.
+- Production release: **NO-GO.**

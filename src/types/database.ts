@@ -1292,6 +1292,13 @@ type ExpenseLedgerRow = {
   created_at: string
   updated_by: string | null
   updated_at: string
+  /**
+   * The maintenance record this cost is attached to, if any. Appended to the
+   * view so the attachment is visible on the expense screens: the database
+   * refuses to let an attached cost change vehicle or allocation, and a
+   * refusal the interface cannot explain is worse than no refusal at all.
+   */
+  maintenance_id: string | null
 }
 
 /** One row per currency: this product never adds two together. */

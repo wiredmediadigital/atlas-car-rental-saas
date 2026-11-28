@@ -339,3 +339,32 @@ stopped being true when the owner applied it. It now reads "Actual downtime is t
 unavailable. Refresh the page or try again later." The change is committed but **not
 published on its own** — the owner asked that it travel with the next authorized
 deployment rather than prompt one for a caption.
+
+## Unreleased — Final hardening corrections (2026-11-27)
+
+- A rental is returned once. Recording a return never changed the status, so an
+  already-returned rental was still "out with a customer" and could be returned
+  again, overwriting the first readings, the vehicle's odometer and the
+  inspection record. A second return with different information is now refused,
+  and repeating the same one changes nothing at all.
+- There is still no way to correct a mis-keyed return. Repeating the check-in
+  used to be one, informally; that was the undocumented correction mechanism and
+  it is now closed. No replacement was invented. It needs a decision.
+- A cost attached to maintenance can finally be seen to be attached. The expense
+  read model did not carry the link, so the screens could not show it, and the
+  database's four refusals arrived as "some of the values entered are not valid".
+  The link is now on the read model, the refusals reach the desk as written, and
+  the detail screen says what can still be edited and where to detach.
+- The accepted incident_update limitation was checked rather than taken on
+  trust, against all six conditions: it cannot resolve or close an incident,
+  cannot free a vehicle or return it to service, cannot touch money, cannot move
+  an incident to another tenant or vehicle, and does not bypass the role ladder.
+- The financial amendment revision scheme was examined across date-only,
+  zero-value, repeated and no-op cases. No defect. The collision it looked like
+  it should have is unreachable, because every recorded amendment moves the
+  charge line.
+- The evidence requirement is now proven deterministically, including the case
+  where a record exists for the right revision and claims the wrong amount.
+  Unique is not the same as true.
+- Three react-hooks corrections now have tests: the "offered until the desk says
+  otherwise" rule is in one place, and a cleared field stays cleared.

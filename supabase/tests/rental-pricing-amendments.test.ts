@@ -996,3 +996,244 @@ describe('one amendment per restatement, and exactly one', () => {
     )
   })
 })
+
+/*
+ * The revision counter and the unique index have to agree about what a
+ * "revision" is, and the awkward case is the amendment that moves dates and no
+ * money. app.bump_rental_line_item_revision advances the counter only when
+ * amount, quantity, unit price or taxability moves -- deliberately, so the
+ * counter does not drift on a description edit and start demanding records of
+ * changes that never happened.
+ *
+ * That leaves a question this block answers rather than assumes: can two
+ * legitimate date-only amendments, which by definition share a revision, both
+ * be recorded?
+ */
+describe('date-only and zero-value amendments share a revision', () => {
+  async function financialRevisionOf(rentalId: string): Promise<number> {
+    const [row] = await db.sql<{ revision_no: number }>(
+      `select revision_no from public.rental_line_items
+        where rental_id = $1 and kind = 'base_rental' and reverses_line_item_id is null
+        order by sort_order, created_at limit 1`,
+      [rentalId],
+    )
+    return Number(row!.revision_no)
+  }
+
+  async function reservedWithHire() {
+    const rental = await makeRental({ status: 'reserved' })
+    await addHire(rental, 15_000)
+    return rental
+  }
+
+  it('records two successive zero-charge extensions', async () => {
+    const rental = await reservedWithHire()
+    const first = new Date(Date.parse(await endsAtOf(rental)) + DAY).toISOString()
+    await extendAs(ownerId, rental, first, 0, 'Flight delayed')
+    const second = new Date(Date.parse(await endsAtOf(rental)) + DAY).toISOString()
+    await extendAs(ownerId, rental, second, 0, 'Delayed again')
+
+    const history = await amendments(rental)
+    expect(history).toHaveLength(2)
+    expect(history.every((a) => Number(a.revised_amount_minor) === 15_000)).toBe(true)
+  })
+
+  it('records a date-only amendment followed by a financial one', async () => {
+    const rental = await reservedWithHire()
+    const later = new Date(Date.parse(await endsAtOf(rental)) + DAY).toISOString()
+    await extendAs(ownerId, rental, later, 0, 'Date only')
+    const revisionAfterDates = await financialRevisionOf(rental)
+
+    const chargeable = new Date(Date.parse(await endsAtOf(rental)) + DAY).toISOString()
+    await extendAs(ownerId, rental, chargeable, 4_000, 'And the money moves')
+
+    expect(await financialRevisionOf(rental)).toBe(revisionAfterDates + 1)
+    expect(await amendments(rental)).toHaveLength(2)
+  })
+
+  it('moves dates through a reschedule without touching the revision or the history', async () => {
+    /*
+     * The genuinely date-only operation is rental_reschedule, not a zero-charge
+     * extension: extending always moves billable days, so it always moves the
+     * line. A reschedule shifts both ends by the same amount, leaves the
+     * duration alone, and -- being a pre-commitment operation on a reservation
+     * -- files no amendment at all.
+     */
+    const rental = await reservedWithHire()
+    const chargeable = new Date(Date.parse(await endsAtOf(rental)) + DAY).toISOString()
+    await extendAs(ownerId, rental, chargeable, 4_000, 'Money first')
+    const revisionAfterMoney = await financialRevisionOf(rental)
+    const historyAfterMoney = (await amendments(rental)).length
+
+    const [period] = await db.sql<{ starts_at: Date; ends_at: Date }>(
+      `select starts_at, ends_at from public.rentals where id = $1`,
+      [rental],
+    )
+    const shifted = (value: Date) => new Date(value.getTime() + 7 * DAY).toISOString()
+    await db.asUser(ownerId, (session) =>
+      session.sql(
+        `select public.rental_reschedule($1, $2::timestamptz, $3::timestamptz, null, false)`,
+        [rental, shifted(period!.starts_at), shifted(period!.ends_at)],
+      ),
+    )
+
+    expect(await financialRevisionOf(rental)).toBe(revisionAfterMoney)
+    expect(await amendments(rental)).toHaveLength(historyAfterMoney)
+  })
+
+  it('records several zero-value amendments in a row', async () => {
+    // Its own vehicle: four extensions walk this hire well past the window the
+    // shared fixture vehicle is booked for, and the overlap constraint is right
+    // to refuse that.
+    const rental = await makeRental({
+      status: 'reserved',
+      vehicle: await makeVehicle(organizationId),
+    })
+    await addHire(rental, 15_000)
+    for (let n = 0; n < 4; n += 1) {
+      const next = new Date(Date.parse(await endsAtOf(rental)) + DAY).toISOString()
+      await extendAs(ownerId, rental, next, 0, `Zero value ${n}`)
+    }
+
+    const history = await amendments(rental)
+    expect(history).toHaveLength(4)
+    // Every one of them is a record of nothing financial, and all four survive.
+    expect(history.every((a) => Number(a.difference_minor) === 0)).toBe(true)
+  })
+
+  it('advances the revision once per financial restatement, and the history keeps pace', async () => {
+    const rental = await reservedWithHire()
+    const start = await financialRevisionOf(rental)
+    for (let n = 0; n < 3; n += 1) {
+      const next = new Date(Date.parse(await endsAtOf(rental)) + DAY).toISOString()
+      await extendAs(ownerId, rental, next, 1_000, `Chargeable ${n}`)
+    }
+
+    expect(await financialRevisionOf(rental)).toBe(start + 3)
+    expect(await amendments(rental)).toHaveLength(3)
+  })
+
+  it('files nothing for a SECOND repricing, which moves nothing', async () => {
+    const rental = await reservedWithHire()
+    await repriceAs(ownerId, rental)
+    const afterFirst = (await amendments(rental)).length
+    const revisionAfterFirst = await financialRevisionOf(rental)
+
+    // The first repricing recomputes a hand-entered hire from the rate card and
+    // is a real financial event. The second finds the work already done.
+    await repriceAs(ownerId, rental)
+
+    expect(await amendments(rental)).toHaveLength(afterFirst)
+    expect(await financialRevisionOf(rental)).toBe(revisionAfterFirst)
+  })
+})
+
+describe('the evidence check is reached deterministically, not by deadlock', () => {
+  /*
+   * The independent concurrency run reaches this refusal through a PostgreSQL
+   * deadlock, which proves the restatement did not land but NOT that the
+   * evidence requirement is what stopped it. These two reach the enforcement
+   * mechanism itself, on one connection, with no contention at all.
+   */
+  it('refuses because no record exists for the revision', async () => {
+    const rental = await makeRental({ status: 'reserved' })
+    const hire = await addHire(rental, 15_000)
+
+    const message = await db.expectRejection(() =>
+      db.sql(`update public.rental_line_items set amount_minor = 20_000 where id = $1`, [hire]),
+    )
+    expect(message).toMatch(/restated without recording what changed/i)
+    expect(Number((await hireOf(rental))[0]!.amount_minor)).toBe(15_000)
+  })
+
+  it('refuses because the record that exists describes a different amount', async () => {
+    const rental = await makeRental({ status: 'reserved' })
+    const hire = await addHire(rental, 15_000)
+
+    /*
+     * A record IS filed for this line and this revision -- it simply claims
+     * the hire went somewhere it did not. Unique is not the same as true, and
+     * this is the assertion that says so.
+     */
+    await db.expectRejection(
+      () =>
+        db.sql(
+          `do $$
+           begin
+             insert into public.rental_pricing_amendments (
+               organization_id, rental_id, line_item_id, line_revision_no, kind,
+               previous_amount_minor, revised_amount_minor, currency, changes)
+             select l.organization_id, l.rental_id, l.id, l.revision_no + 1, 'reprice',
+                    15000, 99999, 'EUR', '{}'::jsonb
+               from public.rental_line_items l where l.id = ${literal(hire)};
+             update public.rental_line_items set amount_minor = 20000
+              where id = ${literal(hire)};
+           end $$;`,
+        ),
+      /restated without recording what changed/i,
+    )
+
+    expect(Number((await hireOf(rental))[0]!.amount_minor)).toBe(15_000)
+  })
+})
+
+/*
+ * Staging carries two amendment rows today, both on RNT-2026-00004, written
+ * before line_revision_no existed. After 20261128120000 they will hold NULL in
+ * that column. This block is the evidence for the two claims the migration
+ * authorization package makes about them.
+ */
+describe('amendment rows written before the revision column existed', () => {
+  async function historicalAmendment(rentalId: string, lineItemId: string) {
+    await db.sql(
+      `insert into public.rental_pricing_amendments (
+         organization_id, rental_id, line_item_id, line_revision_no, kind,
+         previous_amount_minor, revised_amount_minor, currency, changes)
+       select l.organization_id, l.rental_id, l.id, null, 'reprice',
+              15000, 15000, 'EUR', '{}'::jsonb
+         from public.rental_line_items l where l.id = $1`,
+      [lineItemId],
+    )
+    void rentalId
+  }
+
+  it('stays readable', async () => {
+    const rental = await makeRental({ status: 'reserved' })
+    const hire = await addHire(rental, 15_000)
+    await historicalAmendment(rental, hire)
+
+    const history = await amendments(rental)
+    expect(history).toHaveLength(1)
+    expect(Number(history[0]!.revised_amount_minor)).toBe(15_000)
+  })
+
+  it('does not collide with another row for the same line', async () => {
+    const rental = await makeRental({ status: 'reserved' })
+    const hire = await addHire(rental, 15_000)
+    // The unique index excludes NULL revisions deliberately, so historical
+    // rows cannot block each other or block a new one.
+    await historicalAmendment(rental, hire)
+    await historicalAmendment(rental, hire)
+
+    expect(await amendments(rental)).toHaveLength(2)
+  })
+
+  it('cannot satisfy the evidence requirement for a later restatement', async () => {
+    const rental = await makeRental({ status: 'reserved' })
+    const hire = await addHire(rental, 15_000)
+    await historicalAmendment(rental, hire)
+
+    /*
+     * The evidence check asks for a row whose line_revision_no EQUALS the
+     * line's revision. NULL equals nothing, including itself, so a historical
+     * row can never answer for a future mutation -- the restatement is refused
+     * and a fresh record is required. A refusal, never a silent acceptance.
+     */
+    await db.expectRejection(
+      () =>
+        db.sql(`update public.rental_line_items set amount_minor = 20_000 where id = $1`, [hire]),
+      /restated without recording what changed/i,
+    )
+    expect(Number((await hireOf(rental))[0]!.amount_minor)).toBe(15_000)
+  })
+})

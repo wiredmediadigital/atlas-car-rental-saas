@@ -359,3 +359,42 @@ Deliberately not a transaction id, a timestamp, `xmin`, or a unique index over t
 amounts. Every one of those is a fingerprint that two genuinely different mutations can
 share, and identical transitions are legitimate: `100 → 200` twice is two amendments, at
 two revisions, and both are kept.
+
+## 2026-11-27 — A return is recorded once, and nothing corrects it yet
+
+**Decision.** `rental_check_in` refuses a second return that carries different
+information, and answers an identical retry from the existing row without mutating
+anything.
+
+**Why not make the second call a correction.** Because a correction that looks like an
+ordinary operation is not a correction, it is an overwrite with no audit trail. The
+instruction is explicit that ordinary check-in must not serve as an undocumented
+correction mechanism, and it was serving as exactly that.
+
+**What this costs, stated rather than hidden.** Pevvy now has **no** route to correct a
+mis-keyed return reading on a committed rental. The return columns are frozen against
+every writer that is not the table owner, and no RPC restates them. A real need at the
+front desk — the operator typed 41000 instead of 14000 — currently has no answer. That is
+a worse user experience than the overwrite it replaces, and it is the right trade only
+because the overwrite was silent and unaudited.
+
+**Open.** A deliberate, audited return-correction workflow is wanted. It was not invented
+here because inventing one was out of scope, and because it should be designed against the
+amendment architecture that already exists for pricing rather than beside it.
+
+## 2026-11-27 — A read model must show what the database enforces
+
+**Decision.** `public.expense_ledger` carries `maintenance_id`.
+
+**Why.** `20261128130000` added invariants that refuse an attached cost changing vehicle or
+allocation. The expense screens read `expense_ledger`, which did not select the column, so
+the attachment was invisible to the interface **by construction**. A user would have been
+refused by something their screen could not show, with a message the error mapping replaced
+with "some of the values entered are not valid", on a page with no route to the unlink.
+
+**The general rule this records:** enforcing an invariant the interface cannot explain is
+how a correct database earns a reputation for being broken. An invariant and the read model
+that must explain it belong in the same change.
+
+**Scope held.** The column is appended, not inserted; `security_invoker` is restated rather
+than assumed; the unlink was not moved, duplicated or reimplemented.

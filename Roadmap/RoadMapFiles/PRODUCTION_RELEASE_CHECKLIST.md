@@ -281,3 +281,35 @@ has not been accessed.
       functions inherit the trigger exemptions. Pre-existing and recorded.
 
 **Production remains NO-GO.**
+
+---
+
+## Final hardening corrections (added 2026-11-27)
+
+- [x] **Duplicate rental check-in** — corrected in `20261128100000`. A return is recorded
+      once; an identical retry mutates nothing. Eight tests.
+- [x] **Amendment revision interaction** — investigated across every case the owner listed.
+      **No defect**; the suspected unique-index collision is unreachable. Two of my own tests
+      were wrong and are corrected.
+- [x] **Deterministic evidence enforcement** — two tests reach the mechanism on one
+      connection, one for missing evidence and one for evidence that is unique but untrue.
+      The deadlock-based concurrency coverage is preserved alongside.
+- [x] **`incident_update` limitation** — all six owner conditions verified behaviourally.
+- [x] **Maintenance expense editing** — the read model, the error mapping and the detail
+      screen now show the attachment. Nine new database tests where there were none.
+- [x] **Hosted read-only preflight** — performed. Nothing written.
+- [x] **Dry run** — clean: five migrations, no seeds, no roles, exit 0.
+- [x] **WP5–WP10 definitions** — preserved in full in `MASTER_ROADMAP.md`.
+- [ ] **The guarded staging build has NOT been re-run.** It needs
+      `VITE_SUPABASE_PUBLISHABLE_KEY` for `yeklucfthspvejlkffln` (format `sb_publishable_…`).
+      A credential fetch was denied and was not worked around. **The standing artifact
+      `be240a5b…` is stale** — the corrections above changed six frontend sources.
+- [ ] **Hosted application of the five migrations is still not authorized.** 148 local /
+      143 remote.
+- [ ] **A mis-keyed return reading has no route to correction.** Owner decision.
+- [ ] **Applying `20261128140000` stops every agency on staging opening new assignments**,
+      because no organization holds an explicit activation row. Intended; not a no-op.
+- [ ] **`RentalNewPage` and `IncidentNewPage` still have no render-level coverage.** The
+      defaulting rule they share is now extracted and tested; the pages are not.
+
+**Production remains NO-GO.**

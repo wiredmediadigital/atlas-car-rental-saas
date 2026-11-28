@@ -398,6 +398,40 @@ const CONSTRAINT_MESSAGES: ReadonlyArray<readonly [RegExp, string, AppErrorKind]
     'A signed contract cannot be marked unsigned.',
     'conflict',
   ],
+
+  // A cost attached to a maintenance record is constrained at the database
+  // level. Each refusal below is already a sentence written for the desk and
+  // names the step that unblocks it; without these entries the generic 23514
+  // fallback would replace all four with "some of the values entered are not
+  // valid", which says nothing about the maintenance link.
+  [
+    /already attached to another maintenance record/i,
+    'This cost is already attached to another maintenance record. Unlink it there first, then attach it to the other one.',
+    'conflict',
+  ],
+  [
+    /attached to maintenance has to stay a vehicle cost/i,
+    'This cost is attached to a maintenance record, so it has to stay a vehicle cost. Unlink it from the maintenance record first, then change how it is allocated.',
+    'conflict',
+  ],
+  [
+    /attached to maintenance has to stay on the vehicle that was worked on/i,
+    'This cost is attached to a maintenance record, so it has to stay on the vehicle that was worked on. Unlink it from the maintenance record first, then move it.',
+    'conflict',
+  ],
+  [
+    /maintenance was cancelled, so no new costs/i,
+    'That maintenance was cancelled, so no new costs can be attached to it.',
+    'conflict',
+  ],
+
+  // A return is recorded once. Repeating the check-in with different readings
+  // is refused rather than silently overwriting the first return.
+  [
+    /this rental has already been returned/i,
+    'This rental has already been returned. Refresh the page to see the recorded return.',
+    'conflict',
+  ],
 ]
 
 /**

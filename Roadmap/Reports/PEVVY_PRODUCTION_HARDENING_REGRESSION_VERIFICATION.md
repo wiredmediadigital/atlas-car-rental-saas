@@ -300,3 +300,89 @@ it.
 - **The concurrency evidence is from a container**, not from hosted staging. That is the
   right place for it — it needs destructive, racing writes — but it is not a statement
   about the hosted database's configuration.
+
+---
+
+## 7. Re-verified after the final corrections — 2026-11-27
+
+The 4,234-test result above is **not** evidence for the code changed by the final
+corrections, and is not offered as such. The whole chain was re-run.
+
+| Step | Result |
+|---|---|
+| Formatting (`prettier --check`) | **clean** |
+| Lint (`eslint .`) | **14 problems (0 errors, 14 warnings)** — unchanged, and no unrelated lint refactoring was done |
+| Type checking (`tsc -b --noEmit`) | **clean** |
+| Tests (`--maxWorkers=4`) | **205 files, 4,292 tests, all passed** |
+| Every-file-ran check | **"Test-file check: all 205 test files ran."** |
+| **Chain exit code** | **0** |
+
+Two test files and 58 tests more than the run above:
+
+| File | Tests | Why |
+|---|---|---|
+| `supabase/tests/maintenance-expense-integrity.test.ts` | 9 | **new** — `20261128130000` had shipped with no coverage at all |
+| `src/pages/selection-defaults.test.ts` | 17 | **new** — the defaulting rule behind the three react-hooks corrections |
+| `supabase/tests/rental-lifecycle-integrity.test.ts` | +8 | a return is recorded once |
+| `supabase/tests/rental-pricing-amendments.test.ts` | +11 | revision interaction, deterministic evidence, historical NULL rows |
+| `supabase/tests/billing-restricted-access.test.ts` | +7 | the six `incident_update` conditions |
+| `src/lib/supabase/errors.test.ts` | +6 | the refusals survive the error mapping |
+
+The every-file-ran safeguard is preserved exactly as it was; `--maxWorkers` is not one of
+the runner's narrowing flags, so the check still applies to the full file set on disk.
+
+### The two pages, stated plainly
+
+`RentalNewPage` and `IncidentNewPage` still have **no render-level coverage**. What was
+practical was to lift the rule that actually changed -- "offered until the desk says
+otherwise" -- into `src/pages/selection-defaults.ts` and test it directly, including the
+case that matters: a field the operator **cleared** must stay cleared, and not refill
+itself from the default on the next render. The pages themselves are carried into targeted
+hosted staging acceptance.
+
+### Scenario 4 no longer records a limitation
+
+It asserted one before: both returns committed and the second overwrote the first. That is
+corrected, so the scenario now asserts the business integrity requirement instead -- exactly
+one accepted mutation, the loser refused by name, the surviving record whole, and an
+identical retry mutating nothing. Results in §7.1.
+
+### 7.1 Independent PostgreSQL concurrency — re-run after the corrections
+
+A clean replay from an empty database: container destroyed and recreated, role doubles
+bootstrapped, all **148** migrations replayed in filename order, then the ten scenarios
+driven by genuinely independent sessions. Exit code **0**.
+
+**10 scenarios, 25 of 25 assertions passed, 0 failed.**
+
+Two assertions more than before, both in scenario 4, which now asserts the business
+integrity requirement instead of recording a limitation:
+
+| Assertion | Result | Observed |
+|---|---|---|
+| exactly one return is accepted | PASS | A=refused B=committed |
+| the loser is refused rather than silently overwriting | PASS | *"This rental has already been returned. The return recorded at 2026-11-28 03:15 stands."* |
+| the surviving record is one of the two readings, whole | PASS | `returned_at` set with odometer 31001, fuel 50 |
+| a repeated request is answered idempotently and mutates nothing | PASS | accepted; record unchanged |
+| echoing the stored timestamp back is refused, and still mutates nothing | PASS | refused; record unchanged |
+
+The remaining nine scenarios are unchanged and all still pass.
+
+**The lost update is gone.** Where the earlier run recorded *"both committed; last writer
+wins"*, two independent sessions racing to return one car now produce exactly one accepted
+mutation, and the loser is told why.
+
+### Two harness failures on the way here, recorded rather than hidden
+
+Both were mine, and neither was a product defect:
+
+- **A syntax error.** A newline escape was written literally into a JavaScript string
+  while editing the harness through a shell heredoc, so the whole file failed to parse. The
+  run aborted before any scenario executed. Caught because the log was read rather than the
+  exit code trusted.
+- **An assertion that modelled an unrealistic retry.** The first corrected run gave 23 of
+  24: the retry echoed the **stored** `returned_at` back, and that is refused by 786
+  microseconds, because PostgreSQL keeps microseconds and a JavaScript `Date` keeps
+  milliseconds. The cause was proven against the database rather than guessed, and §5 of
+  the final corrections report records it. The scenario now asserts both outcomes the
+  instruction permits.

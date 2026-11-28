@@ -3,6 +3,7 @@ import { useMemo, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 
 import { paths, rentalDetailPath } from '@/app/routes/paths'
+import { chosenOr } from '@/pages/selection-defaults'
 import {
   Alert,
   Button,
@@ -250,12 +251,9 @@ export function RentalNewPage() {
     endsAt?.toISOString() ?? null,
   )
 
-  const primaryDriver =
-    primaryDriverChoice !== undefined
-      ? primaryDriverChoice
-      : renter && renterAvailabilityQuery.data?.[0]?.available === true
-        ? renter
-        : null
+  const primaryDriver = chosenOr(primaryDriverChoice, () =>
+    renter && renterAvailabilityQuery.data?.[0]?.available === true ? renter : null,
+  )
 
   const selectedDriverIds = useMemo(
     () =>

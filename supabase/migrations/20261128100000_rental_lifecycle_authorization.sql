@@ -275,3 +275,108 @@ create trigger rentals_guard_lifecycle_columns
  * guards refusing the same write is not a bug, and removing a protection to
  * tidy up is how protections get lost.
  */
+
+-- -----------------------------------------------------------------------------
+-- 3. A return is recorded once
+--
+-- THE DEFECT, found by the independent PostgreSQL concurrency verification and
+-- not by any test in the suite: two concurrent rental_check_in calls BOTH
+-- commit, and the second silently overwrites the first one's readings.
+--
+-- The row lock was never the problem. `select ... for update` serialises the
+-- two calls correctly, so the second runs on the committed result of the first
+-- and there is no torn state. The problem is what the second call then finds
+-- acceptable. rental_check_in guards on `status <> 'active'`, and recording a
+-- return does NOT change the status -- rental_complete does. So a rental that
+-- has already been returned is still 'active', still passes the guard, and is
+-- returned a second time: a new returned_at, a new odometer, a new fuel
+-- reading, a second vehicle odometer write, a second assignment release
+-- attempt and a second inspection record.
+--
+-- THE CORRECTION. Under the lock the function already holds, a rental that
+-- carries a returned_at is refused a different return, and an identical retry
+-- is answered from the existing row WITHOUT mutating anything -- no second
+-- odometer write, no second assignment transition, no second inspection
+-- record, no duplicate operational or financial side effect.
+--
+-- WHAT THIS DELIBERATELY DOES NOT DO. It does not add a way to correct a
+-- mis-keyed return. There is no authorized return-correction workflow in Pevvy
+-- today: the return columns are frozen by the trigger above against every
+-- writer that is not the table owner, and no RPC restates them. Letting an
+-- ordinary check-in overwrite a recorded return would be exactly the
+-- undocumented correction mechanism this is closing. That gap is real and is
+-- reported for the owner to decide on; it is not filled here.
+--
+-- The guard is anchored on the billing check inserted by section 1 of THIS
+-- migration, so the anchor is deterministic rather than a guess at the shape of
+-- a body other migrations have rewritten in place. It carries its own
+-- `status = 'active'` condition so that a completed or cancelled rental still
+-- falls through to the existing status refusal and is never answered
+-- idempotently.
+-- -----------------------------------------------------------------------------
+
+do $checkin$
+declare
+  v_oid        oid;
+  v_definition text;
+  v_anchor     text := 'perform app.billing_require_write(v_rental.organization_id);';
+  v_guard      text;
+begin
+  v_guard :=
+    ' if v_rental.status = ''active'' and v_rental.returned_at is not null then' ||
+    '   if p_odometer is not distinct from v_rental.return_odometer' ||
+    '      and p_fuel_percent is not distinct from v_rental.return_fuel_percent' ||
+    '      and p_notes is not distinct from v_rental.return_condition_notes' ||
+    '      and (p_returned_at is null or p_returned_at = v_rental.returned_at) then' ||
+    '     return v_rental;' ||
+    '   end if;' ||
+    '   raise exception ''This rental has already been returned. The return recorded at % stands.'',' ||
+    '     to_char(v_rental.returned_at at time zone ''UTC'', ''YYYY-MM-DD HH24:MI'')' ||
+    '     using errcode = ''23514'',' ||
+    '           hint = ''Recording the return again does not change it. A recorded return is final in Pevvy today.'';' ||
+    ' end if;';
+
+  select p.oid into v_oid
+    from pg_proc p
+    join pg_namespace n on n.oid = p.pronamespace
+   where n.nspname = 'public' and p.proname = 'rental_check_in';
+
+  if v_oid is null then
+    raise exception 'Return-once guard: public.rental_check_in does not exist.';
+  end if;
+
+  v_definition := pg_get_functiondef(v_oid);
+
+  if position(v_anchor in v_definition) = 0 then
+    raise exception
+      'Return-once guard: the billing check inserted by section 1 is not in public.rental_check_in. The guard was NOT inserted.';
+  end if;
+
+  execute replace(v_definition, v_anchor, v_anchor || v_guard);
+end;
+$checkin$;
+
+/*
+ * And the catalog is asked whether it worked, for the same reason section 1
+ * asks: a replace that does not match recreates the function unchanged, and a
+ * function that looks guarded while carrying no guard is worse than one that
+ * was never converted.
+ */
+do $verify_checkin$
+declare
+  v_definition text;
+begin
+  select pg_get_functiondef(p.oid) into v_definition
+    from pg_proc p
+    join pg_namespace n on n.oid = p.pronamespace
+   where n.nspname = 'public' and p.proname = 'rental_check_in';
+
+  if position('v_rental.returned_at is not null' in v_definition) = 0 then
+    raise exception 'Return-once guard: public.rental_check_in came out without it.';
+  end if;
+
+  if position('return v_rental;' in v_definition) = 0 then
+    raise exception 'Return-once guard: the idempotent retry path is missing from public.rental_check_in.';
+  end if;
+end;
+$verify_checkin$;

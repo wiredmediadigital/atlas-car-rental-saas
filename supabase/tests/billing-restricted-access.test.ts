@@ -991,6 +991,172 @@ describe('the billing authorization matrix', () => {
     })
   })
 
+  /*
+   * The owner accepted incident_update's documented limitation -- that it also
+   * carries ordinary incident documentation -- on six explicit conditions.
+   * Each one is driven here rather than argued from the function source,
+   * because an exemption nobody exercises is an exemption nobody has checked.
+   */
+  describe('and the accepted incident_update limitation stays inside its bounds', () => {
+    async function anIncident(): Promise<string> {
+      const [row] = await db.asUser(cast.owner, (session) =>
+        session.sql<{ id: string }>(
+          `select id from public.incident_create($1, $2, null, 'vehicle_damage', now(), null, 'Scratch')`,
+          [cast.organizationId, vehicle],
+        ),
+      )
+      return row!.id
+    }
+
+    const updateWith = (userId: string, incidentId: string, status: string, claim = 'CLM-1') =>
+      db.asUser(userId, (session) =>
+        session.sql(
+          `select public.incident_update($1, 'vehicle_damage', now(), 'Depot', 'Scratch',
+                                         'undetermined', null, null, 'Insurer', $2, $3::public.incident_status)`,
+          [incidentId, claim, status],
+        ),
+      )
+
+    it('1. cannot resolve or close an incident through any status it accepts', async () => {
+      const incident = await anIncident()
+
+      // 'resolved' is refused explicitly. The enum holds nothing else that
+      // closes an incident, so there is no second door to try.
+      await db.expectRejection(
+        () => updateWith(cast.owner, incident, 'resolved'),
+        /use incident_resolve/i,
+      )
+
+      const [labels] = await db.sql<{ statuses: string }>(
+        `select string_agg(e.enumlabel, ',' order by e.enumsortorder) as statuses
+           from pg_enum e join pg_type t on t.oid = e.enumtypid
+          where t.typname = 'incident_status'`,
+      )
+      expect(labels!.statuses).toBe('open,in_progress,resolved')
+
+      const [row] = await db.sql<{ status: string; resolved_at: Date | null }>(
+        `select status, resolved_at from public.incidents where id = $1`,
+        [incident],
+      )
+      expect(row!.status).toBe('open')
+      expect(row!.resolved_at).toBeNull()
+    })
+
+    it('2. cannot remove a vehicle safety restriction', async () => {
+      const incident = await anIncident()
+      await db.asUser(cast.owner, (session) =>
+        session.sql(`select public.vehicle_take_off_road($1, 'Damaged')`, [vehicle]),
+      )
+      const statusBefore = await vehicleStatus()
+
+      await updateWith(cast.owner, incident, 'in_progress')
+
+      expect(await vehicleStatus()).toBe(statusBefore)
+    })
+
+    it('3. cannot return a vehicle to service', async () => {
+      const incident = await anIncident()
+      await db.asUser(cast.owner, (session) =>
+        session.sql(`select public.vehicle_take_off_road($1, 'Damaged')`, [vehicle]),
+      )
+
+      await updateWith(cast.owner, incident, 'in_progress')
+
+      // Still off the road, and the gated route back is still gated.
+      expect(await vehicleStatus()).not.toBe('available')
+      await db.expectRejection(
+        () =>
+          db.asUser(cast.owner, (session) =>
+            session.sql(`select public.vehicle_return_to_service($1)`, [vehicle]),
+          ),
+        /no active subscription|read-only/i,
+      )
+    })
+
+    it('4. cannot mutate a financial record', async () => {
+      const incident = await anIncident()
+      const [before] = await db.sql<{ expenses: number; items: number; payments: number }>(
+        `select (select count(*) from public.expenses where organization_id = $1) as expenses,
+                (select count(*) from public.rental_line_items where organization_id = $1) as items,
+                (select count(*) from public.payments where organization_id = $1) as payments`,
+        [cast.organizationId],
+      )
+
+      await updateWith(cast.owner, incident, 'in_progress')
+
+      const [after] = await db.sql<{ expenses: number; items: number; payments: number }>(
+        `select (select count(*) from public.expenses where organization_id = $1) as expenses,
+                (select count(*) from public.rental_line_items where organization_id = $1) as items,
+                (select count(*) from public.payments where organization_id = $1) as payments`,
+        [cast.organizationId],
+      )
+      expect(after).toEqual(before)
+    })
+
+    it('5. cannot change the tenant or the vehicle an incident belongs to', async () => {
+      const incident = await anIncident()
+      const [before] = await db.sql<{
+        organization_id: string
+        vehicle_id: string | null
+        rental_id: string | null
+        customer_id: string | null
+      }>(
+        `select organization_id, vehicle_id, rental_id, customer_id
+           from public.incidents where id = $1`,
+        [incident],
+      )
+
+      await updateWith(cast.owner, incident, 'in_progress')
+
+      const [after] = await db.sql<{
+        organization_id: string
+        vehicle_id: string | null
+        rental_id: string | null
+        customer_id: string | null
+      }>(
+        `select organization_id, vehicle_id, rental_id, customer_id
+           from public.incidents where id = $1`,
+        [incident],
+      )
+      // None of these is a parameter of incident_update, and this is the
+      // assertion that keeps it that way if somebody adds one.
+      expect(after).toEqual(before)
+    })
+
+    it('6. does not bypass the role ladder or reach another agency', async () => {
+      const incident = await anIncident()
+
+      // A member of another agency is told the incident does not exist rather
+      // than that it is not theirs.
+      await db.expectRejection(
+        () => updateWith(cast.outsider, incident, 'in_progress'),
+        /incident not found/i,
+      )
+
+      // And a staff member of this agency, who is allowed to document, still
+      // cannot reach the resolve path through it.
+      await db.expectRejection(
+        () => updateWith(cast.staff, incident, 'resolved'),
+        /use incident_resolve/i,
+      )
+    })
+
+    it('and vehicle_take_off_road stays exempt, as the owner required', async () => {
+      await db.asUser(cast.owner, (session) =>
+        session.sql(`select public.vehicle_take_off_road($1, 'Brake failure')`, [vehicle]),
+      )
+      expect(await vehicleStatus()).not.toBe('available')
+    })
+
+    async function vehicleStatus(): Promise<string> {
+      const [row] = await db.sql<{ status: string }>(
+        `select status from public.vehicles where id = $1`,
+        [vehicle],
+      )
+      return row!.status
+    }
+  })
+
   describe('and the exemptions do not become a role bypass', () => {
     it('still refuses a staff member the manager-only maintenance create', async () => {
       await db.expectRejection(
