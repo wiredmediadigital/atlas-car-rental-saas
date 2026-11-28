@@ -9,39 +9,95 @@ verification repeated after hardening.
 
 ## 1. The verify chain
 
+Run as five explicit steps — `format:check`, `lint`, `typecheck`, `test`, `build` — which
+is what `npm run verify` chains, with the test step at `--maxWorkers=4` for the reason in
+§2.
+
 | Step | Result |
 |---|---|
+| Formatting (`prettier --check`) | **clean** — "All matched files use Prettier code style!" |
+| Lint (`eslint .`) | **14 problems (0 errors, 14 warnings)** — see §4 |
 | Type checking (`tsc -b --noEmit`) | **clean** |
-| Lint (`eslint .`) | **0 errors**, 14 warnings — see §4 |
-| Formatting (`prettier --check`) | **clean** |
-| Frontend tests | included in the suite below |
-| Database tests | included in the suite below |
-| Security tests | included in the suite below |
-| Guarded staging build | **199 files**, SHA-256 `be240a5b44a0af9c8c9e4e6c1fe8d018a46f7db59979f3e08e560d736c24e228` |
+| Tests (`node scripts/run-tests.mjs`) | **203 files, 4,234 tests, all passed**; "all 203 test files ran" |
+| Guarded staging build | **blocked in this run for want of credentials — see below**; the verified artifact stands: 199 files, SHA-256 `be240a5b44a0af9c8c9e4e6c1fe8d018a46f7db59979f3e08e560d736c24e228` |
 
 Nothing was suppressed, skipped or marked as expected-to-fail.
+
+**The build step, stated exactly.** The chain's final step exited **1** with
+*"Staging build blocked: approved-staging-url-required, browser-publishable-key-required"*.
+That is `scripts/staging-build-guard.mjs` refusing to build without the staging URL and a
+`sb_publishable_` browser key **in the process environment** — staging Vite mode reads no
+`.env` file. It is a missing credential in the shell, not a defect in the code or the
+configuration.
+
+The guarded artifact was nevertheless produced earlier in this work, and it is still the
+artifact for this code: `dist-staging/staging-build-manifest.json` records project ref
+`yeklucfthspvejlkffln`, 199 files and SHA-256
+`be240a5b44a0af9c8c9e4e6c1fe8d018a46f7db59979f3e08e560d736c24e228`, and **no build input —
+nothing under `src/`, nor `index.html`, `vite.config.ts`, `tsconfig*.json` or
+`package.json` — is newer than that manifest.** `tsc -b` passed in this run over the same
+sources.
+
+**What is therefore not claimed:** that the full five-step chain exited 0 in a single
+invocation. It did not. Four of five steps passed; the fifth is credential-blocked and its
+output is independently verified above.
+
+The only browser credentials on this machine point at **production**
+(`ysnumxtzcgzyabrghxwq`), which the guard rejects outright as
+`production-reference-in-browser-config`. They were not used, and no staging credential was
+fetched to force the step through.
 
 ---
 
 ## 2. Full suite
 
-### A run that was discarded, and why
+### Two runs that were discarded, and the explanation that was wrong
 
-The first attempt at a definitive run reported **192 files and 3,990 tests, all passing —
-with exit code 1**. That is not a pass. `npm run test` wraps vitest in a check that every
-test file on disk actually ran, precisely because *"vitest exits 0 when a worker fails to
-start and its test file never runs"*.
+**First run.** It reported **192 files and 3,990 tests, all passing — with exit code 1**.
+That is not a pass. `npm run test` wraps vitest in a check that every test file on disk
+actually ran, precisely because *"vitest exits 0 when a worker fails to start and its test
+file never runs"*. Eleven workers timed out starting, so **ten test files never executed**.
 
-Eleven workers timed out starting, so **ten test files never executed**. The cause was
-mine: the Docker-based concurrency verification was replaying 148 migrations on the same
-machine at the same time, and the two starved each other. The run is discarded rather
-than reported, and the suite was re-run on its own.
+I attributed that to the Docker-based concurrency verification replaying 148 migrations on
+the same machine at the same time, and wrote here that the two had starved each other.
 
-This is worth recording because the failure mode is a green summary. Without that
-every-file-ran check the first run would have read as a clean pass over a suite that had
-silently skipped ten files.
+**Second run, with nothing competing.** 190 files, 3,948 tests, and **13 files that never
+ran** — every one of them a frontend `.test.tsx`, each failing with
+`[vitest-pool]: Failed to start forks worker … Timeout waiting for worker to respond`.
+Chain exit code **1**.
+
+**So the Docker explanation was wrong**, and it is corrected rather than quietly dropped.
+The container made it worse; it did not cause it. The cause is the fork pool's worker
+startup timeout on a suite where most workers boot a WASM PostgreSQL and replay 148
+migrations: at default concurrency (11 forks on 12 CPUs) the heavy workers hold the
+machine long enough that new forks miss their startup window. The database files are not
+the casualties — the light frontend files are, because they are scheduled last.
+
+**What was changed to get a valid run, and what was not.** The run was repeated with
+`--maxWorkers=4`. That lowers concurrency and nothing else: the same **203** files, the
+same assertions, and — because `--maxWorkers` is not one of the runner's narrowing
+flags — **the every-file-ran check still applies**. No file was excluded, no test was
+skipped, no timeout was raised, no assertion was relaxed.
+
+This is worth recording because the failure mode is a green summary. Both discarded runs
+printed "all passing". Without the every-file-ran check the first would have read as a
+clean pass over a suite that had silently skipped ten files, and I would have reported it
+as one.
 
 ### The run that counts
+
+Third run, `--maxWorkers=4`, nothing competing:
+
+| | |
+|---|---|
+| Test files | **203 passed (203)** |
+| Tests | **4,234 passed (4,234)** |
+| Errors | **0** |
+| Every-file-ran check | **"Test-file check: all 203 test files ran."** |
+| Duration | 623.51s |
+
+Zero unhandled errors, zero worker-start failures, and the guard's own statement that the
+file set on disk and the file set that ran are the same. This is the run reported.
 
 ### The four historical baseline failures are gone
 
@@ -51,6 +107,20 @@ silently skipped ten files.
 | `assignment-lifecycle-operations` — repeated active swaps | **replaced** with withdrawal security coverage: every browser role refused, no role holds EXECUTE, earlier history still readable |
 | `assignment-lifecycle-operations` — fails closed for unauthorized swaps | **replaced** likewise. It had always failed closed; only the matcher disagreed |
 | `billing-restricted-access` — ungated SECURITY DEFINER write path | **passes.** The bypass was fixed, not the test |
+
+Observed in the reported run, each file green:
+
+| File | Tests |
+|---|---|
+| `billing-restricted-access` | 57 |
+| `rental-pricing-amendments` | 41 |
+| `rental-lifecycle-integrity` | 36 |
+| `maintenance-acceptance` | 22 |
+| `analytics-security` | 13 |
+| `assignment-feature-activation` | 5 |
+| `assignment-lifecycle-operations` | 4 |
+| `assignment-lifecycle-integration` | 3 |
+| `assignment-gate-wording` | 3 |
 
 ### Tests that had to change, and why
 
@@ -87,17 +157,85 @@ Synchronisation is a **barrier, not a sleep**: both sessions open their transact
 reach the contended statement before either is released. **Hosted staging was not used**,
 so there is no QA residue and no tenant record at risk.
 
-Results are in §3.1.
+### 3.1 Results — the run that counts
 
-### What the two earlier anomalies turned out to be
+A **clean replay from an empty database**: the container destroyed and recreated, the
+Supabase role doubles bootstrapped, all **148** migrations replayed in filename order, then
+the ten scenarios driven by independent sessions. Exit code **0**.
 
-The first run reported 20 of 22. Both are recorded here rather than quietly re-run:
+**10 scenarios, 23 of 23 assertions passed, 0 failed.**
 
-- **Scenario 10 was my own fixture's fault.** It confirmed and checked out the rental as
-  the superuser. `app.assignment_lifecycle_active` asks `app.is_org_member` first, and a
+Each assertion is reported on its own, as §9 requires.
+
+| # | Scenario | Assertion | Result | Observed |
+|---|---|---|---|---|
+| 1 | Concurrent vehicle reservation | exactly one of the two overlapping hires is reserved | PASS | A=committed B=refused; reserved=1 |
+| 1 | | the loser is refused rather than silently dropped | PASS | `conflicting key value violates exclusion constraint "rentals_no_vehicle_overlap"` |
+| 2 | Concurrent driver reservation | the same driver is not committed to two overlapping hires at once | PASS | A=committed B=refused; reserved=1 |
+| 2 | | and the refusal names the conflict | PASS | *"Driver availability conflict: SharedDriver C is already assigned on rental RNT-2026-00003"* |
+| 3 | Concurrent checkout of one rental | only one checkout commits | PASS | A=committed B=refused |
+| 3 | | the rental is active with exactly one odometer reading | PASS | status=active odometer=20000 |
+| 4 | Concurrent return of one rental | the returns serialise and leave one coherent record | PASS | A=committed B=committed; one `returned_at`, odometer=31000 |
+| 4 | | no partial return survives (status and reading agree) | PASS | `returned_at` set with odometer 31000 |
+| 4 | | **NOTE** — a second return overwrites the first rather than being refused | PASS | both committed; last writer wins. **Recorded as a limitation, not corrected.** See §5 |
+| 5 | Concurrent charge reversal | exactly one reversal exists | PASS | 1 reversal; A=refused B=committed |
+| 5 | | the second is refused, not silently dropped | PASS | `duplicate key value violates unique constraint "rental_line_items_one_reversal"` |
+| 6 | Concurrent rental repricing | both sessions complete | PASS | A=committed B=committed |
+| 6 | | no record of nothing is filed | PASS | 1 amendment: 100→15000 @ revision 1 |
+| 6 | | the last recorded amount equals the live hire | PASS | recorded 15000, live 15000 |
+| 7 | Concurrent rental extension | amendments match commits exactly | PASS | 2 amendments for 2 commits |
+| 7 | | `extension_count` matches commits | PASS | extension_count=2 |
+| 8 | Concurrent amendment evidence | the unrecorded restatement is refused | PASS | deadlock detected |
+| 8 | | the hire is not 77777 | PASS | live=15000 |
+| 9 | Concurrent maintenance restriction | the vehicle is not both reserved and in the workshop | PASS | rental=draft; maintenance=committed |
+| 10 | Legacy assignment drainage | the car was genuinely out with an open assignment | PASS | 1 open before |
+| 10 | | it can still be returned after activation is switched off | PASS | returned and completed |
+| 10 | | no assignment is left stranded | PASS | 0 open after |
+| 10 | | the vehicle is available again afterwards | PASS | confirmed |
+
+**Scenarios 6 and 7 are races, so their counts vary between runs and the assertion is the
+invariant, not the number.** Scenario 7 recorded 1 amendment for 1 commit on one run and 2
+for 2 on another; what is asserted is that the two agree. Scenario 8's refusal arrives as a
+deadlock rather than as the evidence error — the evidence requirement is still what makes
+the restatement impossible, and either way the 77777 never lands.
+
+### What the earlier anomalies turned out to be
+
+Earlier runs reported 20 of 22 and then 21 of 23. Every discrepancy is recorded here
+rather than quietly re-run.
+
+- **Scenario 10 was my own fixture's fault, three times over**, and the migration it
+  appeared to indict was correct each time.
+
+  *First:* `app.assignment_lifecycle_active` asks `app.is_org_member` first, and a
   superuser session carries no membership — so no assignment was ever opened and the
-  drainage assertions passed **vacuously**. Corrected to drive the fixture as the owner,
-  which is the only way the scenario tests anything.
+  drainage assertions passed **vacuously**.
+
+  *Second:* driving the fixture as the owner did not work either, and the reason is worth
+  writing down: **`SET LOCAL ROLE` is a no-op outside a transaction block.** The helper
+  that switches to the signed-in role used `set local`, which is correct inside the
+  competing transactions but silently does nothing when called on its own — leaving the
+  session as the superuser and the gate false. The helper now opens its own transaction
+  when the caller has not.
+
+  *Third:* with the scenario finally testing for real, it failed — `rental_check_in`
+  raising *"Assignment not found."* and leaving one assignment open. That reads exactly
+  like a drainage defect, and it is not one. The check-out had been moved to the owner
+  session; the **return had been left on the superuser session**, and
+  `app.transition_rental_assignment` ends with
+  `has_min_role(v_assignment.organization_id, 'staff')` before it will move any row. A
+  session with no membership cannot release an assignment whatever the activation state
+  says.
+
+  This was established by running the identical call both ways against the stranded row
+  rather than by reading the code: as the superuser it raised *"Assignment not found."*
+  from that role check; as the owner it returned the rental and left **0** open
+  assignments. The fixture now drives the return as the owner, as the check-out already
+  did.
+
+  Three times in one scenario, the same shape: **a harness that silently fails to assume a
+  role turns a security test into a test of nothing** — and, once it stops failing
+  silently, into a false accusation against the code.
 - **Scenario 4 is a real property of the system**, not a test defect, and it is reported
   rather than asserted away. See §5.
 
