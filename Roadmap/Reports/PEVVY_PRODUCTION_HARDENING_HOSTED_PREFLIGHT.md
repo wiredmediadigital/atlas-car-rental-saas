@@ -244,3 +244,53 @@ in full rather than summarise.
 - **It says nothing about hosted PostgREST, Edge Functions or auth configuration.**
 - **No write of any kind was attempted**, so nothing here demonstrates that the migrations will
   apply cleanly — only that the preconditions they depend on hold.
+
+---
+
+## 9. Re-read immediately before authorization — 2026-11-28 02:5x UTC
+
+Repeated in full, read-only, as the instruction requires. **The baseline has moved, and
+the change is reported rather than absorbed.**
+
+| Item | First read (21:08) | Re-read | Change |
+|---|---|---|---|
+| Hosted ledger | 143 | **143** | none |
+| PostgreSQL | 17.12 | **17.12** | none |
+| Amendment rows | 2 | **3** | **+1** |
+| Rentals carrying amendments | 1 (`RNT-2026-00004`) | **1** (same) | none |
+| `RNT-2026-00004` total | 23,520 | **35,280** | **+11,760** |
+| Last recorded amendment | 19,600 | **29,400** | **+9,800** |
+| History agrees with live hire | yes | **yes** | none |
+| `line_revision_no` column | absent | **absent** | none |
+| Assignments, total | 14 | **14** | none |
+| Open assignments | 2 | **2** (same two ids) | none |
+| Assignments the migration releases | 0 | **0** | none |
+| Explicit activation rows | 0 | **0** | none |
+| Maintenance expense links | 2 | **2** | none |
+| Maintenance expense anomalies | 0 | **0** | none |
+| Payments | 8 | **9** | **+1** |
+
+### What changed, and what it means
+
+**Continued owner acceptance activity on `RNT-2026-00004`**: one further pricing amendment
+at 2026-11-28 02:09:06 UTC and one further payment. Nothing else on the project moved.
+
+This is benign, and it is mildly reassuring: the amendment path is being exercised on
+hosted staging and **the recorded history still agrees with the live hire** — last recorded
+29,400, live hire 29,400.
+
+### What it changes about the authorization
+
+**Nothing material, and one number.**
+
+- `20261128120000` will now set `line_revision_no = NULL` on **three** rows rather than two.
+  The three properties proven by test hold for three rows exactly as for two: readable, not
+  colliding with each other, and unable to satisfy evidence for a future restatement.
+- The drainage figure is unchanged: **zero rows released**. Both open assignments are still
+  the same two ids, still on a draft and an active rental.
+- Anomalies: still **zero**.
+
+**If further acceptance happens before the migrations are applied, the amendment count will
+move again.** That is expected and harmless. The figures that must not move are the drainage
+count and the anomaly count, and the application notices should be checked against **0** and
+**0** whatever the amendment total is by then.

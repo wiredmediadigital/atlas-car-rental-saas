@@ -313,3 +313,31 @@ has not been accessed.
       defaulting rule they share is now extracted and tested; the pages are not.
 
 **Production remains NO-GO.**
+
+---
+
+## Final build and migration authorization (added 2026-11-28)
+
+- [x] **Fresh guarded staging build** — exit 0, commit `a1728a9`, project
+      `yeklucfthspvejlkffln`, **200 files**, SHA-256
+      `e0261061734798d077423da9c2b4a200ec7eb672767e00294d20ae8998b7d352`.
+      The stale `be240a5b…` artifact was **not** reused.
+- [x] **Artifact production-reference scan** — zero.
+- [x] **Artifact secret-exposure scan** — zero. The bare `sb_secret_` string in two bundles
+      is Pevvy's own guard code, not a credential; verified occurrence by occurrence.
+- [x] **Preflight re-read immediately before authorization.**
+- [x] **Dry run re-run** — five migrations, no seeds, no roles, exit 0.
+- [x] **Return correction limitation registered** as a WP9 candidate requirement.
+- [ ] **AWAITING OWNER AUTHORIZATION to apply the five migrations.** Nothing applied.
+- [ ] **Baseline moved during this execution**: amendment records on `RNT-2026-00004` went
+      from 2 to 3, and payments from 8 to 9, through continued acceptance activity. Harmless
+      — the history still agrees with the live hire — but the amendment count will keep
+      moving while acceptance continues. **Drainage must stay 0 and anomalies must stay 0.**
+- [ ] `origin/staging` unchanged at `5634555`; nothing pushed, nothing deployed.
+
+**Operational limitation, carried forward:** a mis-keyed return reading on a committed
+rental has **no route to correction**. Candidate requirement under **WP9 — Rental
+Exceptions**: Manager-authorized, auditable correction of incorrectly entered return
+information. A candidate, not a commitment.
+
+**Production remains NO-GO.**

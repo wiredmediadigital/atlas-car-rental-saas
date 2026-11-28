@@ -297,3 +297,17 @@ email templates and delivery history.
 Work Package 5 cannot sensibly begin until the five hardening migrations are applied to
 staging and verified: it builds on rental financial structures that currently exist only in
 a local replay.
+
+## WP9 candidate requirement recorded — 2026-11-28
+
+**Manager-authorized, auditable correction of incorrectly entered return information.**
+
+Closing the duplicate check-in removed the only informal way to fix a mis-keyed return
+reading, and no replacement was built during hardening — deliberately, since inventing a
+correction subsystem was out of scope. The owner has recorded the need as a **candidate
+requirement under WP9 — Rental Exceptions**.
+
+It should be designed against the amendment architecture that already exists for pricing
+rather than beside it: a recorded, attributed restatement, not an overwrite.
+
+**Candidate, not a commitment. WP9 has not begun.**

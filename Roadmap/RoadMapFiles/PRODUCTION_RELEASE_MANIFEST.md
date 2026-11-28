@@ -350,3 +350,24 @@ Everything listed under the Incident Management entry above, unchanged, plus:
 - Production project `ysnumxtzcgzyabrghxwq`: **not accessed, not connected to, not named in
   any query**. The only local browser credentials point at production and were not used.
 - Production release: **NO-GO.**
+
+## Fresh staging artifact — 2026-11-28
+
+| | |
+|---|---|
+| Source commit | `a1728a9d5f602f1788d1f6a9612069bddc55f61c` |
+| Project reference | `yeklucfthspvejlkffln` |
+| Files | **200** |
+| Manifest SHA-256 | `e0261061734798d077423da9c2b4a200ec7eb672767e00294d20ae8998b7d352` |
+| Build exit code | **0** |
+| Production references | **zero** |
+| Embedded private credentials | **zero** |
+
+Supersedes `be240a5b44a0af9c8c9e4e6c1fe8d018a46f7db59979f3e08e560d736c24e228`, which is
+stale and must not be used.
+
+The browser publishable key was supplied by the owner, loaded inside the build process, and
+is **not recorded anywhere in this repository**.
+
+**Five migrations still unapplied. Awaiting explicit owner authorization. Nothing deployed.
+Production NO-GO.**

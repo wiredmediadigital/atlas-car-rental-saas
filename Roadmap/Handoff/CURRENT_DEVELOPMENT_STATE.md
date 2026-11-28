@@ -96,3 +96,21 @@ Two open decisions for the owner:
 
 Still true: production not accessed, `origin/main` 31383a9, `origin/staging` 5634555,
 nothing pushed, nothing deployed, Work Package 5 not begun.
+
+## 2026-11-28 — build verified, awaiting migration authorization
+
+The guarded staging build is **fresh and clean**: commit `a1728a9`, 200 files, SHA-256
+`e0261061…`, exit 0, zero production references, zero embedded credentials. The earlier
+`be240a5b…` artifact is stale and must not be used.
+
+**The five migrations are still unapplied and require explicit owner authorization.** Use
+the checksums in `Reports/PEVVY_PRODUCTION_HARDENING_FINAL_DEPLOYMENT_CLOSURE.md` §3 and no
+earlier list.
+
+**The hosted baseline moves while acceptance continues.** Amendment records on
+`RNT-2026-00004` went 2 → 3 and payments 8 → 9 during this execution. Harmless: the recorded
+history still agrees with the live hire. Re-read before applying, and check the two numbers
+that must not move — drainage **0** and anomalies **0**.
+
+Unchanged: `origin/main` 31383a9, `origin/staging` 5634555, nothing pushed, nothing
+deployed, production not accessed, WP5 not begun.
